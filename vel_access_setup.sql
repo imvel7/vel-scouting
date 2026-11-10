@@ -11,16 +11,16 @@ grant usage on schema private to authenticated;
 
 -- If an older installation has the helpers in public, move them without
 -- breaking policy dependencies (PostgreSQL tracks function OIDs).
-do $
+do $vel$
 begin
-  if to_regprocedure('private.is_vel_staff()') is not null then
-    execute 'alter function private.is_vel_staff() set schema private';
+  if to_regprocedure('public.is_vel_staff()') is not null then
+    execute 'alter function public.is_vel_staff() set schema private';
   end if;
-  if to_regprocedure('private.is_vel_admin()') is not null then
-    execute 'alter function private.is_vel_admin() set schema private';
+  if to_regprocedure('public.is_vel_admin()') is not null then
+    execute 'alter function public.is_vel_admin() set schema private';
   end if;
 end;
-$;
+$vel$;
 
 create table if not exists public.user_roles (
   user_id uuid primary key references auth.users(id) on delete cascade,
@@ -70,8 +70,8 @@ as $$
   );
 $$;
 
-revoke all on function private.is_vel_staff() from public;
-revoke all on function private.is_vel_admin() from public;
+revoke all on function private.is_vel_staff() from public, anon;
+revoke all on function private.is_vel_admin() from public, anon;
 grant execute on function private.is_vel_staff() to authenticated;
 grant execute on function private.is_vel_admin() to authenticated;
 
