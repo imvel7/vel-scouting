@@ -18,7 +18,7 @@ Mevcut durumda:
 - Gözlem oyuncu-maç katılımına bağlı; fakat bir değerlendiriciye veya değerlendirme oturumuna bağlı değil.
 - Gözlemde dakika alanı var; saniye hassasiyetinde video konumu ve maç saati ayrı tutulmuyor.
 - Kriter adı serbest metin; sürümlenmiş kriter kataloğu ve kriter puanlama kaydı bulunmuyor.
-- Gözlemde pozitif/negatif/belirsiz değerlendirmesi var; 1–6 puan bandı, N/E ve N/A ayrımı ve ağırlıklı kriter hesabı ayrı bir yapıda tutulmuyor.
+- Gözlemde pozitif/negatif/belirsiz değerlendirmesi var; 1–10 puan bandı, N/E ve N/A ayrımı ve ağırlıklı kriter hesabı ayrı bir yapıda tutulmuyor.
 - Scout raporu bir futbolcuya bağlı; raporu hangi maç oturumlarının ve kriter kanıtlarının desteklediği ilişkisel olarak kayıtlı değil.
 - Video erişim/hak bilgisi tek bir güncel satırda tutuluyor; ülkeye göre erişim testi geçmişi bulunmuyor.
 - Admin arayüzü henüz maç, oyuncu-maç, video ve gözlem tablolarını kullanmıyor. Kamu sayfasında da video alanı sorgulanmıyor.
@@ -70,7 +70,7 @@ Ayrıca `player_matches` için futbolcu+maç tekilliği; `report_versions` için
 | Bir değerlendirme oturumu | Yok | Değerlendirici, metodoloji sürümü, durum ve oturum geçmişi kayıtlı değil | Kritik |
 | Video zamanına hassas gözlem | `observations.minute` | Yalnızca tam dakika; video konumu, maç saati ve devre ayrımı yok | Kritik |
 | Sabit ve sürümlenmiş kriter kataloğu | `observations.category/criterion` metni | Yazım farklılıkları, kriter tanımı/ağırlığı/sürümü üzerinde merkezi kontrol yok | Kritik |
-| Kriter başına 1–6 puan | Yok | Gözlem duygusu ile puan birbirine karışabilir; puan çıpaları veritabanında izlenmiyor | Kritik |
+| Kriter başına 1–10 puan | Yok | Gözlem duygusu ile puan birbirine karışabilir; puan çıpaları veritabanında izlenmiyor | Kritik |
 | N/E ve N/A ayrımı | Yok | Gözlenemeyen kriter ile uygulanamaz kriter ayrıştırılamıyor | Kritik |
 | Bir kritere birden fazla olay kanıtı | Gözlem satırları kısmen karşılıyor | Olayların tek kriter puanına ve aynı oturuma bağlanması yok | Yüksek |
 | Çok maçlı rapor kanıtı | Rapor yalnızca futbolcuya bağlı | Raporu destekleyen oturumlar ayrı ilişkiyle gösterilemiyor | Yüksek |
@@ -134,7 +134,7 @@ Her kriter, ait olduğu metodoloji sürümünden bağımsız olmayan bir kayıt 
 - `criterion_name`
 - `definition`
 - `weight`
-- `score_anchors` JSONB — 1–6 puan bantlarının davranışsal tanımları
+- `score_anchors` JSONB — 1–10 puan bantlarının davranışsal tanımları
 - `sort_order`
 
 Tekillik: `rubric_version_id + criterion_code`.
@@ -143,19 +143,19 @@ Puan çıpaları yalnızca etiketten ibaret olmamalı; her puan seviyesi gözlen
 
 ### 4.5. `criterion_scores` — kriter başına değerlendirme
 
-Bir oturumda bir kriter için tek bir nihai/geçici kriter puanı tutulmalı; olaya dayalı birden fazla gözlem ayrı satırlarda saklanabilmeli.
+Bir oturumda bir kriter için tek bir maç/oturum puanı tutulmalı; olaya dayalı birden fazla gözlem ayrı satırlarda saklanabilmeli. Bu puan tek maçlık nihai oyuncu derecesi değildir; çok maçlı rapor değerlendirmesi ayrıca yapılır.
 
 Önerilen alanlar:
 - `id`
 - `session_id` FK → `scouting_sessions.id`
 - `criterion_id` FK → `rubric_criteria.id`
-- `score` — 1–6 arasında tam sayı; her zaman zorunlu olmayabilir
+- `score` — 1–10 arasında tam sayı; her zaman zorunlu olmayabilir
 - `applicability`: `scored`, `not_observed`, `not_applicable`
 - `rationale` — puanın kısa gerekçesi
 - `created_at`, `updated_at`
 
 Kurallar:
-- `scored` ise puan 1–6 arasında olmalı.
+- `scored` ise puan 1–10 arasında olmalı.
 - `not_observed` veya `not_applicable` ise puan boş kalmalı.
 - N/E ve N/A hiçbir zaman 0 puan gibi hesaplanmamalı.
 - Her oturum + kriter için en fazla bir puan kaydı olmalı.
@@ -238,7 +238,7 @@ Canlı `admin.html` dosyasında şu an `matches`, `player_matches`, `videos` vey
 3. **Video kaynakları:** resmî kaynak URL'si, tamlık, süre, erişim/hak durumu, son kontrol.
 4. **Scout oturumu:** değerlendirici, oyuncu-maç, rubrik sürümü, oturum durumu.
 5. **Zaman damgalı kanıt:** video zamanı, maç zamanı, kriter ve gözlem notu.
-6. **Kriter puanları:** 1–6 çıpaları, N/E/N/A, kapsam.
+6. **Kriter puanları:** 1–10 çıpaları, N/E/N/A, kapsam.
 7. **Rapor derleme:** çok maçlı kanıt bağlantıları, sürümleme, editoryal onay.
 
 Kamuya açık `index.html` video tablosu veya video URL'si sorgulamamalı. Özel ekran için yeni sorgular yalnızca authenticated personel bağlamında kullanılmalı.
