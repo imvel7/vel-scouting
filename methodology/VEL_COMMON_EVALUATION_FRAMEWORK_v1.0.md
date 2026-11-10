@@ -80,15 +80,27 @@ ayrı ayrı tanımlar.
 
 Bir değerlendirme alanının puanı, yalnızca gözlemlenmiş ve puanlanmış kriterler üzerinden hesaplanır:
 
-**Alan puanı = (Kriter puanı × kriter ağırlığı toplamı) / değerlendirilen kriter ağırlıkları toplamı**
+**Alan puanı = Σ (kriter puanı × kriter ağırlığı) / Σ (değerlendirilmiş kriter ağırlıkları)**
 
-Bir alanın puanının hesaplanabilmesi için o alana ait toplam ilgili kriter ağırlığının en az **%80'i** değerlendirilmiş olmalıdır.
+Burada kriter ağırlıkları, ilgili pozisyon metodolojisindeki tabloda verilen ağırlıklardır. Her değerlendirme alanındaki kriter ağırlıklarının toplamı, o alanın genel puandaki ağırlığına eşit olmalıdır.
+
+**N/E ve uygulanamaz ayrımı:**
+- **N/E (Değerlendirilmedi):** Kriter oyuncunun rolü için geçerlidir ancak yeterli gözlem fırsatı veya güvenilir görüntü yoktur. Kriter, kapsam hesabının paydasında kalır; puan hesabına girmez.
+- **Uygulanamaz (N/A):** Kriter, oyuncunun o maçtaki kayıtlı rolü veya görev yapısı için gerçekten geçerli değildir. Gerekçesi kaydedilir ve o rapor için kapsam ile puan hesabının paydasından çıkarılır.
+- Bir kriter yalnızca gözlemlenemediği için N/A yapılamaz. Böyle bir durumda N/E kullanılır.
+
+**Kriter kapsamı = Değerlendirilen uygulanabilir kriter ağırlıkları / Toplam uygulanabilir kriter ağırlıkları × 100**
+
+Bir alanın puanının hesaplanabilmesi için kriter kapsamı en az **%80** olmalıdır.
+
+**Genel puan = Σ (alan puanı × alanın genel puandaki ağırlığı) / 100**
 
 Genel puan için:
 - Pozisyon metodolojisinde zorunlu kabul edilen bütün değerlendirme alanlarının puanı hesaplanmış olmalıdır.
 - Her zorunlu alanın kriter kapsamı en az %80 olmalıdır.
 - Alan ağırlıkları, ilgili pozisyon metodolojisinde belirlenmiş olmalıdır.
-- Eksik alanlar ortalama puanla doldurulmaz.
+- Eksik alanlar veya N/E kriterler sıfır ya da ortalama puanla doldurulmaz.
+- N/A çıkarımları gerekçeli olmalı; bir alanın ağırlığını yapay biçimde azaltmak için kullanılmamalıdır.
 
 Bu koşullar sağlanmıyorsa genel puan üretilmez. Rapor, mevcut gözlemleri ve eksik kanıt alanlarını gösterebilir.
 
@@ -219,11 +231,12 @@ Bu şablon tamamlanmadan ilgili pozisyon için yönetim panelinde ayrıntılı p
 
 ## 14. Uygulama sırası
 
-1. Bu ortak çerçeveyi temel standart olarak kabul et.
-2. Kaleci metodolojisini bu standarda göre hazırla.
-3. Bek/kanat bekinden başlayarak diğer pozisyon ailelerini tamamla.
-4. Bütün pozisyon modülleri netleşince ortak veri ve rapor modelini son hâline getir.
-5. Yönetim paneli ve herkese açık siteyi tamamlanmış metodolojiye göre genişlet.
-6. Pilot raporlarla sistemi test et ve gerekli revizyonları sürümleyerek yap.
+1. Ortak çerçeveyi bütün pozisyon metodolojilerinin temel standardı olarak kabul et.
+2. Stoper, bek/kanat bek, ön libero/merkez orta saha, on numara/hücumcu orta saha, kanat, santrfor ve kaleci metodolojilerinin ilk sürümlerini tamamla.
+3. Pozisyonlar arası rol sınırlarını, kriter ağırlıklarını ve kanıt kurallarını çapraz kalite kontrolünden geçir.
+4. Her kriter için pozisyona özgü 1–10 puanlama çıpalarını ve örnek davranışları tamamla.
+5. Ortak veri modeli ve rapor yapısını metodolojiler kesinleştikten sonra tasarla.
+6. Yönetim paneli ve herkese açık siteyi bu modele göre genişlet.
+7. Gerçek maç kayıtlarıyla pilot raporlar oluştur; bulgulara göre metodoloji sürümlerini kontrollü biçimde güncelle.
 
 **Temel kural:** Vel Scouting'in sitesi metodolojiyi sınırlamayacak; site, tamamlanmış ve test edilmiş scouting metodolojisini doğru biçimde uygulayacak.
