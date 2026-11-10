@@ -28,6 +28,16 @@
 <section id="dashboard" class="hidden">
 <div class="panel"><div class="tag">Control room</div><h1>Yönetim paneli</h1><p id="welcome" class="muted">Yetkili oturumu doğrulandı.</p><div id="dashboard-message" class="notice ok">Yönetici erişimi doğrulandı.</div></div>
 <div class="panel">
+<div class="tag">Club database</div><h2>Yeni kulüp kaydı</h2>
+<p class="muted">Kulüp kayıtları oyuncu profillerinde seçilebilir. İlk sürüm yalnızca kulüp adını kaydeder.</p>
+<form id="club-form">
+<div class="grid"><div class="field"><label for="club-name">Kulüp adı *</label><input id="club-name" maxlength="160" required placeholder="Örn. Galatasaray"></div></div>
+<div class="actions"><button class="btn" type="submit" id="save-club">Kulübü kaydet</button></div>
+</form>
+<div id="clubs-message" class="notice">Kulüp kayıtları yükleniyor.</div>
+<div class="tablewrap"><table><thead><tr><th>Kulüp</th><th>İşlem</th></tr></thead><tbody id="clubs-body"></tbody></table></div>
+</div>
+<div class="panel">
 <div class="tag">Player database</div><h2 id="form-title">Yeni oyuncu profili</h2>
 <p class="muted">İlk sürüm oyuncu temel bilgilerini kaydeder. Yeni kayıtlar varsayılan olarak taslak oluşturulur; ana sitede görünmez.</p>
 <form id="player-form">
@@ -72,7 +82,9 @@ async function loadClubs(){
  if(error){clubs=[];select.innerHTML='<option value="">Kulüpler yüklenemedi</option>';select.disabled=true;$('club-help').textContent='Kulüp listesi alınamadı: '+error.message;return}
  clubs=data||[];select.disabled=false;
  select.innerHTML='<option value="">Kulüp seçilmedi</option>'+clubs.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>').join('');
- $('club-help').textContent=clubs.length?clubs.length+' kulüp arasından seçim yapabilirsin.':'Henüz kulüp kaydı yok. Kulüp ekleme adımını veritabanı yapısını doğruladıktan sonra açacağız.';
+ $('club-help').textContent=clubs.length?clubs.length+' kulüp arasından seçim yapabilirsin.':'Henüz kulüp kaydı yok.';
+ $('clubs-message').textContent=clubs.length+ ' kulüp kaydı bulundu.';
+ $('clubs-body').innerHTML=clubs.map(c=>'<tr><td>'+esc(c.name)+'</td><td class="muted">Kayıtlı</td></tr>').join('')||'<tr><td colspan="2" class="muted">Henüz kulüp kaydı yok.</td></tr>';
 }
 async function loadPlayers(){
  message($('players-message'),'Oyuncu kayıtları yükleniyor...');
@@ -106,6 +118,20 @@ $('player-form').addEventListener('submit',async e=>{
   if(result.error)throw result.error;
   message($('dashboard-message'),id?'Oyuncu bilgileri güncellendi.':'Oyuncu taslak olarak kaydedildi.','ok');resetForm();await loadPlayers();
  }catch(err){message($('dashboard-message'),'Kayıt yapılamadı: '+(err.message||'Bilinmeyen hata'),'error')}
+ finally{btn.disabled=false}
+});
+$('club-form').addEventListener('submit',async e=>{
+ e.preventDefault();const btn=$('save-club');btn.disabled=true;
+ try{
+  const name=$('club-name').value.trim();
+  if(!name)throw new Error('Kulüp adı zorunludur.');
+  const result=await supabase.from('clubs').insert({name}).select('id,name').single();
+  if(result.error)throw result.error;
+  $('club-name').value='';
+  message($('clubs-message'),'Kulüp kaydedildi. Oyuncu profillerinde seçilebilir.','ok');
+  await loadClubs();
+  $('current-club').value=result.data.id;
+ }catch(err){message($('clubs-message'),'Kulüp kaydedilemedi: '+(err.message||'Bilinmeyen hata'),'error')}
  finally{btn.disabled=false}
 });
 $('cancel-edit').addEventListener('click',resetForm);
