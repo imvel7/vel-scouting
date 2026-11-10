@@ -7,7 +7,7 @@
 <title>Vel Scouting | Yönetim</title>
 <style>
 :root{--bg:#0c141d;--panel:#121e29;--panel2:#172634;--line:#263746;--text:#f2f6f8;--muted:#9aabb8;--accent:#8fd7cf;--accent2:#c8eee8;--danger:#f0a1a1;--gold:#d8b779}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}button,input,select{font:inherit}.wrap{width:min(1050px,calc(100% - 32px));margin:auto}.top{border-bottom:1px solid var(--line);background:#101923}.topin{min-height:72px;display:flex;align-items:center;justify-content:space-between;gap:15px}.brand{font-weight:800;letter-spacing:.16em}.brand small{display:block;color:var(--muted);font-size:10px;letter-spacing:.2em}.tag{color:var(--accent);font-size:11px;letter-spacing:.18em;text-transform:uppercase}.main{padding:42px 0 70px}.panel{background:var(--panel);border:1px solid var(--line);padding:24px;margin:18px 0}.panel h1,.panel h2{margin:6px 0 18px;letter-spacing:-.03em}.panel h1{font-size:30px}.panel h2{font-size:22px}.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.field label{display:block;color:#c5d0d8;font-size:12px;margin-bottom:6px}.field input,.field select{width:100%;background:#0e1923;border:1px solid var(--line);border-radius:3px;color:var(--text);padding:12px;outline:none}.field input:focus,.field select:focus{border-color:var(--accent)}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.btn{border:1px solid #557a75;background:#18302f;color:var(--accent2);padding:11px 16px;border-radius:3px}.btn.secondary{background:transparent;border-color:var(--line);color:var(--text)}.btn.danger{background:transparent;border-color:#795252;color:#ffc1c1}.notice{padding:12px 14px;border:1px solid var(--line);color:var(--muted);background:#0f1b26;margin:12px 0}.notice.ok{border-color:#3a756b;color:var(--accent2)}.notice.error{border-color:#855656;color:#ffc2c2}.hidden{display:none!important}.tablewrap{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:600px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);font-size:13px}th{color:var(--accent);font-weight:600}.status{font-size:11px;color:var(--gold)}.rowactions{display:flex;gap:7px}.rowactions button{padding:6px 9px;font-size:11px}.footer{color:var(--muted);font-size:11px;padding:24px 0;border-top:1px solid var(--line)}@media(max-width:620px){.grid{grid-template-columns:1fr}.panel{padding:18px}.main{padding-top:25px}.topin{min-height:64px}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}button,input,select{font:inherit}.wrap{width:min(1050px,calc(100% - 32px));margin:auto}.top{border-bottom:1px solid var(--line);background:#101923}.topin{min-height:72px;display:flex;align-items:center;justify-content:space-between;gap:15px}.brand{font-weight:800;letter-spacing:.16em}.brand small{display:block;color:var(--muted);font-size:10px;letter-spacing:.2em}.tag{color:var(--accent);font-size:11px;letter-spacing:.18em;text-transform:uppercase}.main{padding:42px 0 70px}.panel{background:var(--panel);border:1px solid var(--line);padding:24px;margin:18px 0}.panel h1,.panel h2{margin:6px 0 18px;letter-spacing:-.03em}.panel h1{font-size:30px}.panel h2{font-size:22px}.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.field label{display:block;color:#c5d0d8;font-size:12px;margin-bottom:6px}.field input,.field select{width:100%;background:#0e1923;border:1px solid var(--line);border-radius:3px;color:var(--text);padding:12px;outline:none}.field input:focus,.field select:focus{border-color:var(--accent)}.field small{display:block;font-size:11px;margin-top:6px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.btn{border:1px solid #557a75;background:#18302f;color:var(--accent2);padding:11px 16px;border-radius:3px}.btn.secondary{background:transparent;border-color:var(--line);color:var(--text)}.btn.danger{background:transparent;border-color:#795252;color:#ffc1c1}.notice{padding:12px 14px;border:1px solid var(--line);color:var(--muted);background:#0f1b26;margin:12px 0}.notice.ok{border-color:#3a756b;color:var(--accent2)}.notice.error{border-color:#855656;color:#ffc2c2}.hidden{display:none!important}.tablewrap{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:600px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);font-size:13px}th{color:var(--accent);font-weight:600}.status{font-size:11px;color:var(--gold)}.rowactions{display:flex;gap:7px}.rowactions button{padding:6px 9px;font-size:11px}.footer{color:var(--muted);font-size:11px;padding:24px 0;border-top:1px solid var(--line)}@media(max-width:620px){.grid{grid-template-columns:1fr}.panel{padding:18px}.main{padding-top:25px}.topin{min-height:64px}}
 </style>
 </head>
 <body>
@@ -35,6 +35,7 @@
 <div class="grid">
 <div class="field"><label for="full-name">Oyuncu adı soyadı *</label><input id="full-name" required maxlength="120"></div>
 <div class="field"><label for="nationality">Uyruk</label><input id="nationality" maxlength="80" placeholder="Örn. Türkiye"></div>
+<div class="field"><label for="current-club">Mevcut kulüp</label><select id="current-club"><option value="">Kulüp seçilmedi</option></select><small id="club-help" class="muted">Kulüp listesi yükleniyor.</small></div>
 <div class="field"><label for="main-position">Ana mevki *</label><select id="main-position" required><option value="">Mevki seç</option><option value="GK">Kaleci</option><option value="RB">Sağ bek</option><option value="CB">Stoper</option><option value="LB">Sol bek</option><option value="DM">Ön libero</option><option value="CM">Merkez orta saha</option><option value="AM">Ofansif orta saha</option><option value="RW">Sağ kanat</option><option value="LW">Sol kanat</option><option value="ST">Santrfor</option></select></div>
 <div class="field"><label for="secondary-position">İkincil mevki</label><select id="secondary-position"><option value="">Belirtilmedi</option><option value="GK">Kaleci</option><option value="RB">Sağ bek</option><option value="CB">Stoper</option><option value="LB">Sol bek</option><option value="DM">Ön libero</option><option value="CM">Merkez orta saha</option><option value="AM">Ofansif orta saha</option><option value="RW">Sağ kanat</option><option value="LW">Sol kanat</option><option value="ST">Santrfor</option></select></div>
 <div class="field"><label for="foot">Tercih edilen ayak</label><select id="foot"><option value="">Belirtilmedi</option><option value="right">Sağ</option><option value="left">Sol</option><option value="both">İki ayak</option></select></div>
@@ -43,7 +44,7 @@
 <div class="actions"><button class="btn" type="submit" id="save-player">Taslak olarak kaydet</button><button class="btn secondary hidden" type="button" id="cancel-edit">Düzenlemeyi iptal et</button></div>
 </form>
 </div>
-<div class="panel"><div class="tag">Saved records</div><h2>Oyuncu kayıtları</h2><div id="players-message" class="notice">Kayıtlar yükleniyor.</div><div class="tablewrap"><table><thead><tr><th>Oyuncu</th><th>Uyruk</th><th>Ana mevki</th><th>Durum</th><th>İşlem</th></tr></thead><tbody id="players-body"></tbody></table></div></div>
+<div class="panel"><div class="tag">Saved records</div><h2>Oyuncu kayıtları</h2><div id="players-message" class="notice">Kayıtlar yükleniyor.</div><div class="tablewrap"><table><thead><tr><th>Oyuncu</th><th>Kulüp</th><th>Uyruk</th><th>Ana mevki</th><th>Durum</th><th>İşlem</th></tr></thead><tbody id="players-body"></tbody></table></div></div>
 </section>
 </main>
 <footer class="footer"><div class="wrap">VEL SCOUTING · Internal administration · Never share your password.</div></footer>
@@ -54,7 +55,7 @@ const SUPABASE_PUBLIC_KEY='sb_publishable_Gi8Al3ubX_ptadWYYV35kQ_9gm7vxOq';
 const supabase=createClient(SUPABASE_URL,SUPABASE_PUBLIC_KEY);
 const $=id=>document.getElementById(id);
 const loginPanel=$('login-panel'),dashboard=$('dashboard');
-let currentUser=null,records=[];
+let currentUser=null,records=[],clubs=[];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function message(el,text,type=''){el.textContent=text;el.className='notice '+type}
 function showLogin(text,type=''){loginPanel.classList.remove('hidden');dashboard.classList.add('hidden');$('logout').classList.add('hidden');if(text)message($('login-message'),text,type)}
@@ -63,22 +64,30 @@ async function verifyAndLoad(user){
  const {data:roleData,error:roleError}=await supabase.from('user_roles').select('role').eq('user_id',user.id).maybeSingle();
  if(roleError)throw new Error('Yetki kontrolü yapılamadı: '+roleError.message);
  if(!roleData||!['admin','editor'].includes(roleData.role))throw new Error('Bu hesapta Vel Scouting yönetim yetkisi bulunmuyor.');
- currentUser=user;showDashboard();await loadPlayers();
+ currentUser=user;showDashboard();await loadClubs();await loadPlayers();
+}
+async function loadClubs(){
+ const select=$('current-club');
+ const {data,error}=await supabase.from('clubs').select('id,name').order('name');
+ if(error){clubs=[];select.innerHTML='<option value="">Kulüpler yüklenemedi</option>';select.disabled=true;$('club-help').textContent='Kulüp listesi alınamadı: '+error.message;return}
+ clubs=data||[];select.disabled=false;
+ select.innerHTML='<option value="">Kulüp seçilmedi</option>'+clubs.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>').join('');
+ $('club-help').textContent=clubs.length?clubs.length+' kulüp arasından seçim yapabilirsin.':'Henüz kulüp kaydı yok. Kulüp ekleme adımını veritabanı yapısını doğruladıktan sonra açacağız.';
 }
 async function loadPlayers(){
  message($('players-message'),'Oyuncu kayıtları yükleniyor...');
- const {data,error}=await supabase.from('players').select('id,full_name,nationality,main_position,secondary_position,preferred_foot,height_cm,profile_status').order('full_name');
+ const {data,error}=await supabase.from('players').select('id,full_name,nationality,main_position,secondary_position,preferred_foot,height_cm,profile_status,current_club_id,clubs(name)').order('full_name');
  if(error){message($('players-message'),'Kayıtlar alınamadı: '+error.message,'error');return}
  records=data||[];renderPlayers();message($('players-message'),records.length+' oyuncu kaydı bulundu.','ok');
 }
 function renderPlayers(){
- $('players-body').innerHTML=records.map(p=>'<tr><td>'+esc(p.full_name)+'</td><td>'+esc(p.nationality||'—')+'</td><td>'+esc(p.main_position||'—')+'</td><td class="status">'+esc(p.profile_status||'—')+'</td><td><div class="rowactions"><button class="btn secondary edit" data-id="'+esc(p.id)+'" type="button">Düzenle</button></div></td></tr>').join('')||'<tr><td colspan="5" class="muted">Henüz oyuncu kaydı yok.</td></tr>';
+ $('players-body').innerHTML=records.map(p=>'<tr><td>'+esc(p.full_name)+'</td><td>'+esc(p.clubs?.name||'—')+'</td><td>'+esc(p.nationality||'—')+'</td><td>'+esc(p.main_position||'—')+'</td><td class="status">'+esc(p.profile_status||'—')+'</td><td><div class="rowactions"><button class="btn secondary edit" data-id="'+esc(p.id)+'" type="button">Düzenle</button></div></td></tr>').join('')||'<tr><td colspan="6" class="muted">Henüz oyuncu kaydı yok.</td></tr>';
  document.querySelectorAll('.edit').forEach(b=>b.addEventListener('click',()=>editPlayer(b.dataset.id)));
 }
 function resetForm(){ $('player-form').reset();$('player-id').value='';$('form-title').textContent='Yeni oyuncu profili';$('save-player').textContent='Taslak olarak kaydet';$('cancel-edit').classList.add('hidden');}
 function editPlayer(id){
  const p=records.find(x=>String(x.id)===String(id));if(!p)return;
- $('player-id').value=p.id;$('full-name').value=p.full_name||'';$('nationality').value=p.nationality||'';$('main-position').value=p.main_position||'';$('secondary-position').value=p.secondary_position||'';$('foot').value=p.preferred_foot||'';$('height').value=p.height_cm||'';
+ $('player-id').value=p.id;$('full-name').value=p.full_name||'';$('nationality').value=p.nationality||'';$('current-club').value=p.current_club_id||'';$('main-position').value=p.main_position||'';$('secondary-position').value=p.secondary_position||'';$('foot').value=p.preferred_foot||'';$('height').value=p.height_cm||'';
  $('form-title').textContent='Oyuncu profilini düzenle';$('save-player').textContent='Değişiklikleri kaydet';$('cancel-edit').classList.remove('hidden');window.scrollTo({top:0,behavior:'smooth'});
 }
 $('login-form').addEventListener('submit',async e=>{
@@ -89,7 +98,7 @@ $('login-form').addEventListener('submit',async e=>{
 });
 $('player-form').addEventListener('submit',async e=>{
  e.preventDefault();const btn=$('save-player');btn.disabled=true;
- const payload={full_name:$('full-name').value.trim(),nationality:$('nationality').value.trim()||null,main_position:$('main-position').value,secondary_position:$('secondary-position').value||null,preferred_foot:$('foot').value||null,height_cm:$('height').value?Number($('height').value):null};
+ const payload={full_name:$('full-name').value.trim(),nationality:$('nationality').value.trim()||null,current_club_id:$('current-club').value||null,main_position:$('main-position').value,secondary_position:$('secondary-position').value||null,preferred_foot:$('foot').value||null,height_cm:$('height').value?Number($('height').value):null};
  try{
   const id=$('player-id').value;let result;
   if(id)result=await supabase.from('players').update(payload).eq('id',id).select('id').single();
