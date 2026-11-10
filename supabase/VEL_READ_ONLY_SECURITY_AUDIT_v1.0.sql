@@ -103,20 +103,24 @@ LEFT JOIN grant_info g USING (table_name)
 ORDER BY s.table_name;
 
 
--- QUERY 2: security helper functions used by Vel Scouting RLS policies.
+-- QUERY 2: security helper functions and trigger helpers.
+-- Vel Scouting's SECURITY DEFINER policy helpers belong in the private schema.
 SELECT
+  n.nspname AS function_schema,
   p.proname AS function_name,
   pg_get_userbyid(p.proowner) AS owner,
   p.prosecdef AS security_definer,
   p.provolatile AS volatility,
   p.proconfig AS function_settings,
   pg_get_function_identity_arguments(p.oid) AS arguments,
+  has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_can_execute,
+  has_function_privilege('authenticated', p.oid, 'EXECUTE') AS authenticated_can_execute,
   pg_get_functiondef(p.oid) AS definition
 FROM pg_proc p
 JOIN pg_namespace n ON n.oid = p.pronamespace
-WHERE n.nspname = 'public'
-  AND p.proname IN ('is_vel_staff', 'is_vel_admin')
-ORDER BY p.proname;
+WHERE n.nspname IN ('public', 'private')
+  AND p.proname IN ('is_vel_staff', 'is_vel_admin', 'rls_auto_enable', 'set_updated_at')
+ORDER BY n.nspname, p.proname;
 
 
 -- QUERY 3: public views that might expose private match/video/scouting fields.
