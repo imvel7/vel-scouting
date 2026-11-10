@@ -1,7 +1,7 @@
 # Vel Scouting — Proje Yol Haritası v1.0
 
 **Tarih:** 10 Kasım 2026  
-**Durum:** Metodoloji temeli oluşturuldu; saha doğrulaması ve ürünleştirme aşamasına geçiliyor.
+**Durum:** Metodoloji temeli oluşturuldu. Güncel ürün yönü: özel scouting video/maç kaynak sistemi ile kamuya açık raporlama alanını kesin biçimde ayırmak.
 
 ## 1. Proje hedefi ve ürün ilkeleri
 
@@ -165,3 +165,41 @@ Yayın politikası:
 **Vel Scouting Stoper Pilot Gözlem Şablonu v1.0** hazırlandı: [şablonu aç](pilot/VEL_CENTRE_BACK_PILOT_OBSERVATION_TEMPLATE_v1.0.md). Tek bir platforma bağlı kalmamak için [Open Match Library Kaynak Haritası v1.0](video-sources/VEL_OPEN_MATCH_LIBRARY_SOURCE_MAP_v1.0.md) hazırlandı. FIFA+, Premier League Archive, Football Archive, TFF, UEFA.tv ve profesyonel Hudl Wyscout katmanları farklı işlevleriyle ayrıldı. Davinson Sánchez için [video kaynağı denetimi 01](pilot/VEL_DAVINSON_SANCHEZ_VIDEO_SOURCE_AUDIT_01.md) hazırlandı. Galatasaray 5–2 Juventus, UEFA.tv'de tam maç olarak listeleniyor, Sánchez ilk 11'deydi ve kullanıcı kaydı Türkiye'den bulduğunu doğruladı. Kesintisizlik, oyuncu dakika aralığı ve gözlem kalitesi pilot sırasında kaydedilecek. İlk yarı için resmî olay zaman çizelgesine ve gözlem sorularına dayalı [ilk yarı rehberi](pilot/CB-GS-JUV-20260217_FIRST_HALF_GUIDE.md) hazırlandı. Galatasaray 1–2 Villarreal için bulunan ücretsiz tam maç videosu ise Sánchez'in oynamaması nedeniyle pilot açısından elendi. Maçın resmî istatistikleri ve oyuncu katılım verileri için [veri notu 01](pilot/VEL_DAVINSON_SANCHEZ_MATCH_DATA_NOTE_01.md) hazırlandı. Bu not video gözlemi veya kriter puanlaması değildir; tam maç görüntüsünün görsel incelenmesi ayrı bir adımdır.
 
 Bu yol haritası yaşayan bir belgedir. Her aşama tamamlandığında durum, kanıt ve alınan kararlar güncellenecektir.
+
+
+---
+
+## 6. Güncel ürün yönü — Özel Scouting Video Sistemi (10 Kasım 2026)
+
+Ürün kararı güncellendi: Vel Scouting bir maç izleme veya video yayın platformu olmayacaktır. Maç görüntüleri yalnızca yetkilendirilmiş scouting ekibinin değerlendirme çalışmaları için kullanılacaktır. Kamuya açık sitede video oynatıcı, özel video URL'si, ham gözlem veya özel kaynak notu bulunmayacaktır.
+
+Bu kararın teknik ayrıntıları: [Özel Scouting Video ve Maç Kaynak Sistemi v1.0](architecture/VEL_PRIVATE_SCOUTING_VIDEO_ARCHITECTURE_v1.0.md).
+
+### Güncel uygulama sırası
+
+| Sıra | İş | Durum |
+|---|---|---|
+| 0 | Özel video kütüphanesi ürün kararını belgele | Tamamlandı — mimari v1.0 |
+| 1 | Canlı Supabase şema, grants ve RLS denetimi | Sıradaki iş |
+| 2 | Mevcut tablolarla yeni gereksinimler arasındaki farkı çıkar | Bekliyor |
+| 3 | Özel admin video/kaynak yönetimini tasarla ve uygula | Bekliyor |
+| 4 | Maç–oyuncu katılımı–video ilişkisini doğrula ve tamamla | Bekliyor |
+| 5 | Zaman damgalı gözlem ve kriter değerlendirme akışını entegre et | Bekliyor |
+| 6 | Özel rapor ile kamuya açık rapor yayımlama sınırını test et | Bekliyor |
+| 7 | Ücretsiz/resmî kaynak keşif ağını genişlet ve doğrulama sürecini geliştir | Bekliyor |
+
+### Uygulama kararları
+
+- Mevcut GitHub Pages + Supabase altyapısı korunacak; ilk sürümde ücretli video hosting veya ücretli scout veri aboneliği alınmayacak.
+- Maç videosu Vel Scouting sunucularına yüklenmeyecek; kaynak sağlayıcının resmî oynatıcısı kullanılacak.
+- Mevcut `videos`, `matches`, `player_matches`, `observations` ve `user_roles` yapısı önce canlı projede incelenecek. Şema farkı doğrulanmadan migration yazılmayacak.
+- Mevcut roller `admin` ve `editor` olarak korunacak. Yeni scout rolü, yetki modeli netleşmeden eklenmeyecek.
+- Video ve maç kaynak kayıtları kamuya açık sayfalara veya herkese açık JavaScript/JSON dosyalarına taşınmayacak.
+- Otomatik kaynak taraması, yalnızca ilgili sağlayıcının izin verdiği yöntemlerle yapılacak. İlk sürümde manuel/yardımlı keşif ve son kontrol tarihi yeterlidir.
+- Ücretsiz sistem hedefi, üçüncü taraf arşivlerin ücretsiz veya sürekli erişilebilir olacağı garantisi değildir; her kaynak ve maç ayrı doğrulanacaktır.
+
+### Bir sonraki somut iş
+
+**Canlı Supabase şema ve güvenlik denetimi.** Önce `videos`, `matches`, `player_matches`, `observations`, `user_roles` tablolarının gerçek sütunları, RLS politikaları, grants ve mevcut admin erişim akışı kontrol edilecek. Anon, giriş yapmış fakat staff olmayan kullanıcı ve staff kullanıcı için beklenen erişim matrisi çıkarılacak.
+
+**Karar kapısı:** Bu denetim tamamlanmadan video kaynak URL'lerini yeni bir arayüze bağlamayacağız. Kamuya açık sitenin özel video verilerine erişemediği kanıtlanmadan sistemi hazır saymayacağız.
