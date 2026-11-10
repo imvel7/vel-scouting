@@ -200,6 +200,6 @@ Bu kararın teknik ayrıntıları: [Özel Scouting Video ve Maç Kaynak Sistemi 
 
 ### Bir sonraki somut iş
 
-**Canlı Supabase şema ve güvenlik denetimi.** Önce `videos`, `matches`, `player_matches`, `observations`, `user_roles` tablolarının gerçek sütunları, RLS politikaları, grants ve mevcut admin erişim akışı kontrol edilecek. Anon, giriş yapmış fakat staff olmayan kullanıcı ve staff kullanıcı için beklenen erişim matrisi çıkarılacak.
+**Canlı Supabase şema ve güvenlik denetimi.** Salt-okunur sorgular hazırlandı: [SQL denetim dosyası](supabase/VEL_READ_ONLY_SECURITY_AUDIT_v1.0.sql) ve [kullanım rehberi](supabase/VEL_SUPABASE_SECURITY_AUDIT_GUIDE_v1.0.md). Kod incelemesinde mevcut erişim SQL'inin `user_roles` dışında diğer tablolarda RLS'yi açıkça etkinleştirmediği görüldü; canlı projede RLS daha önce elle açılmış olabilir. Bu nedenle henüz açık var demiyoruz. Sorgular çalıştırılıp gerçek tablo sütunları, RLS bayrakları, policy'ler ve grants doğrulanacak.
 
 **Karar kapısı:** Bu denetim tamamlanmadan video kaynak URL'lerini yeni bir arayüze bağlamayacağız. Kamuya açık sitenin özel video verilerine erişemediği kanıtlanmadan sistemi hazır saymayacağız.
