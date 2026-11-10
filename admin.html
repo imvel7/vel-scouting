@@ -36,6 +36,54 @@
 <p class="muted" style="font-size:12px">Not: Personel olmayan ayrı bir Auth hesabı bulunmadığı için bu panel o hesabın testini yapmaz. Bu senaryo ayrıca test edilmelidir.</p>
 </div>
 <div class="panel">
+<div class="tag">Match registry</div><h2>Yeni maç kaydı</h2>
+<p class="muted">Önce maçı ve takımları kaydet. Ardından oyuncu-maç katılımını oluşturup scouting oturumu başlatabilirsin.</p>
+<form id="match-form">
+<div class="grid">
+<div class="field"><label for="match-home">Ev sahibi kulüp *</label><select id="match-home" required><option value="">Kulüp seç</option></select></div>
+<div class="field"><label for="match-away">Deplasman kulübü *</label><select id="match-away" required><option value="">Kulüp seç</option></select></div>
+<div class="field"><label for="match-date">Maç tarihi ve saati *</label><input id="match-date" type="datetime-local" required></div>
+<div class="field"><label for="match-status">Maç durumu</label><select id="match-status"><option value="completed">Tamamlandı</option><option value="scheduled">Planlandı</option><option value="cancelled">İptal edildi</option></select></div>
+<div class="field"><label for="match-home-score">Ev sahibi golü</label><input id="match-home-score" type="number" min="0" max="99" inputmode="numeric"></div>
+<div class="field"><label for="match-away-score">Deplasman golü</label><input id="match-away-score" type="number" min="0" max="99" inputmode="numeric"></div>
+<div class="field"><label for="match-duration">Süre (dakika)</label><input id="match-duration" type="number" min="1" max="150" value="90"></div>
+<div class="field"><label for="match-age">Yaş kategorisi</label><input id="match-age" maxlength="40" placeholder="Örn. U19 / Senior"></div>
+</div>
+<div class="actions"><button class="btn" type="submit" id="save-match">Maçı kaydet</button></div>
+</form>
+<div id="matches-message" class="notice">Maç kayıtları yükleniyor.</div>
+</div>
+<div class="panel">
+<div class="tag">Player match link</div><h2>Oyuncuyu maça bağla</h2>
+<p class="muted">Bu adım, oyuncunun belirli maçta oynadığını kaydeder. Aynı oyuncu ve maç için yinelenen bağlantı oluşturulmaz.</p>
+<form id="roster-form">
+<div class="grid">
+<div class="field"><label for="roster-player">Oyuncu *</label><select id="roster-player" required><option value="">Oyuncu seç</option></select></div>
+<div class="field"><label for="roster-match">Maç *</label><select id="roster-match" required><option value="">Maç seç</option></select></div>
+<div class="field"><label for="roster-club">Maçta temsil ettiği kulüp *</label><select id="roster-club" required><option value="">Önce maç seç</option></select></div>
+<div class="field"><label for="roster-position">Oynadığı mevki</label><select id="roster-position"><option value="">Belirtilmedi</option><option value="GK">Kaleci</option><option value="RB">Sağ bek</option><option value="CB">Stoper</option><option value="LB">Sol bek</option><option value="DM">Ön libero</option><option value="CM">Merkez orta saha</option><option value="AM">Ofansif orta saha</option><option value="RW">Sağ kanat</option><option value="LW">Sol kanat</option><option value="ST">Santrfor</option></select></div>
+<div class="field"><label for="roster-minutes">Oynadığı dakika</label><input id="roster-minutes" type="number" min="0" max="150" inputmode="numeric" placeholder="Örn. 90"></div>
+</div>
+<div class="actions"><button class="btn" type="submit" id="save-roster">Oyuncu-maç bağlantısını kaydet</button></div>
+</form>
+<div id="roster-message" class="notice">Oyuncu-maç bağlantıları yükleniyor.</div>
+</div>
+<div class="panel">
+<div class="tag">Scouting workflow</div><h2>Yeni scouting oturumu</h2>
+<p class="muted">Oturum; oyuncu-maç kaydına ve pilot/aktif rubriğe bağlanır. Özel notlar yalnızca yönetim paneli ve yetkili personel içindir. Bu ekranda herkese açık video bağlantısı oluşturulmaz.</p>
+<form id="session-form">
+<div class="grid">
+<div class="field"><label for="session-player-match">Oyuncu ve maç *</label><select id="session-player-match" required><option value="">Önce oyuncu-maç bağlantısı oluştur</option></select></div>
+<div class="field"><label for="session-rubric">Rubrik sürümü *</label><select id="session-rubric" required><option value="">Rubrik yükleniyor</option></select></div>
+<div class="field" style="grid-column:1/-1"><label for="session-notes">Özel oturum notu</label><input id="session-notes" maxlength="1200" placeholder="Yalnızca personelin göreceği kısa bağlam notu"></div>
+</div>
+<div class="actions"><button class="btn" type="submit" id="save-session">Taslak scouting oturumu oluştur</button></div>
+</form>
+<div id="sessions-message" class="notice">Scouting oturumları yükleniyor.</div>
+<div class="tablewrap"><table><thead><tr><th>Oyuncu</th><th>Maç</th><th>Rubrik</th><th>Durum</th><th>Oluşturulma</th></tr></thead><tbody id="sessions-body"><tr><td colspan="5" class="muted">Henüz oturum yok.</td></tr></tbody></table></div>
+</div>
+
+<div class="panel">
 <div class="tag">Club database</div><h2>Yeni kulüp kaydı</h2>
 <p class="muted">Kulüp kayıtları oyuncu profillerinde seçilebilir. İlk sürüm yalnızca kulüp adını kaydeder.</p>
 <form id="club-form">
@@ -94,7 +142,7 @@ const SUPABASE_PUBLIC_KEY='sb_publishable_Gi8Al3ubX_ptadWYYV35kQ_9gm7vxOq';
 const supabase=createClient(SUPABASE_URL,SUPABASE_PUBLIC_KEY);
 const $=id=>document.getElementById(id);
 const loginPanel=$('login-panel'),dashboard=$('dashboard');
-let currentUser=null,records=[],clubs=[],reports=[];
+let currentUser=null,records=[],clubs=[],reports=[],matches=[],playerMatches=[],rubrics=[],scoutingSessions=[];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function message(el,text,type=''){el.textContent=text;el.className='notice '+type}
 function showLogin(text,type=''){loginPanel.classList.remove('hidden');dashboard.classList.add('hidden');$('logout').classList.add('hidden');if(text)message($('login-message'),text,type)}
@@ -134,13 +182,13 @@ async function verifyAndLoad(user){
  const {data:roleData,error:roleError}=await supabase.from('user_roles').select('role').eq('user_id',user.id).maybeSingle();
  if(roleError)throw new Error('Yetki kontrolü yapılamadı: '+roleError.message);
  if(!roleData||!['admin','editor'].includes(roleData.role))throw new Error('Bu hesapta Vel Scouting yönetim yetkisi bulunmuyor.');
- currentUser=user;showDashboard();await loadClubs();await loadPlayers();await loadReports();
+ currentUser=user;showDashboard();await loadClubs();await loadPlayers();await loadReports();await loadMatches();await loadRubrics();await loadPlayerMatches();await loadSessions();
 }
 async function loadClubs(){
  const select=$('current-club');
  const {data,error}=await supabase.from('clubs').select('id,name').order('name');
  if(error){clubs=[];select.innerHTML='<option value="">Kulüpler yüklenemedi</option>';select.disabled=true;$('club-help').textContent='Kulüp listesi alınamadı: '+error.message;return}
- clubs=data||[];select.disabled=false;
+ clubs=data||[];select.disabled=false;populateMatchClubSelects();
  select.innerHTML='<option value="">Kulüp seçilmedi</option>'+clubs.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>').join('');
  $('club-help').textContent=clubs.length?clubs.length+' kulüp arasından seçim yapabilirsin.':'Henüz kulüp kaydı yok.';
  $('clubs-message').textContent=clubs.length+ ' kulüp kaydı bulundu.';
@@ -150,7 +198,7 @@ async function loadPlayers(){
  message($('players-message'),'Oyuncu kayıtları yükleniyor...');
  const {data,error}=await supabase.from('players').select('id,full_name,nationality,main_position,secondary_position,preferred_foot,height_cm,profile_status,current_club_id,clubs(name)').order('full_name');
  if(error){message($('players-message'),'Kayıtlar alınamadı: '+error.message,'error');return}
- records=data||[];renderPlayers();populateReportPlayers();message($('players-message'),records.length+' oyuncu kaydı bulundu.','ok');
+ records=data||[];renderPlayers();populateReportPlayers();populateRosterPlayers();message($('players-message'),records.length+' oyuncu kaydı bulundu.','ok');
 }
 function renderPlayers(){
  $('players-body').innerHTML=records.map(p=>'<tr><td>'+esc(p.full_name)+'</td><td>'+esc(p.clubs?.name||'—')+'</td><td>'+esc(p.nationality||'—')+'</td><td>'+esc(p.main_position||'—')+'</td><td class="status">'+esc(p.profile_status||'—')+'</td><td><div class="rowactions"><button class="btn secondary edit" data-id="'+esc(p.id)+'" type="button">Düzenle</button></div></td></tr>').join('')||'<tr><td colspan="6" class="muted">Henüz oyuncu kaydı yok.</td></tr>';
@@ -173,6 +221,70 @@ async function loadReports(){
  }).join('')||'<tr><td colspan="6" class="muted">Henüz scout raporu yok.</td></tr>';
  message($('reports-message'),reports.length+' scout raporu bulundu.','ok');
 }
+function formatMatchLabel(m){
+ const home=clubs.find(c=>String(c.id)===String(m.home_club_id))?.name||'Ev sahibi';
+ const away=clubs.find(c=>String(c.id)===String(m.away_club_id))?.name||'Deplasman';
+ const date=m.match_date?new Date(m.match_date).toLocaleDateString('tr-TR'):'Tarih yok';
+ const score=m.home_score!==null&&m.away_score!==null?' · '+m.home_score+'-'+m.away_score:'';
+ return home+' - '+away+' · '+date+score;
+}
+function populateMatchClubSelects(){
+ const options='<option value="">Kulüp seç</option>'+clubs.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>').join('');
+ $('match-home').innerHTML=options;$('match-away').innerHTML=options;
+}
+function populateRosterPlayers(){
+ const options='<option value="">Oyuncu seç</option>'+records.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.full_name)+'</option>').join('');
+ $('roster-player').innerHTML=options;
+}
+function populateRosterMatches(){
+ $('roster-match').innerHTML='<option value="">Maç seç</option>'+matches.map(m=>'<option value="'+esc(m.id)+'">'+esc(formatMatchLabel(m))+'</option>').join('');
+}
+function updateRosterTeams(){
+ const m=matches.find(x=>String(x.id)===$('roster-match').value);
+ if(!m){$('roster-club').innerHTML='<option value="">Önce maç seç</option>';return}
+ const allowed=[m.home_club_id,m.away_club_id].filter(Boolean);
+ $('roster-club').innerHTML='<option value="">Kulüp seç</option>'+clubs.filter(c=>allowed.includes(c.id)).map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>').join('');
+}
+async function loadMatches(){
+ const {data,error}=await supabase.from('matches').select('id,home_club_id,away_club_id,match_date,home_score,away_score,match_status,age_category').order('match_date',{ascending:false}).limit(200);
+ if(error){matches=[];message($('matches-message'),'Maç kayıtları alınamadı: '+error.message,'error')}
+ else{matches=data||[];message($('matches-message'),matches.length+' maç kaydı bulundu.',matches.length?'ok':'')}
+ populateRosterMatches();updateRosterTeams();
+}
+async function loadPlayerMatches(){
+ const {data,error}=await supabase.from('player_matches').select('id,player_id,match_id,club_id,position_played,minutes_played').order('created_at',{ascending:false}).limit(500);
+ if(error){playerMatches=[];message($('roster-message'),'Oyuncu-maç bağlantıları alınamadı: '+error.message,'error')}
+ else{playerMatches=data||[];message($('roster-message'),playerMatches.length+' oyuncu-maç bağlantısı bulundu.',playerMatches.length?'ok':'')}
+ populateSessionParticipants();
+}
+async function loadRubrics(){
+ const {data,error}=await supabase.from('rubric_versions').select('id,version_code,position_group,status').in('status',['pilot','active']).order('created_at',{ascending:false});
+ if(error){rubrics=[];message($('sessions-message'),'Rubrikler alınamadı: '+error.message,'error');return}
+ rubrics=data||[];
+ $('session-rubric').innerHTML='<option value="">Rubrik seç</option>'+rubrics.map(r=>'<option value="'+esc(r.id)+'">'+esc(r.version_code)+' · '+esc(r.position_group)+' · '+esc(r.status)+'</option>').join('');
+ if(rubrics.length===1)$('session-rubric').value=rubrics[0].id;
+}
+function populateSessionParticipants(){
+ $('session-player-match').innerHTML='<option value="">Oyuncu-maç bağlantısı seç</option>'+playerMatches.map(pm=>{
+  const player=records.find(p=>String(p.id)===String(pm.player_id));
+  const match=matches.find(m=>String(m.id)===String(pm.match_id));
+  return '<option value="'+esc(pm.id)+'">'+esc(player?.full_name||'Oyuncu')+' · '+esc(match?formatMatchLabel(match):'Maç')+'</option>';
+ }).join('');
+}
+async function loadSessions(){
+ const {data,error}=await supabase.from('scouting_sessions').select('id,player_id,player_match_id,match_id,rubric_version_id,status,created_at').order('created_at',{ascending:false}).limit(100);
+ if(error){message($('sessions-message'),'Scouting oturumları alınamadı: '+error.message,'error');return}
+ scoutingSessions=data||[];
+ $('sessions-body').innerHTML=scoutingSessions.map(s=>{
+  const player=records.find(p=>String(p.id)===String(s.player_id));
+  const match=matches.find(m=>String(m.id)===String(s.match_id));
+  const rubric=rubrics.find(r=>String(r.id)===String(s.rubric_version_id));
+  const created=s.created_at?new Date(s.created_at).toLocaleString('tr-TR'):'—';
+  return '<tr><td>'+esc(player?.full_name||'Oyuncu')+'</td><td>'+esc(match?formatMatchLabel(match):'Maç')+'</td><td>'+esc(rubric?.version_code||'Rubrik')+'</td><td class="status">'+esc(s.status)+'</td><td>'+esc(created)+'</td></tr>';
+ }).join('')||'<tr><td colspan="5" class="muted">Henüz scouting oturumu yok.</td></tr>';
+ message($('sessions-message'),scoutingSessions.length+' scouting oturumu bulundu.',scoutingSessions.length?'ok':'');
+}
+
 function resetForm(){ $('player-form').reset();$('player-id').value='';$('form-title').textContent='Yeni oyuncu profili';$('save-player').textContent='Taslak olarak kaydet';$('cancel-edit').classList.add('hidden');}
 function editPlayer(id){
  const p=records.find(x=>String(x.id)===String(id));if(!p)return;
@@ -243,6 +355,68 @@ $('report-form').addEventListener('submit',async e=>{
  }catch(err){message($('reports-message'),'Rapor kaydedilemedi: '+(err.message||'Bilinmeyen hata'),'error')}
  finally{btn.disabled=false;btn.textContent='Taslak raporu kaydet'}
 });
+$('match-form').addEventListener('submit',async e=>{
+ e.preventDefault();const btn=$('save-match');btn.disabled=true;btn.textContent='Kaydediliyor...';
+ try{
+  const home=$('match-home').value,away=$('match-away').value,date=$('match-date').value;
+  if(!home||!away||home===away)throw new Error('Ev sahibi ve deplasman kulüpleri farklı olmalıdır.');
+  if(!date)throw new Error('Maç tarihi zorunludur.');
+  const homeScore=$('match-home-score').value,awayScore=$('match-away-score').value;
+  const payload={
+   home_club_id:home,away_club_id:away,match_date:new Date(date).toISOString(),
+   match_status:$('match-status').value,
+   home_score:homeScore===''?null:Number(homeScore),away_score:awayScore===''?null:Number(awayScore),
+   match_duration:$('match-duration').value?Number($('match-duration').value):null,
+   age_category:$('match-age').value.trim()||null
+  };
+  if(payload.match_status==='completed'&&(payload.home_score===null||payload.away_score===null))throw new Error('Tamamlanmış maç için iki takımın skoru da girilmelidir.');
+  const result=await supabase.from('matches').insert(payload).select('id').single();
+  if(result.error)throw result.error;
+  $('match-form').reset();$('match-duration').value='90';$('match-status').value='completed';
+  message($('matches-message'),'Maç kaydedildi. Oyuncu-maç bağlantısı oluşturabilirsin.','ok');
+  await loadMatches();await loadPlayerMatches();await loadSessions();
+ }catch(err){message($('matches-message'),'Maç kaydedilemedi: '+(err.message||'Bilinmeyen hata'),'error')}
+ finally{btn.disabled=false;btn.textContent='Maçı kaydet'}
+});
+$('roster-match').addEventListener('change',updateRosterTeams);
+$('roster-form').addEventListener('submit',async e=>{
+ e.preventDefault();const btn=$('save-roster');btn.disabled=true;btn.textContent='Kaydediliyor...';
+ try{
+  const playerId=$('roster-player').value,matchId=$('roster-match').value,clubId=$('roster-club').value;
+  if(!playerId||!matchId||!clubId)throw new Error('Oyuncu, maç ve temsil edilen kulüp zorunludur.');
+  const existing=await supabase.from('player_matches').select('id').eq('player_id',playerId).eq('match_id',matchId).maybeSingle();
+  if(existing.error)throw existing.error;
+  if(existing.data)throw new Error('Bu oyuncu için seçilen maç bağlantısı zaten mevcut.');
+  const result=await supabase.from('player_matches').insert({
+   player_id:playerId,match_id:matchId,club_id:clubId,
+   position_played:$('roster-position').value||null,
+   minutes_played:$('roster-minutes').value?Number($('roster-minutes').value):null
+  }).select('id').single();
+  if(result.error)throw result.error;
+  $('roster-form').reset();updateRosterTeams();
+  await loadPlayerMatches();
+ }catch(err){message($('roster-message'),'Oyuncu-maç bağlantısı kaydedilemedi: '+(err.message||'Bilinmeyen hata'),'error')}
+ finally{btn.disabled=false;btn.textContent='Oyuncu-maç bağlantısını kaydet'}
+});
+$('session-form').addEventListener('submit',async e=>{
+ e.preventDefault();const btn=$('save-session');btn.disabled=true;btn.textContent='Oluşturuluyor...';
+ try{
+  const pm=playerMatches.find(x=>String(x.id)===$('session-player-match').value);
+  const rubric=rubrics.find(x=>String(x.id)===$('session-rubric').value);
+  if(!pm||!rubric)throw new Error('Oyuncu-maç bağlantısı ve rubrik seçilmelidir.');
+  const result=await supabase.from('scouting_sessions').insert({
+   player_id:pm.player_id,player_match_id:pm.id,match_id:pm.match_id,
+   rubric_version_id:rubric.id,evaluator_user_id:currentUser.id,
+   status:'draft',private_notes:$('session-notes').value.trim()||null
+  }).select('id').single();
+  if(result.error)throw result.error;
+  $('session-form').reset();if(rubrics.length===1)$('session-rubric').value=rubrics[0].id;
+  message($('sessions-message'),'Taslak scouting oturumu oluşturuldu.','ok');
+  await loadSessions();
+ }catch(err){message($('sessions-message'),'Scouting oturumu oluşturulamadı: '+(err.message||'Bilinmeyen hata'),'error')}
+ finally{btn.disabled=false;btn.textContent='Taslak scouting oturumu oluştur'}
+});
+
 $('run-security-tests').addEventListener('click',runSecurityDiagnostics);
 $('cancel-edit').addEventListener('click',resetForm);
 $('logout').addEventListener('click',async()=>{await supabase.auth.signOut();currentUser=null;showLogin('Oturum kapatıldı.','ok')});
