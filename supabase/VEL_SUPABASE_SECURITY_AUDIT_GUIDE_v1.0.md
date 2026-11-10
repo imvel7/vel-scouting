@@ -67,3 +67,33 @@ Sonuçları aldıktan sonra:
 3. Güvenlik açıklarını önem derecesine göre ayıracağız.
 4. Gerekli düzeltmeleri geriye uyumlu migration olarak hazırlayacağız.
 5. Değişiklikleri uygulamadan önce etki ve geri dönüş planını belirleyeceğiz.
+
+
+## 6. Canlı denetim ve güvenlik sıkılaştırması — 10 Kasım 2026
+
+Canlı proje `xlvteloclijsudxbwszd` üzerinde denetim tamamlandı:
+
+- 11 hedef tablonun tamamında RLS etkin.
+- Anonim SELECT yalnızca `players`, `clubs` ve `scout_reports` tablolarında bırakıldı; ilgili yayımlanmış kayıt policy'leri bu tabloları sınırlandırıyor.
+- Anonim ve authenticated rollerinden `TRUNCATE`, `REFERENCES`, `TRIGGER` ve `MAINTAIN` izinleri kaldırıldı.
+- `is_vel_staff()`, `is_vel_admin()` ve `rls_auto_enable()` fonksiyonları API'ye açık `public` şemasından `private` şemasına taşındı. RLS politikalarının fonksiyon bağımlılıkları korundu.
+- `set_updated_at()` fonksiyonunun `search_path` ayarı `pg_catalog` ile sabitlendi.
+- PostgreSQL `postgres` rolüyle oluşturulacak yeni `public` tablolar için gereksiz varsayılan tablo izinleri ve yeni RPC fonksiyonları için otomatik EXECUTE izinleri kaldırıldı.
+
+Uygulanan migration: `20261110172515_tighten_vel_rls_function_privileges`.
+
+### Kalan sınırlama
+
+Canlı projede ayrıca `supabase_admin` rolüne ait varsayılan tablo izinleri bulundu. Bağlı yönetim oturumu `postgres` rolüyle çalışıyor ve bu rolün `supabase_admin` üzerinde üyeliği yok; bu nedenle o rolün varsayılan izinleri bu bağlantı üzerinden değiştirilemedi. Supabase Table Editor tarafından `supabase_admin` sahibiyle oluşturulacak yeni public tablolar için bu varsayılanlar ayrıca ele alınmalı. Şimdilik yeni scouting tablolarını bu proje bağlantısında doğrulanan `postgres` SQL/migration yolu ile oluşturun ve her yeni tabloda RLS ile grant'leri kontrol edin.
+
+### Son doğrulama
+
+Migration sonrasında:
+- 11/11 hedef tabloda RLS açık kaldı.
+- `anon` yalnızca üç kamuya açık tabloda SELECT alabiliyor.
+- `anon` ve `authenticated` için kaldırılan dört ek izin hiçbir hedef tabloda kalmadı.
+- Personel policy'leri `private.is_vel_staff()`; admin rol policy'si `private.is_vel_admin()` çağırıyor.
+- `ensure_rls` event trigger hâlâ etkin ve `private.rls_auto_enable()` fonksiyonuna bağlı.
+- Security Advisor'da fonksiyon kaynaklı üç uyarı giderildi. Tek kalan uyarı, Supabase Auth'ta sızdırılmış parola korumasının kapalı olmasıdır.
+
+Bu denetim katalog izinleri ve RLS yapılandırmasını doğrular; gerçek HTTP/Data API davranışı için anon, yetkisiz authenticated ve staff istemcileriyle ayrı uçtan uca testler hâlâ yapılmalıdır.
