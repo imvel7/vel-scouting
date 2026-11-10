@@ -182,7 +182,7 @@ Bu kararın teknik ayrıntıları: [Özel Scouting Video ve Maç Kaynak Sistemi 
 | 0 | Özel video kütüphanesi ürün kararını belgele | Tamamlandı — mimari v1.0 |
 | 1 | Canlı Supabase şema, grants ve RLS denetimi | Tamamlandı — 10 Kasım 2026; 11/11 tabloda RLS doğrulandı ve izinler sıkılaştırıldı |
 | 2 | Mevcut tablolarla yeni gereksinimler arasındaki farkı çıkar | Tamamlandı — canlı şemaya dayalı veri modeli fark analizi v1.0 |
-| 3 | Eklemeli veri modeli migration'larını uygula ve RLS testlerini tamamla | Sıradaki iş |
+| 3 | Eklemeli veri modeli migration'larını uygula ve RLS testlerini tamamla | Devam ediyor — şema ve staff-only RLS kuruldu; HTTP/API rol testleri bekliyor |
 | 4 | Maç–oyuncu katılımı–video ilişkisini doğrula ve tamamla | Bekliyor |
 | 5 | Zaman damgalı gözlem ve kriter değerlendirme akışını entegre et | Bekliyor |
 | 6 | Özel rapor ile kamuya açık rapor yayımlama sınırını test et | Bekliyor |
@@ -203,8 +203,10 @@ Bu kararın teknik ayrıntıları: [Özel Scouting Video ve Maç Kaynak Sistemi 
 
 **Canlı Supabase güvenlik denetimi ve ilk sıkılaştırma tamamlandı.** 10 Kasım 2026'da 11 hedef tablonun tamamında RLS doğrulandı. Anonim ve authenticated rollerinden gereksiz bakım/DDL izinleri kaldırıldı; güvenlik helper fonksiyonları `private` şemasına taşındı; `set_updated_at()` search_path sabitlendi. Migration: `supabase/migrations/20261110172515_tighten_vel_rls_function_privileges.sql`. Güncel denetim dosyası [SQL denetim dosyası](supabase/VEL_READ_ONLY_SECURITY_AUDIT_v1.0.sql), kullanım ve sonuç rehberi [rehber](supabase/VEL_SUPABASE_SECURITY_AUDIT_GUIDE_v1.0.md).
 
-**Veri modeli fark analizi tamamlandı:** [Canlı Veri Modeli Fark Analizi v1.0](architecture/VEL_SCOUTING_DATA_MODEL_GAP_ANALYSIS_v1.0.md) mevcut 11 tabloyu gerçek gereksinimlerle eşleştiriyor. Öneri; mevcut yapıyı silmeden değerlendirme oturumu, sürümlenmiş rubrik/kriter, kriter puanı, saniye hassasiyetinde gözlem, video erişim geçmişi ve rapor-kanit bağlantısı eklemek.
+**Veri modeli fark analizi tamamlandı:** [Canlı Veri Modeli Fark Analizi v1.0](architecture/VEL_SCOUTING_DATA_MODEL_GAP_ANALYSIS_v1.0.md) canlı şemaya göre eksikleri ve hedef yapıyı tanımlıyor.
+
+**İlk eklemeli veri modeli migration'ı uygulandı:** `20261110174605_create_vel_scouting_sessions_and_rubrics`. Sekiz yeni özel tablo oluşturuldu; mevcut gözlem tablosuna geriye uyumlu alanlar eklendi; stoper rubriğinin beş kategorisi ve 37 kriteri 1–10 puan çıpalarıyla `pilot` durumunda aktarıldı. Kriter ağırlıkları %100'e ulaşıyor ve bütün çıpa setleri eksiksiz. [Migration dosyası](supabase/migrations/20261110174605_create_vel_scouting_sessions_and_rubrics.sql).
 
 **Kalan güvenlik kapısı:** `supabase_admin` rolünün yeni tablolar için varsayılan izinleri, bağlı `postgres` oturumunun yetkisi olmadığı için değiştirilemedi. Yeni tabloları şimdilik doğrulanan `postgres` SQL/migration yolu ile oluşturacağız ve her yeni tabloda RLS/grant kontrolü yapacağız. Supabase Auth sızdırılmış parola koruması ve gerçek anon/unauthorized/staff API testleri tamamlanmadı.
 
-**Sıradaki iş:** Önce eklemeli veri modeli migration'larını hazırlayıp yalnızca özel scouting tablolarını oluşturacağız; ardından anon, yetkisiz authenticated ve staff erişimini test edeceğiz. Bu kontroller geçmeden video kaynak UI'si veya kamuya açık özel veri bağlantısı yayımlamayacağız.
+**Sıradaki iş:** Anon, yetkisiz authenticated ve staff erişimini gerçek Data API istekleriyle test etmek; ardından özel admin panelinde maç, kaynak ve değerlendirme oturumu ekranlarını geliştirmek. Bu kontroller geçmeden video kaynak UI'si veya kamuya açık özel veri bağlantısı yayımlamayacağız.
