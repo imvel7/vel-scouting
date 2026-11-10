@@ -160,7 +160,7 @@ Her kriter 1–10 arasında, VEL-COMMON-01 v1.0 puanlama ölçeğine göre değe
 
 ### 4.1. Taktiksel ve pozisyonel uygulama — %25
 
-| Kriter | Alan içi ağırlık |
+| Kriter | Kriter ağırlığı (genel puandaki pay) |
 |---|---:|
 | Savunma hattı konumu ve mesafe kontrolü | %5 |
 | Geniş koridorda bire bir savunma ve yönlendirme | %5 |
@@ -178,7 +178,7 @@ Her kriter 1–10 arasında, VEL-COMMON-01 v1.0 puanlama ölçeğine göre değe
 
 ### 4.2. Oyun zekâsı ve karar verme — %20
 
-| Kriter | Alan içi ağırlık |
+| Kriter | Kriter ağırlığı (genel puandaki pay) |
 |---|---:|
 | Top gelmeden önce çevre kontrolü ve tarama | %4 |
 | Rakip kanat oyuncusunun hareketini ve niyetini okuma | %4 |
@@ -195,7 +195,7 @@ Her kriter 1–10 arasında, VEL-COMMON-01 v1.0 puanlama ölçeğine göre değe
 
 ### 4.3. Teknik uygulama — %20
 
-| Kriter | Alan içi ağırlık |
+| Kriter | Kriter ağırlığı (genel puandaki pay) |
 |---|---:|
 | İlk kontrol ve vücut yönelimi | %3 |
 | Kısa ve orta mesafe pas kalitesi | %3 |
@@ -213,7 +213,7 @@ Her kriter 1–10 arasında, VEL-COMMON-01 v1.0 puanlama ölçeğine göre değe
 
 ### 4.4. Fiziksel ve fonksiyonel özellikler — %20
 
-| Kriter | Alan içi ağırlık |
+| Kriter | Kriter ağırlığı (genel puandaki pay) |
 |---|---:|
 | İlk ivmelenme | %4 |
 | Geri koşu ve toparlanma hızı | %4 |
@@ -231,7 +231,7 @@ Her kriter 1–10 arasında, VEL-COMMON-01 v1.0 puanlama ölçeğine göre değe
 
 ### 4.5. Rekabetçi davranışlar — %15
 
-| Kriter | Alan içi ağırlık |
+| Kriter | Kriter ağırlığı (genel puandaki pay) |
 |---|---:|
 | Savunma konsantrasyonu ve görev güvenilirliği | %4 |
 | İkili mücadelelerde kararlılık ve devamlılık | %3 |
