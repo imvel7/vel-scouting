@@ -3,7 +3,7 @@
 **Doküman:** VEL-DATA-01  
 **Sürüm:** 1.0  
 **Tarih:** 10 Kasım 2026  
-**Durum:** Canlı şemaya dayalı analiz ve önerilen tasarım; henüz veritabanı migration'ı değildir.
+**Durum:** Canlı şemaya dayalı analiz; ilk eklemeli migration 10 Kasım 2026'da uygulandı.
 
 ---
 
@@ -258,7 +258,7 @@ Canlı migration'larda `postgres` SQL/migration yolu kullanılmalı; `supabase_a
 
 ## 8. Geriye uyumlu uygulama sırası
 
-**Bu belge tasarım kararıdır; henüz yeni tablo veya sütun oluşturulmamıştır.**
+**Bu belge ilk eklemeli migration öncesinde tasarım kararı olarak hazırlandı. 10 Kasım 2026'da ilk migration ile sekiz yeni tablo, rubrik tohum verisi ve mevcut observations tablosuna nullable kanıt alanları eklendi. Migration: `supabase/migrations/20261110174605_create_vel_scouting_sessions_and_rubrics.sql`.**
 
 Önerilen migration sırası:
 
@@ -296,3 +296,17 @@ Veri kaybı gerektiren `DROP`, zorunlu alanı eski satırlara tahmini değerle d
 Mevcut veritabanı terk edilmeyecek. `matches`, `player_matches`, `videos`, `observations`, `scout_reports` ve `report_versions` tabloları doğru temel ilişkileri sağlıyor. Eksik katman, değerlendirme oturumu, sürümlenmiş kriter, puan, video zaman konumu, erişim denetim geçmişi ve rapor-kanît bağlantısı.
 
 **Bir sonraki teknik çıktı:** Bu tasarıma göre ilk migration setini hazırlamak; önce yalnızca oturum, rubrik ve erişim geçmişi tablolarını ekleyerek RLS testini tamamlamak. UI, testler geçtikten sonra geliştirilecek.
+
+
+## 11. İlk eklemeli uygulama kaydı — 10 Kasım 2026
+
+Canlı Supabase üzerinde `20261110174605_create_vel_scouting_sessions_and_rubrics` migration'ı uygulandı.
+
+- Sekiz yeni özel tablo ve bunların staff-only RLS politikaları oluşturuldu.
+- Mevcut `observations` tablosuna geriye uyumlu nullable bağlantı ve zaman alanları eklendi.
+- Stoper metodolojisi v0.8 + puanlama çıpaları v1.0, `CB-METH-0.8-ANCHORS-1.0` koduyla `pilot` statüsünde kaydedildi.
+- 5 kategori, 37 kriter ve 1–10 puan çıpaları aktarıldı; kriter ağırlık toplamı %100, eksik çıpa seti 0.
+- Yeni tablolar anon role kapalı; authenticated erişimi mevcut `admin/editor` personel kontrolüyle sınırlı.
+- Eski gözlem kayıtlarına tahmini saniye, kriter veya oturum bilgisi yazılmadı.
+
+Katalog doğrulaması başarılıdır. Gerçek HTTP/Data API erişim testleri ve özel admin ekranı henüz tamamlanmadı. Pilot rubrik, gerçek maç gözlemleriyle kalibre edilene kadar aktif rapor üretiminde kullanılmamalıdır.
