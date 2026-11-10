@@ -357,7 +357,14 @@ async function loadSessions(){
 }
 
 function safeVideoUrl(value){
- try{const url=new URL(String(value||''));return ['http:','https:'].includes(url.protocol)?url.href:null}catch{return null}
+ try{
+  const url=new URL(String(value||''));
+  if(!['http:','https:'].includes(url.protocol)||url.username||url.password)return null;
+  const sensitive=/(^|[_-])(token|auth|authorization|signature|sig|access[_-]?key|jwt|session|password|secret|credential)([_-]|$)/i;
+  if([...url.searchParams.keys()].some(key=>sensitive.test(key)))return null;
+  if(sensitive.test(url.hash.replace(/^#/,'').split('=')[0]))return null;
+  return url.href;
+ }catch{return null}
 }
 function formatClock(totalSeconds){
  if(!Number.isInteger(totalSeconds)||totalSeconds<0)return '—';
@@ -672,6 +679,8 @@ $('observation-form').addEventListener('submit',async e=>{
   if(String(sv.session_id)!==String(s.id))throw new Error('Seçilen video bağlantısı bu oturuma ait değil.');
   if(String(criterion.rubric_version_id)!==String(s.rubric_version_id))throw new Error('Kriter, oturumun rubrik sürümüyle eşleşmiyor.');
   if(videoSeconds===null||matchSeconds===null)throw new Error('Zaman alanlarını Dakika:Saniye veya Saat:Dakika:Saniye biçiminde gir.');
+  const sourceVideo=videos.find(v=>String(v.id)===String(sv.video_id));
+  if(sourceVideo?.duration_minutes&&videoSeconds>sourceVideo.duration_minutes*60)throw new Error('Video zamanı kayıtlı video süresini aşıyor.');
   const minute=Math.floor(matchSeconds/60);
   if(minute>150)throw new Error('Maç saati 150 dakikayı aşamaz.');
   const category=rubricCategories.find(x=>String(x.id)===String(criterion.rubric_category_id));
