@@ -1,4 +1,4 @@
--- VEL SCOUTING: access policies for the existing 10-table database.
+-- VEL SCOUTING: access policies for the existing 11-table database.
 -- ASCII-only file to avoid hidden direction marks during mobile copy/paste.
 -- Run this once in Supabase SQL Editor AFTER replacing the UID placeholder below.
 
