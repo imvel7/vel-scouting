@@ -99,7 +99,7 @@
 <div class="actions"><button class="btn" type="submit" id="save-video">Özel video kaydını oluştur</button></div>
 </form>
 <div id="videos-message" class="notice">Video kayıtları yükleniyor.</div>
-<div class="tablewrap"><table><thead><tr><th>Maç</th><th>Kaynak</th><th>Tür</th><th>Erişim</th><th>Hak durumu</th><th>Bağlantı</th></tr></thead><tbody id="videos-body"><tr><td colspan="6" class="muted">Henüz video kaydı yok.</td></tr></tbody></table></div>
+<div class="tablewrap"><table><thead><tr><th>Maç</th><th>Kaynak</th><th>Tür</th><th>Son kontrol (ülke)</th><th>Hak durumu</th><th>Bağlantı</th></tr></thead><tbody id="videos-body"><tr><td colspan="6" class="muted">Henüz video kaydı yok.</td></tr></tbody></table></div>
 </div>
 <div class="panel">
 <div class="tag">Session video linking</div><h2>Videoyu scouting oturumuna bağla</h2>
@@ -130,7 +130,7 @@
 <div class="actions"><button class="btn" type="submit" id="save-access">Erişim kontrolünü kaydet</button></div>
 </form>
 <div id="access-message" class="notice">Erişim kontrol geçmişi yükleniyor.</div>
-<div class="tablewrap"><table><thead><tr><th>Video</th><th>Ülke</th><th>Sonuç</th><th>Hesap</th><th>Ücret</th><th>Kapsam</th><th>Kontrol tarihi</th></tr></thead><tbody id="access-body"><tr><td colspan="7" class="muted">Henüz kontrol yok.</td></tr></tbody></table></div>
+<div class="tablewrap"><table><thead><tr><th>Video</th><th>Ülke</th><th>Sonuç</th><th>Hesap</th><th>Ücret</th><th>Kapsam</th><th>Kontrol tarihi</th><th>Notlar</th></tr></thead><tbody id="access-body"><tr><td colspan="8" class="muted">Henüz kontrol yok.</td></tr></tbody></table></div>
 </div>
 <div class="panel">
 <div class="tag">Timestamped evidence</div><h2>Zaman damgalı gözlem ekle</h2>
@@ -409,18 +409,20 @@ function populateObservationTargets(){
   return '<option value="'+esc(c.id)+'">'+esc((cat?.category_name||'Kategori')+' — '+c.criterion_name)+'</option>';
  }).join('');
 }
+function renderVideoRows(){
+ $('videos-body').innerHTML=videos.map(v=>{
+  const href=safeVideoUrl(v.video_url);
+  const link=href?'<a href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">Kaynağı aç ↗</a>':'Bağlantı biçimi geçersiz';
+  const lastCheck=videoAccessChecks.find(x=>String(x.video_id)===String(v.id));
+  const access=lastCheck?lastCheck.country_code+': '+lastCheck.access_result:v.access_status;
+  return '<tr><td>'+esc(matchLabelById(v.match_id))+'</td><td>'+esc(v.source_name)+'</td><td>'+esc(v.video_type)+'</td><td>'+esc(access)+'</td><td>'+esc(v.rights_status)+'</td><td>'+link+'</td></tr>';
+ }).join('')||'<tr><td colspan="6" class="muted">Henüz video kaydı yok.</td></tr>';
+}
 async function loadVideos(){
  const {data,error}=await supabase.from('videos').select('id,match_id,source_name,video_url,video_type,duration_minutes,access_status,rights_status,last_checked_at,notes').order('created_at',{ascending:false}).limit(300);
  if(error){videos=[];message($('videos-message'),'Video kayıtları alınamadı: '+error.message,'error')}
- else{
-  videos=data||[];
-  $('videos-body').innerHTML=videos.map(v=>{
-   const href=safeVideoUrl(v.video_url);
-   const link=href?'<a href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">Kaynağı aç ↗</a>':'Bağlantı biçimi geçersiz';
-   return '<tr><td>'+esc(matchLabelById(v.match_id))+'</td><td>'+esc(v.source_name)+'</td><td>'+esc(v.video_type)+'</td><td>'+esc(v.access_status)+'</td><td>'+esc(v.rights_status)+'</td><td>'+link+'</td></tr>';
-  }).join('')||'<tr><td colspan="6" class="muted">Henüz video kaydı yok.</td></tr>';
-  message($('videos-message'),videos.length+' özel video kaydı bulundu.','ok');
- }
+ else{videos=data||[];message($('videos-message'),videos.length+' özel video kaydı bulundu.',videos.length?'ok':'')}
+ renderVideoRows();
  populateVideoSelects();
 }
 async function loadSessionVideos(){
@@ -444,8 +446,9 @@ async function loadVideoAccessChecks(){
  $('access-body').innerHTML=videoAccessChecks.map(x=>{
   const v=videos.find(y=>String(y.id)===String(x.video_id));
   const checked=x.checked_at?new Date(x.checked_at).toLocaleString('tr-TR'):'—';
-  return '<tr><td>'+esc(v?.source_name||'Video kaydı')+'</td><td>'+esc(x.country_code)+'</td><td>'+esc(x.access_result)+'</td><td>'+esc(x.account_requirement)+'</td><td>'+esc(x.price_status)+'</td><td>'+esc(x.coverage_status)+'</td><td>'+esc(checked)+'</td></tr>';
- }).join('')||'<tr><td colspan="7" class="muted">Henüz erişim kontrolü yok.</td></tr>';
+  return '<tr><td>'+esc(v?.source_name||'Video kaydı')+'</td><td>'+esc(x.country_code)+'</td><td>'+esc(x.access_result)+'</td><td>'+esc(x.account_requirement)+'</td><td>'+esc(x.price_status)+'</td><td>'+esc(x.coverage_status)+'</td><td>'+esc(checked)+'</td><td>'+esc(x.notes||'—')+'</td></tr>';
+ }).join('')||'<tr><td colspan="8" class="muted">Henüz erişim kontrolü yok.</td></tr>';
+ renderVideoRows();
  message($('access-message'),videoAccessChecks.length+' erişim kontrolü kaydı bulundu.',videoAccessChecks.length?'ok':'');
 }
 
@@ -650,7 +653,7 @@ $('access-form').addEventListener('submit',async e=>{
   const videoId=$('access-video').value,country=$('access-country').value.trim().toUpperCase();
   if(!videos.some(v=>String(v.id)===String(videoId)))throw new Error('Video seçilmelidir.');
   if(!/^[A-Z]{2}$/.test(country))throw new Error('Ülke kodu iki harfli ISO biçiminde olmalıdır.');
-  const accessResult=$('access-result').value,checkedAt=new Date().toISOString();
+  const accessResult=$('access-result').value;
   const result=await supabase.from('video_access_checks').insert({
    video_id:videoId,country_code:country,checked_by:currentUser.id,
    access_result:accessResult,account_requirement:$('access-account').value,
@@ -658,11 +661,8 @@ $('access-form').addEventListener('submit',async e=>{
    notes:$('access-notes').value.trim()||null
   });
   if(result.error)throw result.error;
-  const update=await supabase.from('videos').update({access_status:accessResult,last_checked_at:checkedAt}).eq('id',videoId);
-  if(update.error)message($('access-message'),'Erişim geçmişi kaydedildi; video özet durumu güncellenemedi: '+update.error.message,'error');
-  else message($('access-message'),'Erişim kontrolü ve video özet durumu kaydedildi.','ok');
   $('access-form').reset();$('access-country').value='TR';
-  await loadVideos();await loadVideoAccessChecks();
+  await loadVideoAccessChecks();
  }catch(err){message($('access-message'),'Erişim kontrolü kaydedilemedi: '+(err.message||'Bilinmeyen hata'),'error')}
  finally{btn.disabled=false;btn.textContent='Erişim kontrolünü kaydet'}
 });
