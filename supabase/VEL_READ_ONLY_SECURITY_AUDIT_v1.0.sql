@@ -17,7 +17,15 @@ WITH target_tables(table_name) AS (
     ('observations'),
     ('scout_reports'),
     ('report_versions'),
-    ('user_roles')
+    ('user_roles'),
+    ('rubric_versions'),
+    ('rubric_categories'),
+    ('rubric_criteria'),
+    ('scouting_sessions'),
+    ('scouting_session_videos'),
+    ('criterion_scores'),
+    ('video_access_checks'),
+    ('scout_report_sessions')
 ),
 table_state AS (
   SELECT
@@ -146,7 +154,9 @@ WHERE table_schema = 'public'
   AND table_name IN (
     'players', 'clubs', 'competitions', 'seasons', 'matches',
     'player_matches', 'videos', 'observations', 'scout_reports',
-    'report_versions', 'user_roles'
+    'report_versions', 'user_roles', 'rubric_versions', 'rubric_categories',
+    'rubric_criteria', 'scouting_sessions', 'scouting_session_videos',
+    'criterion_scores', 'video_access_checks', 'scout_report_sessions'
   )
 ORDER BY table_name, grantee, privilege_type;
 
