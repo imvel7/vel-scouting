@@ -3,7 +3,7 @@
 **Kayıt:** VEL-PILOT-CB-MATCH-01  
 **Sürüm:** 1.0  
 **Araştırma tarihi:** 10 Kasım 2026  
-**Durum:** Birincil aday belirlendi; Türkiye'den video oynatma ve erişim koşulları henüz kullanıcı tarafından doğrulanmalı.
+**Durum:** Kullanıcı 10 Kasım 2026 tarihinde UEFA.tv'de bu tam maç kaydını bulduğunu bildirdi; gözlem ve kesintisizlik kontrolü bekliyor.
 
 ## 1. Seçilen aday
 
@@ -56,15 +56,15 @@ Bu maç, stoper gözlem iş akışını denemek için makul bir adaydır:
 
 Video izlenmeden önce şu üç kontrol tamamlanmalıdır:
 
-- [ ] UEFA.tv kataloğunda Galatasaray 5–2 Juventus tam maç kaydı hâlâ listeleniyor.
-- [ ] Türkiye'den normal, ücretsiz MyUEFA hesabıyla kayıt oynatılabiliyor.
-- [ ] Görüntü, maçın tamamını ve Davinson Sánchez'in oynadığı süreyi kapsıyor; eksik/kesik bölümler not ediliyor.
+- [x] Kullanıcı UEFA.tv'de Galatasaray 5–2 Juventus tam maç kaydını bulduğunu bildirdi (10 Kasım 2026).
+- [ ] Video başlangıcı, devre arası sonrası ve son bölümü izlenerek oynatma/kesintisizlik kontrolü yapılacak.
+- [ ] Davinson Sánchez'in görüntüdeki tam katılım süresi ve olası kamera/kayıt eksikleri not edilecek.
 
-Erişim sağlanamazsa bölgesel kısıtlama aşılmaya çalışılmaz. Bir sonraki seçenek, Türkiye'de yasal ve erişilebilir başka bir tam maç kaydı aramaktır.
+Kayıt izleme sırasında açılmaz veya eksik çıkarsa bölgesel kısıt aşılmaya çalışılmaz; başka bir yasal tam maç adayı aranır.
 
 ## 6. Gözlem uygulama planı
 
-Erişim doğrulanırsa:
+Erişim kullanıcı tarafından bulunduğu için ilk gözlem oturumu bu maça bağlanır:
 1. [Stoper Pilot Gözlem Şablonu v1.0](VEL_CENTRE_BACK_PILOT_OBSERVATION_TEMPLATE_v1.0.md) bu maç için kopyalanır.
 2. Maçın ilk ve ikinci yarısı ayrı bağlam notlarıyla izlenir; 67. dakika sonrası sayısal üstünlük ayrıca kaydedilir.
 3. Olaylar maç dakikası ve video zamanı ile işaretlenir.

@@ -4,7 +4,7 @@
 **Sürüm:** 1.0  
 **Kontrol tarihi:** 10 Kasım 2026  
 **Amaç:** Stoper pilotu için uygun tam maç kaynağını, oyuncunun gerçekten oynayıp oynamadığıyla birlikte kontrol etmek.  
-**Durum:** Bir güçlü aday var; Türkiye'den ücretsiz oynatma henüz doğrulanmadı.
+**Durum:** Kullanıcı, Türkiye'den UEFA.tv'de tam maç kaydını bulduğunu bildirdi. Video erişimi kullanıcı beyanıyla doğrulanmış; hak ve yeniden kullanım koşulları ayrı tutulur.
 
 ---
 
@@ -34,10 +34,11 @@ UEFA.tv ücretsiz MyUEFA hesap modelini kullanıyor; ancak tek tek videolar ülk
 - Resmî katalogda tam maç tekrarı olarak listelenmesi: **Doğrulandı**
 - Davinson Sánchez'in ilk 11'de olması: **Doğrulandı**
 - Genel ücretsiz kayıt modeli: **Doğrulandı**
-- Bu videonun Türkiye'den ücretsiz hesapla oynatılması: **Kullanıcı cihazında doğrulanmalı**
+- Bu tam maç kaydının Türkiye'de UEFA.tv kataloğunda bulunması: **Kullanıcı tarafından doğrulandı (10 Kasım 2026)**
+- Videonun tüm dakika aralığında kesintisiz oynatılması: **Gözlem oturumunda kontrol edilecek**
 - Yeniden yayımlama/barındırma izni: **Verilmiş kabul edilemez; ayrıca yazılı izin gerekir**
 
-**Karar:** Şimdilik birincil aday. Türkiye erişimi doğrulanmadan “doğrulanmış ücretsiz tam maç” statüsüne yükseltilmez.
+**Karar:** Birincil pilot kaynağı olarak seçildi. Kaydın Türkiye'de bulunması kullanıcı tarafından doğrulandı; kesintisiz tamlık, görüntü kalitesi ve kullanım hakları pilot kayıt sırasında ayrıca not edilecek.
 
 ## 3. Aday 2 — Galatasaray 1–2 Villarreal
 
@@ -68,10 +69,7 @@ Ancak resmî Galatasaray maç raporunda ilk 11'de Davinson Sánchez bulunmuyor. 
 
 [UEFA.tv Re-Runs kataloğunu aç](https://www.uefa.tv/section/Re-Runs)
 
-Kullanıcıdan yalnızca şu kontrol istenir:
-1. Galatasaray 5–2 Juventus kaydını aç.
-2. Normal ücretsiz MyUEFA hesabıyla oynatmanın başlayıp başlamadığını kontrol et.
-3. Video başlangıcını, maçın ikinci yarısını ve maç sonunu açarak kaydın kesintisiz/tam olup olmadığını kontrol et.
+Kullanıcı, 10 Kasım 2026 tarihinde UEFA.tv'de Galatasaray 5–2 Juventus tam maç kaydını bulduğunu bildirdi. Gözlem sırasında başlangıç, devre arası sonrası, ikinci yarı ve maç sonu kontrol edilerek eksik/kesik bölümler not edilecek.
 
 Başarısız erişimde bölgesel kısıtlamayı aşmaya çalışılmaz; alternatif resmî kaynak aranır.
 
@@ -81,7 +79,7 @@ Başarısız erişimde bölgesel kısıtlamayı aşmaya çalışılmaz; alternat
 - Video engelli, ücretli veya eksikse: aday olarak saklanır ancak pilot için kullanılmaz; başka resmî kaynak aranır.
 - Uygun ücretsiz tam maç bulunamazsa: pilot ertelenir; özet veya izinsiz kopya tam maç yerine kullanılmaz.
 
-Video erişimi doğrulansa bile tek maç, oyuncunun nihai puanını, kalıcı ana rolünü veya A kanıt seviyesini belirlemez. Bu ilk testin amacı gözlem şablonunun kullanılabilirliğidir.
+Video erişimi kullanıcı tarafından doğrulanmış olsa bile tek maç, oyuncunun nihai puanını, kalıcı ana rolünü veya A kanıt seviyesini belirlemez. Bu ilk testin amacı gözlem şablonunun kullanılabilirliğidir.
 
 ## 7. Kaynaklar
 
