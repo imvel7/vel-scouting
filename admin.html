@@ -84,6 +84,76 @@
 </div>
 
 <div class="panel">
+<div class="tag">Private video library</div><h2>Maç videosu kaydı</h2>
+<p class="muted">Yalnızca kaynak bilgisi ve bağlantı kaydedilir. Video dosyası Vel sunucusuna yüklenmez; burada gömülü oynatıcı oluşturulmaz. Kaynağı izleme ve yeniden yayımlama hakları ayrı konulardır.</p>
+<form id="video-form">
+<div class="grid">
+<div class="field"><label for="video-match">İlgili maç *</label><select id="video-match" required><option value="">Maç seç</option></select></div>
+<div class="field"><label for="video-source">Kaynak / yayıncı *</label><input id="video-source" required maxlength="160" placeholder="Örn. UEFA.tv"></div>
+<div class="field" style="grid-column:1/-1"><label for="video-url">Kaynak bağlantısı *</label><input id="video-url" type="url" inputmode="url" required maxlength="2000" placeholder="https://..."><small class="muted">Yalnızca güvenilir, doğrudan kaynak sayfasının bağlantısını gir. Gizli oturum çerezleri veya kişisel erişim belirteçleri ekleme.</small></div>
+<div class="field"><label for="video-type">Video türü</label><select id="video-type"><option value="full_match">Tam maç</option><option value="extended_highlights">Geniş özet</option><option value="highlights">Özet</option><option value="other">Diğer</option></select></div>
+<div class="field"><label for="video-duration">Süre (dakika)</label><input id="video-duration" type="number" min="1" max="300" inputmode="numeric" placeholder="Örn. 105"></div>
+<div class="field"><label for="video-rights">Hak durumu</label><select id="video-rights"><option value="link_only">Yalnızca bağlantı</option><option value="unknown">Bilinmiyor</option><option value="permission_granted">Yazılı izin mevcut</option></select><small class="muted">“Yalnızca bağlantı” video yayımlama veya yeniden barındırma izni vermez.</small></div>
+<div class="field"><label for="video-notes">Özel kaynak notu</label><input id="video-notes" maxlength="1000" placeholder="Erişim koşulu, yayın bölgesi vb."></div>
+</div>
+<div class="actions"><button class="btn" type="submit" id="save-video">Özel video kaydını oluştur</button></div>
+</form>
+<div id="videos-message" class="notice">Video kayıtları yükleniyor.</div>
+<div class="tablewrap"><table><thead><tr><th>Maç</th><th>Kaynak</th><th>Tür</th><th>Erişim</th><th>Hak durumu</th><th>Bağlantı</th></tr></thead><tbody id="videos-body"><tr><td colspan="6" class="muted">Henüz video kaydı yok.</td></tr></tbody></table></div>
+</div>
+<div class="panel">
+<div class="tag">Session video linking</div><h2>Videoyu scouting oturumuna bağla</h2>
+<form id="session-video-form">
+<div class="grid">
+<div class="field"><label for="link-session">Scouting oturumu *</label><select id="link-session" required><option value="">Oturum seç</option></select></div>
+<div class="field"><label for="link-video">Video kaydı *</label><select id="link-video" required><option value="">Video seç</option></select></div>
+<div class="field" style="grid-column:1/-1"><label for="link-usage-note">Kullanım notu</label><input id="link-usage-note" maxlength="600" placeholder="Örn. Tam maç kaydı; ikinci yarı için ana kaynak"></div>
+</div>
+<div class="actions"><button class="btn" type="submit" id="save-session-video">Videoyu oturuma bağla</button></div>
+</form>
+<div id="session-videos-message" class="notice">Oturum-video bağlantıları yükleniyor.</div>
+<div class="tablewrap"><table><thead><tr><th>Oturum</th><th>Kaynak</th><th>Maç</th><th>Not</th></tr></thead><tbody id="session-videos-body"><tr><td colspan="4" class="muted">Henüz bağlantı yok.</td></tr></tbody></table></div>
+</div>
+<div class="panel">
+<div class="tag">Access verification log</div><h2>Video erişim kontrolü kaydet</h2>
+<p class="muted">Kontrolü gerçekten yaptığın ülke ve hesap koşuluna göre kaydet. Bu kayıt, kaynağın başka ülkelerde veya hesap türlerinde erişilebilir olduğunu varsaymaz.</p>
+<form id="access-form">
+<div class="grid">
+<div class="field"><label for="access-video">Video *</label><select id="access-video" required><option value="">Video seç</option></select></div>
+<div class="field"><label for="access-country">Ülke kodu (ISO 3166-1 alpha-2) *</label><input id="access-country" value="TR" minlength="2" maxlength="2" pattern="[A-Za-z]{2}" required></div>
+<div class="field"><label for="access-result">Erişim sonucu *</label><select id="access-result"><option value="available">Erişilebilir</option><option value="unavailable">Erişilemiyor</option><option value="restricted">Kısıtlı / bölgesel</option><option value="unknown">Bilinmiyor</option></select></div>
+<div class="field"><label for="access-account">Hesap gereksinimi *</label><select id="access-account"><option value="unknown">Bilinmiyor</option><option value="none">Hesap gerekmiyor</option><option value="free_account">Ücretsiz hesap</option><option value="subscription">Abonelik</option><option value="institutional">Kurumsal erişim</option></select></div>
+<div class="field"><label for="access-price">Ücret durumu *</label><select id="access-price"><option value="unknown">Bilinmiyor</option><option value="free">Ücretsiz</option><option value="paid">Ücretli</option></select></div>
+<div class="field"><label for="access-coverage">Video kapsamı *</label><select id="access-coverage"><option value="unknown">Bilinmiyor</option><option value="full_match">Tam maç</option><option value="partial">Kısmi yayın</option><option value="highlights">Özet</option></select></div>
+<div class="field" style="grid-column:1/-1"><label for="access-notes">Kontrol notu</label><input id="access-notes" maxlength="1200" placeholder="Kontrol tarihi, giriş/abonelik koşulu, bölgesel kısıt vb."></div>
+</div>
+<div class="actions"><button class="btn" type="submit" id="save-access">Erişim kontrolünü kaydet</button></div>
+</form>
+<div id="access-message" class="notice">Erişim kontrol geçmişi henüz görüntülenmedi.</div>
+</div>
+<div class="panel">
+<div class="tag">Timestamped evidence</div><h2>Zaman damgalı gözlem ekle</h2>
+<p class="muted">Gözlem, seçilen scouting oturumuna ve o oturuma bağlı video/kritere kaydedilir. Video zamanı ve maç saati ayrı alanlardır. Maç saati, başlama vuruşundan itibaren toplam süreyi gösterir; örneğin 48:20 ikinci yarının 3:20 anıdır.</p>
+<form id="observation-form">
+<div class="grid">
+<div class="field"><label for="observation-session">Scouting oturumu *</label><select id="observation-session" required><option value="">Oturum seç</option></select></div>
+<div class="field"><label for="observation-video">Oturuma bağlı video *</label><select id="observation-video" required><option value="">Önce oturum seç</option></select></div>
+<div class="field"><label for="observation-criterion">Rubrik kriteri *</label><select id="observation-criterion" required><option value="">Önce oturum seç</option></select></div>
+<div class="field"><label for="observation-period">Devre / bölüm</label><select id="observation-period"><option value="unknown">Bilinmiyor</option><option value="first_half">1. yarı</option><option value="second_half">2. yarı</option><option value="extra_time_first_half">Uzatma 1. yarı</option><option value="extra_time_second_half">Uzatma 2. yarı</option><option value="penalty_shootout">Penaltılar</option></select></div>
+<div class="field"><label for="observation-video-time">Video zamanı (SS:DD veya SS:DD:SS) *</label><input id="observation-video-time" required inputmode="numeric" placeholder="01:12:35" maxlength="8"></div>
+<div class="field"><label for="observation-match-time">Maç saati (DD:SS) *</label><input id="observation-match-time" required inputmode="numeric" placeholder="48:20" maxlength="8"></div>
+<div class="field"><label for="observation-evaluation">Değerlendirme</label><select id="observation-evaluation"><option value="">Belirtilmedi</option><option value="positive">Olumlu</option><option value="negative">Olumsuz</option><option value="uncertain">Belirsiz</option></select></div>
+<div class="field"><label for="observation-evidence">Kanıt seviyesi</label><select id="observation-evidence"><option value="low">Düşük</option><option value="medium" selected>Orta</option><option value="high">Yüksek</option></select></div>
+<div class="field" style="grid-column:1/-1"><label for="observation-situation">Oyun bağlamı</label><input id="observation-situation" maxlength="500" placeholder="Örn. Rakip geçiş hücumunda, savunma hattı öne çıkmış durumda"></div>
+<div class="field" style="grid-column:1/-1"><label for="observation-text">Gözlem *</label><textarea id="observation-text" rows="3" maxlength="3000" required placeholder="Oyuncunun yaptığı davranışı, kararını ve takım bağlamını somut biçimde kaydet."></textarea></div>
+</div>
+<div class="actions"><button class="btn" type="submit" id="save-observation">Zaman damgalı gözlemi kaydet</button></div>
+</form>
+<div id="observations-message" class="notice">Gözlem kayıtları yükleniyor.</div>
+<div class="tablewrap"><table><thead><tr><th>Oyuncu / oturum</th><th>Kriter</th><th>Video zamanı</th><th>Maç saati</th><th>Gözlem</th></tr></thead><tbody id="observations-body"><tr><td colspan="5" class="muted">Henüz gözlem yok.</td></tr></tbody></table></div>
+</div>
+
+<div class="panel">
 <div class="tag">Club database</div><h2>Yeni kulüp kaydı</h2>
 <p class="muted">Kulüp kayıtları oyuncu profillerinde seçilebilir. İlk sürüm yalnızca kulüp adını kaydeder.</p>
 <form id="club-form">
@@ -142,7 +212,7 @@ const SUPABASE_PUBLIC_KEY='sb_publishable_Gi8Al3ubX_ptadWYYV35kQ_9gm7vxOq';
 const supabase=createClient(SUPABASE_URL,SUPABASE_PUBLIC_KEY);
 const $=id=>document.getElementById(id);
 const loginPanel=$('login-panel'),dashboard=$('dashboard');
-let currentUser=null,records=[],clubs=[],reports=[],matches=[],playerMatches=[],rubrics=[],scoutingSessions=[];
+let currentUser=null,records=[],clubs=[],reports=[],matches=[],playerMatches=[],rubrics=[],scoutingSessions=[],videos=[],sessionVideos=[],rubricCategories=[],rubricCriteria=[],observations=[];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function message(el,text,type=''){el.textContent=text;el.className='notice '+type}
 function showLogin(text,type=''){loginPanel.classList.remove('hidden');dashboard.classList.add('hidden');$('logout').classList.add('hidden');if(text)message($('login-message'),text,type)}
@@ -182,7 +252,7 @@ async function verifyAndLoad(user){
  const {data:roleData,error:roleError}=await supabase.from('user_roles').select('role').eq('user_id',user.id).maybeSingle();
  if(roleError)throw new Error('Yetki kontrolü yapılamadı: '+roleError.message);
  if(!roleData||!['admin','editor'].includes(roleData.role))throw new Error('Bu hesapta Vel Scouting yönetim yetkisi bulunmuyor.');
- currentUser=user;showDashboard();await loadClubs();await loadPlayers();await loadReports();await loadMatches();await loadRubrics();await loadPlayerMatches();await loadSessions();
+ currentUser=user;showDashboard();await loadClubs();await loadPlayers();await loadReports();await loadMatches();await loadRubrics();await loadPlayerMatches();await loadSessions();await loadVideos();await loadSessionVideos();await loadRubricCriteria();await loadObservations();
 }
 async function loadClubs(){
  const select=$('current-club');
@@ -249,7 +319,7 @@ async function loadMatches(){
  const {data,error}=await supabase.from('matches').select('id,home_club_id,away_club_id,match_date,home_score,away_score,match_status,age_category').order('match_date',{ascending:false}).limit(200);
  if(error){matches=[];message($('matches-message'),'Maç kayıtları alınamadı: '+error.message,'error')}
  else{matches=data||[];message($('matches-message'),matches.length+' maç kaydı bulundu.',matches.length?'ok':'')}
- populateRosterMatches();updateRosterTeams();
+ populateRosterMatches();updateRosterTeams();$('video-match').innerHTML='<option value="">Maç seç</option>'+matches.map(m=>'<option value="'+esc(m.id)+'">'+esc(formatMatchLabel(m))+'</option>').join('');
 }
 async function loadPlayerMatches(){
  const {data,error}=await supabase.from('player_matches').select('id,player_id,match_id,club_id,position_played,minutes_played').order('created_at',{ascending:false}).limit(500);
@@ -274,7 +344,7 @@ function populateSessionParticipants(){
 async function loadSessions(){
  const {data,error}=await supabase.from('scouting_sessions').select('id,player_id,player_match_id,match_id,rubric_version_id,status,created_at').order('created_at',{ascending:false}).limit(100);
  if(error){message($('sessions-message'),'Scouting oturumları alınamadı: '+error.message,'error');return}
- scoutingSessions=data||[];
+ scoutingSessions=data||[];populateSessionSelects();
  $('sessions-body').innerHTML=scoutingSessions.map(s=>{
   const player=records.find(p=>String(p.id)===String(s.player_id));
   const match=matches.find(m=>String(m.id)===String(s.match_id));
@@ -283,6 +353,104 @@ async function loadSessions(){
   return '<tr><td>'+esc(player?.full_name||'Oyuncu')+'</td><td>'+esc(match?formatMatchLabel(match):'Maç')+'</td><td>'+esc(rubric?.version_code||'Rubrik')+'</td><td class="status">'+esc(s.status)+'</td><td>'+esc(created)+'</td></tr>';
  }).join('')||'<tr><td colspan="5" class="muted">Henüz scouting oturumu yok.</td></tr>';
  message($('sessions-message'),scoutingSessions.length+' scouting oturumu bulundu.',scoutingSessions.length?'ok':'');
+}
+
+function safeVideoUrl(value){
+ try{const url=new URL(String(value||''));return ['http:','https:'].includes(url.protocol)?url.href:null}catch{return null}
+}
+function formatClock(totalSeconds){
+ if(!Number.isInteger(totalSeconds)||totalSeconds<0)return '—';
+ const h=Math.floor(totalSeconds/3600),m=Math.floor((totalSeconds%3600)/60),s=totalSeconds%60;
+ return h>0?[h,m,s].map(v=>String(v).padStart(2,'0')).join(':'):[m,s].map(v=>String(v).padStart(2,'0')).join(':');
+}
+function parseClock(value){
+ const parts=String(value||'').trim().split(':');
+ if(parts.length!==2&&parts.length!==3)return null;
+ if(parts.some(p=>!/^\d{1,3}$/.test(p)))return null;
+ const nums=parts.map(Number);
+ const sec=nums[nums.length-1],minute=nums[nums.length-2];
+ if(sec>59||(parts.length===3&&minute>59))return null;
+ return parts.length===2?minute*60+sec:nums[0]*3600+minute*60+sec;
+}
+function matchLabelById(id){
+ const m=matches.find(x=>String(x.id)===String(id));
+ return m?formatMatchLabel(m):'Maç';
+}
+function sessionLabel(s){
+ const player=records.find(p=>String(p.id)===String(s.player_id));
+ return (player?.full_name||'Oyuncu')+' · '+matchLabelById(s.match_id);
+}
+function populateVideoSelects(){
+ const videoOpts='<option value="">Video seç</option>'+videos.map(v=>'<option value="'+esc(v.id)+'">'+esc(matchLabelById(v.match_id)+' · '+v.source_name+' · '+v.video_type)+'</option>').join('');
+ $('link-video').innerHTML=videoOpts;$('access-video').innerHTML=videoOpts;
+}
+function populateSessionSelects(){
+ const opts='<option value="">Oturum seç</option>'+scoutingSessions.map(s=>'<option value="'+esc(s.id)+'">'+esc(sessionLabel(s))+'</option>').join('');
+ $('link-session').innerHTML=opts;$('observation-session').innerHTML=opts;
+}
+function populateObservationTargets(){
+ const session=scoutingSessions.find(s=>String(s.id)===$('observation-session').value);
+ const videoRows=sessionVideos.filter(x=>String(x.session_id)===String(session?.id));
+ $('observation-video').innerHTML='<option value="">Oturuma bağlı video seç</option>'+videoRows.map(x=>{
+  const v=videos.find(y=>String(y.id)===String(x.video_id));
+  return '<option value="'+esc(x.id)+'">'+esc(v?.source_name||'Video kaydı')+'</option>';
+ }).join('');
+ const criteria=rubricCriteria.filter(c=>String(c.rubric_version_id)===String(session?.rubric_version_id));
+ $('observation-criterion').innerHTML='<option value="">Kriter seç</option>'+criteria.map(c=>{
+  const cat=rubricCategories.find(x=>String(x.id)===String(c.rubric_category_id));
+  return '<option value="'+esc(c.id)+'">'+esc((cat?.category_name||'Kategori')+' — '+c.criterion_name)+'</option>';
+ }).join('');
+}
+async function loadVideos(){
+ const {data,error}=await supabase.from('videos').select('id,match_id,source_name,video_url,video_type,duration_minutes,access_status,rights_status,last_checked_at,notes').order('created_at',{ascending:false}).limit(300);
+ if(error){videos=[];message($('videos-message'),'Video kayıtları alınamadı: '+error.message,'error')}
+ else{
+  videos=data||[];
+  $('videos-body').innerHTML=videos.map(v=>{
+   const href=safeVideoUrl(v.video_url);
+   const link=href?'<a href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">Kaynağı aç ↗</a>':'Bağlantı biçimi geçersiz';
+   return '<tr><td>'+esc(matchLabelById(v.match_id))+'</td><td>'+esc(v.source_name)+'</td><td>'+esc(v.video_type)+'</td><td>'+esc(v.access_status)+'</td><td>'+esc(v.rights_status)+'</td><td>'+link+'</td></tr>';
+  }).join('')||'<tr><td colspan="6" class="muted">Henüz video kaydı yok.</td></tr>';
+  message($('videos-message'),videos.length+' özel video kaydı bulundu.','ok');
+ }
+ populateVideoSelects();
+}
+async function loadSessionVideos(){
+ const {data,error}=await supabase.from('scouting_session_videos').select('id,session_id,match_id,video_id,is_primary,usage_note,created_at').order('created_at',{ascending:false}).limit(500);
+ if(error){sessionVideos=[];message($('session-videos-message'),'Oturum-video bağlantıları alınamadı: '+error.message,'error')}
+ else{
+  sessionVideos=data||[];
+  $('session-videos-body').innerHTML=sessionVideos.map(x=>{
+   const v=videos.find(y=>String(y.id)===String(x.video_id));
+   const s=scoutingSessions.find(y=>String(y.id)===String(x.session_id));
+   return '<tr><td>'+esc(s?sessionLabel(s):'Oturum')+'</td><td>'+esc(v?.source_name||'Video')+'</td><td>'+esc(matchLabelById(x.match_id))+'</td><td>'+esc(x.usage_note||'—')+'</td></tr>';
+  }).join('')||'<tr><td colspan="4" class="muted">Henüz bağlantı yok.</td></tr>';
+  message($('session-videos-message'),sessionVideos.length+' oturum-video bağlantısı bulundu.',sessionVideos.length?'ok':'');
+ }
+ populateObservationTargets();
+}
+async function loadRubricCriteria(){
+ const [cats,criteria]=await Promise.all([
+  supabase.from('rubric_categories').select('id,rubric_version_id,category_name,sort_order').order('sort_order'),
+  supabase.from('rubric_criteria').select('id,rubric_version_id,rubric_category_id,criterion_code,criterion_name,sort_order').order('sort_order')
+ ]);
+ if(cats.error||criteria.error){
+  rubricCategories=[];rubricCriteria=[];
+  message($('observations-message'),'Rubrik kriterleri yüklenemedi: '+(cats.error?.message||criteria.error?.message),'error');
+  return;
+ }
+ rubricCategories=cats.data||[];rubricCriteria=criteria.data||[];
+ populateObservationTargets();
+}
+async function loadObservations(){
+ const {data,error}=await supabase.from('observations').select('id,session_id,session_video_id,criterion_id,video_offset_seconds,match_clock_seconds,category,criterion,observation,evaluation,evidence_level,created_at').not('session_id','is',null).order('created_at',{ascending:false}).limit(150);
+ if(error){observations=[];message($('observations-message'),'Gözlemler alınamadı: '+error.message,'error');return}
+ observations=data||[];
+ $('observations-body').innerHTML=observations.map(o=>{
+  const s=scoutingSessions.find(x=>String(x.id)===String(o.session_id));
+  return '<tr><td>'+esc(s?sessionLabel(s):'Oturum')+'</td><td>'+esc(o.criterion)+'</td><td>'+esc(formatClock(o.video_offset_seconds))+'</td><td>'+esc(formatClock(o.match_clock_seconds))+'</td><td>'+esc(o.observation)+'</td></tr>';
+ }).join('')||'<tr><td colspan="5" class="muted">Henüz zaman damgalı gözlem yok.</td></tr>';
+ message($('observations-message'),observations.length+' oturum gözlemi bulundu.',observations.length?'ok':'');
 }
 
 function resetForm(){ $('player-form').reset();$('player-id').value='';$('form-title').textContent='Yeni oyuncu profili';$('save-player').textContent='Taslak olarak kaydet';$('cancel-edit').classList.add('hidden');}
@@ -415,6 +583,105 @@ $('session-form').addEventListener('submit',async e=>{
   await loadSessions();
  }catch(err){message($('sessions-message'),'Scouting oturumu oluşturulamadı: '+(err.message||'Bilinmeyen hata'),'error')}
  finally{btn.disabled=false;btn.textContent='Taslak scouting oturumu oluştur'}
+});
+
+$('video-form').addEventListener('submit',async e=>{
+ e.preventDefault();const btn=$('save-video');btn.disabled=true;btn.textContent='Kaydediliyor...';
+ try{
+  const matchId=$('video-match').value,source=$('video-source').value.trim(),url=safeVideoUrl($('video-url').value.trim());
+  if(!matchId||!source||!url)throw new Error('Maç, kaynak ve geçerli HTTP(S) bağlantısı zorunludur.');
+  const payload={
+   match_id:matchId,source_name:source,video_url:url,video_type:$('video-type').value,
+   duration_minutes:$('video-duration').value?Number($('video-duration').value):null,
+   access_status:'unknown',rights_status:$('video-rights').value,
+   notes:$('video-notes').value.trim()||null
+  };
+  const {error}=await supabase.from('videos').insert(payload);
+  if(error)throw error;
+  $('video-form').reset();$('video-rights').value='link_only';$('video-type').value='full_match';
+  message($('videos-message'),'Video kaynak kaydı oluşturuldu. Henüz erişim doğrulanmadı.','ok');
+  await loadVideos();
+ }catch(err){message($('videos-message'),'Video kaydı oluşturulamadı: '+(err.message||'Bilinmeyen hata'),'error')}
+ finally{btn.disabled=false;btn.textContent='Özel video kaydını oluştur'}
+});
+$('session-video-form').addEventListener('submit',async e=>{
+ e.preventDefault();const btn=$('save-session-video');btn.disabled=true;btn.textContent='Bağlanıyor...';
+ try{
+  const s=scoutingSessions.find(x=>String(x.id)===$('link-session').value);
+  const v=videos.find(x=>String(x.id)===$('link-video').value);
+  if(!s||!v)throw new Error('Scouting oturumu ve video seçilmelidir.');
+  if(String(s.match_id)!==String(v.match_id))throw new Error('Video ile scouting oturumu aynı maça ait olmalıdır.');
+  const existing=sessionVideos.find(x=>String(x.session_id)===String(s.id)&&String(x.video_id)===String(v.id));
+  if(existing)throw new Error('Bu video zaten seçilen oturuma bağlı.');
+  const {error}=await supabase.from('scouting_session_videos').insert({
+   session_id:s.id,match_id:s.match_id,video_id:v.id,is_primary:false,
+   usage_note:$('link-usage-note').value.trim()||null
+  });
+  if(error)throw error;
+  $('session-video-form').reset();
+  message($('session-videos-message'),'Video scouting oturumuna bağlandı.','ok');
+  await loadSessionVideos();
+ }catch(err){message($('session-videos-message'),'Video bağlanamadı: '+(err.message||'Bilinmeyen hata'),'error')}
+ finally{btn.disabled=false;btn.textContent='Videoyu oturuma bağla'}
+});
+$('access-form').addEventListener('submit',async e=>{
+ e.preventDefault();const btn=$('save-access');btn.disabled=true;btn.textContent='Kaydediliyor...';
+ try{
+  const videoId=$('access-video').value,country=$('access-country').value.trim().toUpperCase();
+  if(!videos.some(v=>String(v.id)===String(videoId)))throw new Error('Video seçilmelidir.');
+  if(!/^[A-Z]{2}$/.test(country))throw new Error('Ülke kodu iki harfli ISO biçiminde olmalıdır.');
+  const accessResult=$('access-result').value,checkedAt=new Date().toISOString();
+  const result=await supabase.from('video_access_checks').insert({
+   video_id:videoId,country_code:country,checked_by:currentUser.id,
+   access_result:accessResult,account_requirement:$('access-account').value,
+   price_status:$('access-price').value,coverage_status:$('access-coverage').value,
+   notes:$('access-notes').value.trim()||null
+  });
+  if(result.error)throw result.error;
+  const update=await supabase.from('videos').update({access_status:accessResult,last_checked_at:checkedAt}).eq('id',videoId);
+  if(update.error)message($('access-message'),'Erişim geçmişi kaydedildi; video özet durumu güncellenemedi: '+update.error.message,'error');
+  else message($('access-message'),'Erişim kontrolü ve video özet durumu kaydedildi.','ok');
+  $('access-form').reset();$('access-country').value='TR';
+  await loadVideos();
+ }catch(err){message($('access-message'),'Erişim kontrolü kaydedilemedi: '+(err.message||'Bilinmeyen hata'),'error')}
+ finally{btn.disabled=false;btn.textContent='Erişim kontrolünü kaydet'}
+});
+$('observation-session').addEventListener('change',populateObservationTargets);
+$('observation-form').addEventListener('submit',async e=>{
+ e.preventDefault();const btn=$('save-observation');btn.disabled=true;btn.textContent='Kaydediliyor...';
+ try{
+  const s=scoutingSessions.find(x=>String(x.id)===$('observation-session').value);
+  const sv=sessionVideos.find(x=>String(x.id)===$('observation-video').value);
+  const criterion=rubricCriteria.find(x=>String(x.id)===$('observation-criterion').value);
+  const videoSeconds=parseClock($('observation-video-time').value);
+  const matchSeconds=parseClock($('observation-match-time').value);
+  if(!s||!sv||!criterion)throw new Error('Oturum, oturuma bağlı video ve rubrik kriteri seçilmelidir.');
+  if(String(sv.session_id)!==String(s.id))throw new Error('Seçilen video bağlantısı bu oturuma ait değil.');
+  if(String(criterion.rubric_version_id)!==String(s.rubric_version_id))throw new Error('Kriter, oturumun rubrik sürümüyle eşleşmiyor.');
+  if(videoSeconds===null||matchSeconds===null)throw new Error('Zaman alanlarını DD:SS veya SS:DD:SS biçiminde gir.');
+  const minute=Math.floor(matchSeconds/60);
+  if(minute>150)throw new Error('Maç saati 150 dakikayı aşamaz.');
+  const category=rubricCategories.find(x=>String(x.id)===String(criterion.rubric_category_id));
+  if(!category)throw new Error('Kriterin rubrik kategorisi bulunamadı.');
+  const observation=$('observation-text').value.trim();
+  if(!observation)throw new Error('Gözlem metni zorunludur.');
+  const payload={
+   player_match_id:s.player_match_id,session_id:s.id,session_video_id:sv.id,
+   rubric_version_id:s.rubric_version_id,criterion_id:criterion.id,
+   video_offset_seconds:videoSeconds,match_clock_seconds:matchSeconds,
+   period_code:$('observation-period').value,
+   minute,category:category.category_name,criterion:criterion.criterion_name,
+   situation:$('observation-situation').value.trim()||null,observation,
+   evaluation:$('observation-evaluation').value||null,
+   evidence_level:$('observation-evidence').value
+  };
+  const {error}=await supabase.from('observations').insert(payload);
+  if(error)throw error;
+  $('observation-form').reset();$('observation-evidence').value='medium';$('observation-period').value='unknown';populateObservationTargets();
+  message($('observations-message'),'Zaman damgalı gözlem kaydedildi.','ok');
+  await loadObservations();
+ }catch(err){message($('observations-message'),'Gözlem kaydedilemedi: '+(err.message||'Bilinmeyen hata'),'error')}
+ finally{btn.disabled=false;btn.textContent='Zaman damgalı gözlemi kaydet'}
 });
 
 $('run-security-tests').addEventListener('click',runSecurityDiagnostics);
