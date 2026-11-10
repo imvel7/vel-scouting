@@ -149,3 +149,26 @@ WHERE table_schema = 'public'
     'report_versions', 'user_roles'
   )
 ORDER BY table_name, grantee, privilege_type;
+
+
+-- QUERY 5: default privileges for future objects in public.
+-- Review which creator roles automatically grant privileges to anon/authenticated.
+SELECT
+  pg_get_userbyid(d.defaclrole) AS creator_role,
+  COALESCE(n.nspname, '(all schemas)') AS target_schema,
+  CASE d.defaclobjtype
+    WHEN 'r' THEN 'tables'
+    WHEN 'S' THEN 'sequences'
+    WHEN 'f' THEN 'functions'
+    WHEN 'T' THEN 'types'
+    WHEN 'n' THEN 'schemas'
+    ELSE d.defaclobjtype::text
+  END AS object_type,
+  CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END AS grantee,
+  a.privilege_type,
+  a.is_grantable
+FROM pg_default_acl d
+LEFT JOIN pg_namespace n ON n.oid = d.defaclnamespace
+CROSS JOIN LATERAL aclexplode(d.defaclacl) a
+WHERE d.defaclnamespace = 0 OR n.nspname = 'public'
+ORDER BY creator_role, target_schema, object_type, grantee, a.privilege_type;
