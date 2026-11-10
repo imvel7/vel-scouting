@@ -149,8 +149,8 @@ Yayın politikası:
 | Öncelik | İş | Durum |
 |---|---|---|
 | 1 | Stoper pilot gözlem şablonunu oluştur | Tamamlandı — v1.0 hazır; maçta test edilmedi |
-| 2 | Ücretsiz/resmî tam maç kaynak ağı ve erişim koşullarını belgele | İlk kaynak haritası v1.0 hazır; maç bazlı doğrulama sürüyor |
-| 3 | İlk maçta iş akışı pilotu yap | Bekliyor |
+| 2 | Ücretsiz/resmî tam maç kaynak ağı ve erişim koşullarını belgele | Kaynak haritası v1.0 hazır; UEFA.tv tam maçı kullanıcı buldu |
+| 3 | İlk maçta iş akışı pilotu yap | Başlanabilir — gözlem kaydı bekliyor |
 | 4 | Çok maçlı değerlendirme ve iki değerlendirici kalibrasyonu | Bekliyor |
 | 5 | Stoper rubriğini pilot bulgularıyla revize et | Bekliyor |
 | 6 | Kalan altı pozisyon grubunun puanlama çıpalarını tamamla | Bekliyor |
@@ -162,6 +162,6 @@ Yayın politikası:
 
 ## 5. Şu anki somut sonraki adım
 
-**Vel Scouting Stoper Pilot Gözlem Şablonu v1.0** hazırlandı: [şablonu aç](pilot/VEL_CENTRE_BACK_PILOT_OBSERVATION_TEMPLATE_v1.0.md). Tek bir platforma bağlı kalmamak için [Open Match Library Kaynak Haritası v1.0](video-sources/VEL_OPEN_MATCH_LIBRARY_SOURCE_MAP_v1.0.md) hazırlandı. FIFA+, Premier League Archive, Football Archive, TFF, UEFA.tv ve profesyonel Hudl Wyscout katmanları farklı işlevleriyle ayrıldı. Davinson Sánchez için [video kaynağı denetimi 01](pilot/VEL_DAVINSON_SANCHEZ_VIDEO_SOURCE_AUDIT_01.md) hazırlandı. Galatasaray 5–2 Juventus, UEFA.tv'de tam maç olarak listeleniyor ve Sánchez ilk 11'deydi; Türkiye'den ücretsiz oynatma hâlâ doğrulanmadı. Galatasaray 1–2 Villarreal için bulunan ücretsiz tam maç videosu ise Sánchez'in oynamaması nedeniyle pilot açısından elendi. Henüz maç analizi veya oyuncu puanlaması yapılmadı.
+**Vel Scouting Stoper Pilot Gözlem Şablonu v1.0** hazırlandı: [şablonu aç](pilot/VEL_CENTRE_BACK_PILOT_OBSERVATION_TEMPLATE_v1.0.md). Tek bir platforma bağlı kalmamak için [Open Match Library Kaynak Haritası v1.0](video-sources/VEL_OPEN_MATCH_LIBRARY_SOURCE_MAP_v1.0.md) hazırlandı. FIFA+, Premier League Archive, Football Archive, TFF, UEFA.tv ve profesyonel Hudl Wyscout katmanları farklı işlevleriyle ayrıldı. Davinson Sánchez için [video kaynağı denetimi 01](pilot/VEL_DAVINSON_SANCHEZ_VIDEO_SOURCE_AUDIT_01.md) hazırlandı. Galatasaray 5–2 Juventus, UEFA.tv'de tam maç olarak listeleniyor, Sánchez ilk 11'deydi ve kullanıcı kaydı Türkiye'den bulduğunu doğruladı. Kesintisizlik, oyuncu dakika aralığı ve gözlem kalitesi pilot sırasında kaydedilecek. Galatasaray 1–2 Villarreal için bulunan ücretsiz tam maç videosu ise Sánchez'in oynamaması nedeniyle pilot açısından elendi. Henüz maç içeriği değerlendirilmedi ve oyuncu puanlaması yapılmadı.
 
 Bu yol haritası yaşayan bir belgedir. Her aşama tamamlandığında durum, kanıt ve alınan kararlar güncellenecektir.
