@@ -28,7 +28,6 @@
 <section id="dashboard" class="hidden">
 <div class="panel"><div class="tag">Control room</div><h1>Yönetim paneli</h1><p id="welcome" class="muted">Yetkili oturumu doğrulandı.</p><div id="dashboard-message" class="notice ok">Yönetici erişimi doğrulandı.</div></div>
 <div class="panel">
-<div class="panel">
 <div class="tag">Security diagnostics</div><h2>Supabase erişim testi</h2>
 <p class="muted">Bu test gerçek tarayıcı oturumundan salt-okunur Data API istekleri gönderir. Özel tabloların anonim erişime kapalı olduğunu ve mevcut personel hesabının rubrik verisini okuyabildiğini kontrol eder. Hiçbir kayıt oluşturmaz, güncellemez veya silmez.</p>
 <div class="actions"><button class="btn" id="run-security-tests" type="button">Erişim testlerini çalıştır</button></div>
@@ -36,6 +35,7 @@
 <div class="tablewrap"><table><thead><tr><th>Kontrol</th><th>Beklenen</th><th>Sonuç</th></tr></thead><tbody id="security-tests-body"><tr><td colspan="3" class="muted">Test bekleniyor.</td></tr></tbody></table></div>
 <p class="muted" style="font-size:12px">Not: Personel olmayan ayrı bir Auth hesabı bulunmadığı için bu panel o hesabın testini yapmaz. Bu senaryo ayrıca test edilmelidir.</p>
 </div>
+<div class="panel">
 <div class="tag">Club database</div><h2>Yeni kulüp kaydı</h2>
 <p class="muted">Kulüp kayıtları oyuncu profillerinde seçilebilir. İlk sürüm yalnızca kulüp adını kaydeder.</p>
 <form id="club-form">
