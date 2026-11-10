@@ -78,7 +78,7 @@ grant execute on function private.is_vel_admin() to authenticated;
 grant usage on schema public to anon, authenticated;
 
 -- Public visitors may only read the intended public-facing tables.
-revoke insert, update, delete, truncate, references, trigger, maintain on table
+revoke all privileges on table
   public.players, public.clubs, public.competitions, public.seasons,
   public.matches, public.player_matches, public.videos, public.observations,
   public.scout_reports, public.report_versions, public.user_roles
