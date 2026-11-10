@@ -180,8 +180,8 @@ Bu kararın teknik ayrıntıları: [Özel Scouting Video ve Maç Kaynak Sistemi 
 | Sıra | İş | Durum |
 |---|---|---|
 | 0 | Özel video kütüphanesi ürün kararını belgele | Tamamlandı — mimari v1.0 |
-| 1 | Canlı Supabase şema, grants ve RLS denetimi | Sıradaki iş |
-| 2 | Mevcut tablolarla yeni gereksinimler arasındaki farkı çıkar | Bekliyor |
+| 1 | Canlı Supabase şema, grants ve RLS denetimi | Tamamlandı — 10 Kasım 2026; 11/11 tabloda RLS doğrulandı ve izinler sıkılaştırıldı |
+| 2 | Mevcut tablolarla yeni gereksinimler arasındaki farkı çıkar | Sıradaki iş |
 | 3 | Özel admin video/kaynak yönetimini tasarla ve uygula | Bekliyor |
 | 4 | Maç–oyuncu katılımı–video ilişkisini doğrula ve tamamla | Bekliyor |
 | 5 | Zaman damgalı gözlem ve kriter değerlendirme akışını entegre et | Bekliyor |
@@ -192,7 +192,8 @@ Bu kararın teknik ayrıntıları: [Özel Scouting Video ve Maç Kaynak Sistemi 
 
 - Mevcut GitHub Pages + Supabase altyapısı korunacak; ilk sürümde ücretli video hosting veya ücretli scout veri aboneliği alınmayacak.
 - Maç videosu Vel Scouting sunucularına yüklenmeyecek; kaynak sağlayıcının resmî oynatıcısı kullanılacak.
-- Mevcut `videos`, `matches`, `player_matches`, `observations` ve `user_roles` yapısı önce canlı projede incelenecek. Şema farkı doğrulanmadan migration yazılmayacak.
+- Mevcut `videos`, `matches`, `player_matches`, `observations` ve `user_roles` yapısı canlı projede incelendi. 10 Kasım 2026 güvenlik migration'ı ile mevcut 11 tablonun izinleri sıkılaştırıldı; RLS helper fonksiyonları `private` şemasına taşındı.
+- `supabase_admin` rolüne ait varsayılan tablo izinleri henüz değiştirilemedi; bu rolün varsayılan izinleri üzerinde bağlı `postgres` oturumunun yetkisi yok. Yeni scouting tabloları şimdilik doğrulanan `postgres` SQL/migration yolu ile oluşturulmalı; her yeni tabloda RLS/grant kontrolü yapılmalı.
 - Mevcut roller `admin` ve `editor` olarak korunacak. Yeni scout rolü, yetki modeli netleşmeden eklenmeyecek.
 - Video ve maç kaynak kayıtları kamuya açık sayfalara veya herkese açık JavaScript/JSON dosyalarına taşınmayacak.
 - Otomatik kaynak taraması, yalnızca ilgili sağlayıcının izin verdiği yöntemlerle yapılacak. İlk sürümde manuel/yardımlı keşif ve son kontrol tarihi yeterlidir.
@@ -200,6 +201,8 @@ Bu kararın teknik ayrıntıları: [Özel Scouting Video ve Maç Kaynak Sistemi 
 
 ### Bir sonraki somut iş
 
-**Canlı Supabase şema ve güvenlik denetimi.** Salt-okunur sorgular hazırlandı: [SQL denetim dosyası](supabase/VEL_READ_ONLY_SECURITY_AUDIT_v1.0.sql) ve [kullanım rehberi](supabase/VEL_SUPABASE_SECURITY_AUDIT_GUIDE_v1.0.md). Kod incelemesinde mevcut erişim SQL'inin `user_roles` dışında diğer tablolarda RLS'yi açıkça etkinleştirmediği görüldü; canlı projede RLS daha önce elle açılmış olabilir. Bu nedenle henüz açık var demiyoruz. Sorgular çalıştırılıp gerçek tablo sütunları, RLS bayrakları, policy'ler ve grants doğrulanacak.
+**Canlı Supabase güvenlik denetimi tamamlandı.** 10 Kasım 2026'da 11 hedef tablonun tamamında RLS doğrulandı. Anonim ve authenticated rollerinden gereksiz bakım/DDL izinleri kaldırıldı; güvenlik helper fonksiyonları `private` şemasına taşındı; `set_updated_at()` search_path sabitlendi. Migration: `supabase/migrations/20261110172515_tighten_vel_rls_function_privileges.sql`. Güncel denetim dosyası [SQL denetim dosyası](supabase/VEL_READ_ONLY_SECURITY_AUDIT_v1.0.sql), kullanım ve sonuç rehberi [rehber](supabase/VEL_SUPABASE_SECURITY_AUDIT_GUIDE_v1.0.md).
 
-**Karar kapısı:** Bu denetim tamamlanmadan video kaynak URL'lerini yeni bir arayüze bağlamayacağız. Kamuya açık sitenin özel video verilerine erişemediği kanıtlanmadan sistemi hazır saymayacağız.
+**Kalan güvenlik kapısı:** `supabase_admin` rolünün yeni tablolar için varsayılan izinleri, bağlı `postgres` oturumunun yetkisi olmadığı için değiştirilemedi. Yeni tabloları şimdilik bu projede doğrulanan `postgres` SQL/migration yolu ile oluşturacağız; Table Editor üzerinden yeni tablo oluşturmayı varsayılan izinler ayrıca çözümlenene kadar kullanmayacağız. Supabase Auth sızdırılmış parola koruması ve gerçek anon/unauthorized/staff API testleri de sonraki güvenlik adımlarıdır.
+
+**Karar kapısı:** Güvenlik sınırlarının gerçek HTTP/API testleri tamamlanmadan özel video kaynaklarını kamuya açık arayüze bağlamayacağız.
