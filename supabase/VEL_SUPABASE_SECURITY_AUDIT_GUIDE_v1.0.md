@@ -144,3 +144,15 @@ Canlı SQL denetiminde işlem bağlamı simülasyonuyla şu sonuçlar görüldü
 - Mevcut admin rolündeki kullanıcı kimliğiyle oluşturulan `authenticated` SQL bağlamında `is_vel_staff()` ve `is_vel_admin()` true döndü; 37 kriter satırı görülebildi.
 
 Bu sonuçlar SQL rol/JWT bağlamı testidir; gerçek HTTP/Data API isteği değildir. Çalışma ortamından Supabase API alan adına DNS çözümlenemediği için uçtan uca HTTP testi yürütülemedi. Yol haritasında API testi tamamlandı olarak işaretlenmemelidir.
+
+
+## 10. Admin panel üzerinden gerçek Data API kontrolü
+
+Admin sayfasına salt-okunur `Supabase erişim testi` bölümü eklendi. Değişiklik GitHub Pages'e yayımlandıktan ve yetkili hesapla giriş yapıldıktan sonra testler tarayıcıdan Supabase Data API'ye gerçek istek gönderir.
+
+Kontrol edilenler:
+- Anonim istemcinin `players`, `clubs` ve `scout_reports` tablolarında okuma yapabilmesi.
+- Anonim istemcinin özel değerlendirme, video, gözlem ve rubrik tablolarına erişememesi.
+- Oturum açmış personel istemcisinin 37 kriterlik pilot rubriği okuyabilmesi.
+
+Bu test salt-okunurdur; kayıt eklemez veya değiştirmez. Ayrı bir personel olmayan Auth hesabı bulunmadığından yetkisiz authenticated senaryosu panel tarafından test edilmez. Bu senaryo ayrı hesapla daha sonra doğrulanmalıdır.
