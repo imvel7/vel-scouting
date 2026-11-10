@@ -149,7 +149,7 @@ Yayın politikası:
 | Öncelik | İş | Durum |
 |---|---|---|
 | 1 | Stoper pilot gözlem şablonunu oluştur | Tamamlandı — v1.0 hazır; maçta test edilmedi |
-| 2 | Tam maç kaynağı ve uygun kullanım durumunu doğrula | Aday belirlendi; Türkiye erişimi doğrulanacak |
+| 2 | Ücretsiz/resmî tam maç kaynak ağı ve erişim koşullarını belgele | İlk kaynak haritası v1.0 hazır; maç bazlı doğrulama sürüyor |
 | 3 | İlk maçta iş akışı pilotu yap | Bekliyor |
 | 4 | Çok maçlı değerlendirme ve iki değerlendirici kalibrasyonu | Bekliyor |
 | 5 | Stoper rubriğini pilot bulgularıyla revize et | Bekliyor |
@@ -162,6 +162,6 @@ Yayın politikası:
 
 ## 5. Şu anki somut sonraki adım
 
-**Vel Scouting Stoper Pilot Gözlem Şablonu v1.0** hazırlandı: [şablonu aç](pilot/VEL_CENTRE_BACK_PILOT_OBSERVATION_TEMPLATE_v1.0.md). Birincil maç adayı olarak [Galatasaray 5–2 Juventus (17 Şubat 2026)](pilot/VEL_CENTRE_BACK_PILOT_MATCH_CANDIDATE_01.md) belirlendi. UEFA.tv kataloğunda 1:43:05 uzunluğunda tam maç tekrarı listeleniyor; ücretsiz MyUEFA kaydı genel erişim modeli olarak doğrulandı. Ancak videonun Türkiye'den oynatılması ve bu içerik için bölgesel hak durumu henüz doğrulanmadı. Bu kontrol tamamlanırsa şablon ilk maçta iş akışı açısından denenecek. Henüz maç analizi veya oyuncu puanlaması yapılmadı.
+**Vel Scouting Stoper Pilot Gözlem Şablonu v1.0** hazırlandı: [şablonu aç](pilot/VEL_CENTRE_BACK_PILOT_OBSERVATION_TEMPLATE_v1.0.md). Tek bir platforma bağlı kalmamak için [Open Match Library Kaynak Haritası v1.0](video-sources/VEL_OPEN_MATCH_LIBRARY_SOURCE_MAP_v1.0.md) hazırlandı. FIFA+, Premier League Archive, Football Archive, TFF, UEFA.tv ve profesyonel Hudl Wyscout katmanları farklı işlevleriyle ayrıldı. Davinson Sánchez için [Galatasaray 5–2 Juventus (17 Şubat 2026)](pilot/VEL_CENTRE_BACK_PILOT_MATCH_CANDIDATE_01.md) hâlâ bir adaydır; ancak Türkiye'den ücretsiz oynatma ve içerik hakları doğrulanmadı. Kaynak haritasındaki diğer resmî kanallar da maç bazında taranacak. Henüz maç analizi veya oyuncu puanlaması yapılmadı.
 
 Bu yol haritası yaşayan bir belgedir. Her aşama tamamlandığında durum, kanıt ve alınan kararlar güncellenecektir.
