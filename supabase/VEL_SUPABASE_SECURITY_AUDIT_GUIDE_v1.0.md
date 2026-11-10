@@ -120,3 +120,27 @@ Canlı projeye `20261110174605_create_vel_scouting_sessions_and_rubrics` migrati
 - Migration geçmişinde `20261110174605` kaydı mevcut.
 
 **Henüz tamamlanmayan test:** SQL katalog ve grants denetimi, gerçek HTTP/Data API istekleriyle anon, yetkisiz authenticated ve staff kullanıcı testinin yerine geçmez. Özel video yönetim arayüzü bu davranış testleri ve form iş akışı tamamlanmadan yayımlanmamalıdır.
+
+
+## 8. Supabase Free plan parola uyarısı
+
+10 Kasım 2026 Security Advisor sonucunda kalan tek uyarı `auth_leaked_password_protection` idi.
+
+Supabase'in güncel parola güvenliği belgesine göre sızdırılmış parola kontrolü Pro plan ve üzeri planlarda sunuluyor: https://supabase.com/docs/guides/auth/password-security
+
+Bu nedenle proje Free planda kaldığı sürece bu kontrolü açamamak beklenen plan sınırlamasıdır; tek başına Vel Scouting veritabanından parola sızdığı anlamına gelmez. Bu uyarıyı gidermek için plan yükseltmesi önerilmiyor.
+
+Free planda yapılabilecek güvenli yapılandırma:
+- Minimum parola uzunluğunu en az 8 karakterin üzerinde tut; uygulama hesapları için daha uzun parola tercih et.
+- Panelde sunulan parola bileşimi gereksinimlerini etkinleştir.
+- Kullanıcıları parolaları başka hizmetlerde tekrar kullanmamaları konusunda bilgilendir.
+- Güvenlik Advisor uyarısını plan sınırlaması olarak takip et; plan/ürün özelliği değişmeden giderildi olarak işaretleme.
+
+## 9. Rol/RLS doğrulama notu
+
+Canlı SQL denetiminde işlem bağlamı simülasyonuyla şu sonuçlar görüldü:
+- `anon` rolü `scouting_sessions` tablosundan SELECT yapmaya çalıştığında PostgreSQL `permission denied` döndürdü.
+- JWT subject olmayan `authenticated` bağlamında `private.is_vel_staff()` false döndü; özel oturum kaydı görünmedi.
+- Mevcut admin rolündeki kullanıcı kimliğiyle oluşturulan `authenticated` SQL bağlamında `is_vel_staff()` ve `is_vel_admin()` true döndü; 37 kriter satırı görülebildi.
+
+Bu sonuçlar SQL rol/JWT bağlamı testidir; gerçek HTTP/Data API isteği değildir. Çalışma ortamından Supabase API alan adına DNS çözümlenemediği için uçtan uca HTTP testi yürütülemedi. Yol haritasında API testi tamamlandı olarak işaretlenmemelidir.
