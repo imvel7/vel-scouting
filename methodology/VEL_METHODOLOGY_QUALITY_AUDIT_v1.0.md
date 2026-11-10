@@ -122,7 +122,7 @@ Video hakları, kaynak bağlantıları ve erişim durumu ayrı kaydedilmelidir. 
 | 2. Ağırlık aritmetiği | Alan ve kriter ağırlıkları doğru toplam veriyor | **Tamamlandı** |
 | 3. Ortak hesaplama | N/E, N/A, %80 kapsam ve genel puan formülü net | **Tamamlandı** |
 | 4. Rol sınırları | Pozisyon çakışmaları için ortak karar kuralı var | **Tamamlandı** |
-| 5. Kriter puan çıpaları | Her kriterin puan seviyeleri somut davranışla tanımlı | **Bekliyor** |
+| 5. Kriter puan çıpaları | Her kriterin puan seviyeleri somut davranışla tanımlı | **Kısmen tamamlandı — stoper** |
 | 6. Pilot kalibrasyon | Gerçek maçlarda rapor ve gözlem tutarlılığı testli | **Bekliyor** |
 | 7. Üretim veri modeli | Onaylanmış metodolojiyle veritabanı/arayüz eşleşiyor | **Bekliyor** |
 
@@ -130,6 +130,8 @@ Video hakları, kaynak bağlantıları ve erişim durumu ayrı kaydedilmelidir. 
 
 Doküman envanteri, ağırlık toplamları, ortak puan formülü, kanıt standardı ve ana pozisyon sınırları açısından ilk kalite kontrolü geçti.
 
-**Bir sonraki iş:** Her pozisyonun alt kriterleri için somut 1–10 davranış çıpalarını hazırlamak. Bunu pozisyon aileleri üzerinden ilerleyerek yapacağız. İlk pilot, stoper metodolojisinden seçilecek; çünkü Vel Scouting'in ilk ayrıntılı pozisyon çalışması bu grupta başladı.
+**Güncel durum:** Stoper metodolojisindeki 37 alt kriterin tamamı için 1–2, 3–4, 5–6, 7–8, 9 ve 10 puan davranış çıpaları ayrı bir ek dokümanda hazırlandı: `VEL_CENTRE_BACK_SCORING_ANCHORS_v1.0.md`. Diğer altı pozisyon ailesinin puan çıpaları henüz hazırlanmadı.
+
+**Bir sonraki iş:** Stoper puan çıpalarını gerçek tam maç kayıtlarıyla pilot olarak denemek ve en az iki değerlendiricinin bağımsız puanlarını karşılaştırmak. Ardından gerekli çıpa revizyonlarını yapıp kalan pozisyon ailelerine aynı çalışmayı uygulamak.
 
 Kriter çıpaları ve pilot test tamamlanmadan mevcut basit scout raporu formu, nihai değerlendirme sistemi olarak kabul edilmemelidir.
