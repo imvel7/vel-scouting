@@ -7,7 +7,7 @@
 <title>Vel Scouting | Yönetim</title>
 <style>
 :root{--bg:#0c141d;--panel:#121e29;--panel2:#172634;--line:#263746;--text:#f2f6f8;--muted:#9aabb8;--accent:#8fd7cf;--accent2:#c8eee8;--danger:#f0a1a1;--gold:#d8b779}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}button,input,select{font:inherit}.wrap{width:min(1050px,calc(100% - 32px));margin:auto}.top{border-bottom:1px solid var(--line);background:#101923}.topin{min-height:72px;display:flex;align-items:center;justify-content:space-between;gap:15px}.brand{font-weight:800;letter-spacing:.16em}.brand small{display:block;color:var(--muted);font-size:10px;letter-spacing:.2em}.tag{color:var(--accent);font-size:11px;letter-spacing:.18em;text-transform:uppercase}.main{padding:42px 0 70px}.panel{background:var(--panel);border:1px solid var(--line);padding:24px;margin:18px 0}.panel h1,.panel h2{margin:6px 0 18px;letter-spacing:-.03em}.panel h1{font-size:30px}.panel h2{font-size:22px}.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.field label{display:block;color:#c5d0d8;font-size:12px;margin-bottom:6px}.field input,.field select{width:100%;background:#0e1923;border:1px solid var(--line);border-radius:3px;color:var(--text);padding:12px;outline:none}.field input:focus,.field select:focus{border-color:var(--accent)}.field small{display:block;font-size:11px;margin-top:6px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.btn{border:1px solid #557a75;background:#18302f;color:var(--accent2);padding:11px 16px;border-radius:3px}.btn.secondary{background:transparent;border-color:var(--line);color:var(--text)}.btn.danger{background:transparent;border-color:#795252;color:#ffc1c1}.notice{padding:12px 14px;border:1px solid var(--line);color:var(--muted);background:#0f1b26;margin:12px 0}.notice.ok{border-color:#3a756b;color:var(--accent2)}.notice.error{border-color:#855656;color:#ffc2c2}.hidden{display:none!important}.tablewrap{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:600px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);font-size:13px}th{color:var(--accent);font-weight:600}.status{font-size:11px;color:var(--gold)}.rowactions{display:flex;gap:7px}.rowactions button{padding:6px 9px;font-size:11px}.footer{color:var(--muted);font-size:11px;padding:24px 0;border-top:1px solid var(--line)}@media(max-width:620px){.grid{grid-template-columns:1fr}.panel{padding:18px}.main{padding-top:25px}.topin{min-height:64px}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}button,input,select{font:inherit}.wrap{width:min(1050px,calc(100% - 32px));margin:auto}.top{border-bottom:1px solid var(--line);background:#101923}.topin{min-height:72px;display:flex;align-items:center;justify-content:space-between;gap:15px}.brand{font-weight:800;letter-spacing:.16em}.brand small{display:block;color:var(--muted);font-size:10px;letter-spacing:.2em}.tag{color:var(--accent);font-size:11px;letter-spacing:.18em;text-transform:uppercase}.main{padding:42px 0 70px}.panel{background:var(--panel);border:1px solid var(--line);padding:24px;margin:18px 0}.panel h1,.panel h2{margin:6px 0 18px;letter-spacing:-.03em}.panel h1{font-size:30px}.panel h2{font-size:22px}.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.field label{display:block;color:#c5d0d8;font-size:12px;margin-bottom:6px}.field input,.field select,.field textarea{width:100%;background:#0e1923;border:1px solid var(--line);border-radius:3px;color:var(--text);padding:12px;outline:none}.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent)}.field small{display:block;font-size:11px;margin-top:6px}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.btn{border:1px solid #557a75;background:#18302f;color:var(--accent2);padding:11px 16px;border-radius:3px}.btn.secondary{background:transparent;border-color:var(--line);color:var(--text)}.btn.danger{background:transparent;border-color:#795252;color:#ffc1c1}.notice{padding:12px 14px;border:1px solid var(--line);color:var(--muted);background:#0f1b26;margin:12px 0}.notice.ok{border-color:#3a756b;color:var(--accent2)}.notice.error{border-color:#855656;color:#ffc2c2}.hidden{display:none!important}.tablewrap{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:600px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);font-size:13px}th{color:var(--accent);font-weight:600}.status{font-size:11px;color:var(--gold)}.rowactions{display:flex;gap:7px}.rowactions button{padding:6px 9px;font-size:11px}.footer{color:var(--muted);font-size:11px;padding:24px 0;border-top:1px solid var(--line)}@media(max-width:620px){.grid{grid-template-columns:1fr}.panel{padding:18px}.main{padding-top:25px}.topin{min-height:64px}}
 </style>
 </head>
 <body>
@@ -129,7 +129,8 @@
 </div>
 <div class="actions"><button class="btn" type="submit" id="save-access">Erişim kontrolünü kaydet</button></div>
 </form>
-<div id="access-message" class="notice">Erişim kontrol geçmişi henüz görüntülenmedi.</div>
+<div id="access-message" class="notice">Erişim kontrol geçmişi yükleniyor.</div>
+<div class="tablewrap"><table><thead><tr><th>Video</th><th>Ülke</th><th>Sonuç</th><th>Hesap</th><th>Ücret</th><th>Kapsam</th><th>Kontrol tarihi</th></tr></thead><tbody id="access-body"><tr><td colspan="7" class="muted">Henüz kontrol yok.</td></tr></tbody></table></div>
 </div>
 <div class="panel">
 <div class="tag">Timestamped evidence</div><h2>Zaman damgalı gözlem ekle</h2>
@@ -140,8 +141,8 @@
 <div class="field"><label for="observation-video">Oturuma bağlı video *</label><select id="observation-video" required><option value="">Önce oturum seç</option></select></div>
 <div class="field"><label for="observation-criterion">Rubrik kriteri *</label><select id="observation-criterion" required><option value="">Önce oturum seç</option></select></div>
 <div class="field"><label for="observation-period">Devre / bölüm</label><select id="observation-period"><option value="unknown">Bilinmiyor</option><option value="first_half">1. yarı</option><option value="second_half">2. yarı</option><option value="extra_time_first_half">Uzatma 1. yarı</option><option value="extra_time_second_half">Uzatma 2. yarı</option><option value="penalty_shootout">Penaltılar</option></select></div>
-<div class="field"><label for="observation-video-time">Video zamanı (SS:DD veya SS:DD:SS) *</label><input id="observation-video-time" required inputmode="numeric" placeholder="01:12:35" maxlength="8"></div>
-<div class="field"><label for="observation-match-time">Maç saati (DD:SS) *</label><input id="observation-match-time" required inputmode="numeric" placeholder="48:20" maxlength="8"></div>
+<div class="field"><label for="observation-video-time">Video zamanı (Dakika:Saniye veya Saat:Dakika:Saniye) *</label><input id="observation-video-time" required inputmode="numeric" placeholder="01:12:35" maxlength="8"></div>
+<div class="field"><label for="observation-match-time">Maç saati (Dakika:Saniye) *</label><input id="observation-match-time" required inputmode="numeric" placeholder="48:20" maxlength="8"></div>
 <div class="field"><label for="observation-evaluation">Değerlendirme</label><select id="observation-evaluation"><option value="">Belirtilmedi</option><option value="positive">Olumlu</option><option value="negative">Olumsuz</option><option value="uncertain">Belirsiz</option></select></div>
 <div class="field"><label for="observation-evidence">Kanıt seviyesi</label><select id="observation-evidence"><option value="low">Düşük</option><option value="medium" selected>Orta</option><option value="high">Yüksek</option></select></div>
 <div class="field" style="grid-column:1/-1"><label for="observation-situation">Oyun bağlamı</label><input id="observation-situation" maxlength="500" placeholder="Örn. Rakip geçiş hücumunda, savunma hattı öne çıkmış durumda"></div>
@@ -212,7 +213,7 @@ const SUPABASE_PUBLIC_KEY='sb_publishable_Gi8Al3ubX_ptadWYYV35kQ_9gm7vxOq';
 const supabase=createClient(SUPABASE_URL,SUPABASE_PUBLIC_KEY);
 const $=id=>document.getElementById(id);
 const loginPanel=$('login-panel'),dashboard=$('dashboard');
-let currentUser=null,records=[],clubs=[],reports=[],matches=[],playerMatches=[],rubrics=[],scoutingSessions=[],videos=[],sessionVideos=[],rubricCategories=[],rubricCriteria=[],observations=[];
+let currentUser=null,records=[],clubs=[],reports=[],matches=[],playerMatches=[],rubrics=[],scoutingSessions=[],videos=[],sessionVideos=[],videoAccessChecks=[],rubricCategories=[],rubricCriteria=[],observations=[];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function message(el,text,type=''){el.textContent=text;el.className='notice '+type}
 function showLogin(text,type=''){loginPanel.classList.remove('hidden');dashboard.classList.add('hidden');$('logout').classList.add('hidden');if(text)message($('login-message'),text,type)}
@@ -252,7 +253,7 @@ async function verifyAndLoad(user){
  const {data:roleData,error:roleError}=await supabase.from('user_roles').select('role').eq('user_id',user.id).maybeSingle();
  if(roleError)throw new Error('Yetki kontrolü yapılamadı: '+roleError.message);
  if(!roleData||!['admin','editor'].includes(roleData.role))throw new Error('Bu hesapta Vel Scouting yönetim yetkisi bulunmuyor.');
- currentUser=user;showDashboard();await loadClubs();await loadPlayers();await loadReports();await loadMatches();await loadRubrics();await loadPlayerMatches();await loadSessions();await loadVideos();await loadSessionVideos();await loadRubricCriteria();await loadObservations();
+ currentUser=user;showDashboard();await loadClubs();await loadPlayers();await loadReports();await loadMatches();await loadRubrics();await loadPlayerMatches();await loadSessions();await loadVideos();await loadSessionVideos();await loadVideoAccessChecks();await loadRubricCriteria();await loadObservations();
 }
 async function loadClubs(){
  const select=$('current-club');
@@ -429,6 +430,18 @@ async function loadSessionVideos(){
  }
  populateObservationTargets();
 }
+async function loadVideoAccessChecks(){
+ const {data,error}=await supabase.from('video_access_checks').select('id,video_id,country_code,checked_by,checked_at,access_result,account_requirement,price_status,coverage_status,notes').order('checked_at',{ascending:false}).limit(100);
+ if(error){videoAccessChecks=[];message($('access-message'),'Erişim geçmişi alınamadı: '+error.message,'error');return}
+ videoAccessChecks=data||[];
+ $('access-body').innerHTML=videoAccessChecks.map(x=>{
+  const v=videos.find(y=>String(y.id)===String(x.video_id));
+  const checked=x.checked_at?new Date(x.checked_at).toLocaleString('tr-TR'):'—';
+  return '<tr><td>'+esc(v?.source_name||'Video kaydı')+'</td><td>'+esc(x.country_code)+'</td><td>'+esc(x.access_result)+'</td><td>'+esc(x.account_requirement)+'</td><td>'+esc(x.price_status)+'</td><td>'+esc(x.coverage_status)+'</td><td>'+esc(checked)+'</td></tr>';
+ }).join('')||'<tr><td colspan="7" class="muted">Henüz erişim kontrolü yok.</td></tr>';
+ message($('access-message'),videoAccessChecks.length+' erişim kontrolü kaydı bulundu.',videoAccessChecks.length?'ok':'');
+}
+
 async function loadRubricCriteria(){
  const [cats,criteria]=await Promise.all([
   supabase.from('rubric_categories').select('id,rubric_version_id,category_name,sort_order').order('sort_order'),
@@ -642,7 +655,7 @@ $('access-form').addEventListener('submit',async e=>{
   if(update.error)message($('access-message'),'Erişim geçmişi kaydedildi; video özet durumu güncellenemedi: '+update.error.message,'error');
   else message($('access-message'),'Erişim kontrolü ve video özet durumu kaydedildi.','ok');
   $('access-form').reset();$('access-country').value='TR';
-  await loadVideos();
+  await loadVideos();await loadVideoAccessChecks();
  }catch(err){message($('access-message'),'Erişim kontrolü kaydedilemedi: '+(err.message||'Bilinmeyen hata'),'error')}
  finally{btn.disabled=false;btn.textContent='Erişim kontrolünü kaydet'}
 });
@@ -658,7 +671,7 @@ $('observation-form').addEventListener('submit',async e=>{
   if(!s||!sv||!criterion)throw new Error('Oturum, oturuma bağlı video ve rubrik kriteri seçilmelidir.');
   if(String(sv.session_id)!==String(s.id))throw new Error('Seçilen video bağlantısı bu oturuma ait değil.');
   if(String(criterion.rubric_version_id)!==String(s.rubric_version_id))throw new Error('Kriter, oturumun rubrik sürümüyle eşleşmiyor.');
-  if(videoSeconds===null||matchSeconds===null)throw new Error('Zaman alanlarını DD:SS veya SS:DD:SS biçiminde gir.');
+  if(videoSeconds===null||matchSeconds===null)throw new Error('Zaman alanlarını Dakika:Saniye veya Saat:Dakika:Saniye biçiminde gir.');
   const minute=Math.floor(matchSeconds/60);
   if(minute>150)throw new Error('Maç saati 150 dakikayı aşamaz.');
   const category=rubricCategories.find(x=>String(x.id)===String(criterion.rubric_category_id));
