@@ -33,7 +33,7 @@ Temel ilkeler:
 
 ### Aşama 1 — Stoper pilotunu hazırlama
 
-**Öncelik: İlk yapılacak iş**
+**Durum: Şablon v1.0 hazırlandı; gerçek maç üzerinde iş akışı testi bekliyor.**
 
 Çıktılar:
 - Tek tip maç ve oyuncu katılım bilgi formu.
@@ -148,7 +148,7 @@ Yayın politikası:
 
 | Öncelik | İş | Durum |
 |---|---|---|
-| 1 | Stoper pilot gözlem şablonunu oluştur | Sıradaki iş |
+| 1 | Stoper pilot gözlem şablonunu oluştur | Tamamlandı — v1.0 hazır; maçta test edilmedi |
 | 2 | Tam maç kaynağı ve uygun kullanım durumunu doğrula | Bekliyor |
 | 3 | İlk maçta iş akışı pilotu yap | Bekliyor |
 | 4 | Çok maçlı değerlendirme ve iki değerlendirici kalibrasyonu | Bekliyor |
@@ -162,6 +162,6 @@ Yayın politikası:
 
 ## 5. Şu anki somut sonraki adım
 
-İlk olarak **Vel Scouting Stoper Pilot Gözlem Şablonu v1.0** hazırlanacak. Sonrasında Davinson Sánchez mevcut oyuncu kaydı üzerinden pilot adayı olarak değerlendirilebilir; fakat uygun tam maç görüntüsü ve kaynak hakları doğrulanmadan herhangi bir maç analizi veya oyuncu notu üretildiği söylenmeyecek.
+**Vel Scouting Stoper Pilot Gözlem Şablonu v1.0** hazırlandı: [şablonu aç](pilot/VEL_CENTRE_BACK_PILOT_OBSERVATION_TEMPLATE_v1.0.md). Sıradaki iş, tam maç kaynağının erişimini ve kullanım koşullarını doğrulamak; ardından şablonu ilk maçta iş akışı açısından denemektir. Davinson Sánchez mevcut oyuncu kaydı üzerinden pilot adayı olabilir, ancak uygun tam maç görüntüsü ve kaynak koşulları doğrulanmadan maç analizi veya oyuncu notu üretildiği söylenmeyecek.
 
 Bu yol haritası yaşayan bir belgedir. Her aşama tamamlandığında durum, kanıt ve alınan kararlar güncellenecektir.
