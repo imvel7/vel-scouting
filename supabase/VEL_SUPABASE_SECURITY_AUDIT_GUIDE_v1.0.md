@@ -97,3 +97,26 @@ Migration sonrasında:
 - Security Advisor'da fonksiyon kaynaklı üç uyarı giderildi. Tek kalan uyarı, Supabase Auth'ta sızdırılmış parola korumasının kapalı olmasıdır.
 
 Bu denetim katalog izinleri ve RLS yapılandırmasını doğrular; gerçek HTTP/Data API davranışı için anon, yetkisiz authenticated ve staff istemcileriyle ayrı uçtan uca testler hâlâ yapılmalıdır.
+
+
+## 7. Eklemeli scouting modeli migration'ı — 10 Kasım 2026
+
+Canlı projeye `20261110174605_create_vel_scouting_sessions_and_rubrics` migration'ı uygulandı.
+
+- Sekiz yeni tablo oluşturuldu: `rubric_versions`, `rubric_categories`, `rubric_criteria`, `scouting_sessions`, `scouting_session_videos`, `criterion_scores`, `video_access_checks`, `scout_report_sessions`.
+- Mevcut `observations` tablosuna oturum, kaynak-video, kriter, video saniyesi, maç saati saniyesi ve devre alanları eklendi. Eski satırlara tahmini değer yazılmadı.
+- Sekiz yeni tablonun tamamında RLS açık; anonim role tablo izni verilmedi; authenticated CRUD yalnızca `private.is_vel_staff()` politikasıyla sınırlandırıldı.
+- Maç, oyuncu, oturum, rubrik sürümü ve seçilen kaynak arasındaki temel ilişkiler bileşik foreign key'lerle doğrulanıyor.
+- Stoper metodolojisinin 37 kriteri, beş kategorisi ve altı puan çıpası bandı veritabanına aktarıldı. Kriter ağırlıkları toplamı %100; kategori ağırlıkları %30/%20/%20/%15/%15.
+- Bu rubrik `pilot` durumundadır; saha kalibrasyonu yapılmadan aktif metodoloji olarak kullanılmayacaktır.
+
+### Son katalog doğrulaması
+
+- 8/8 yeni tabloda RLS etkin.
+- 8/8 yeni tabloda tek personel policy'si mevcut.
+- Anon role yeni tablolarda hiçbir tablo izni verilmedi.
+- 1 rubrik sürümü, 5 kategori ve 37 kriter bulundu.
+- 37 kriterin ağırlık toplamı 100; eksik puan çıpası seti sayısı 0.
+- Migration geçmişinde `20261110174605` kaydı mevcut.
+
+**Henüz tamamlanmayan test:** SQL katalog ve grants denetimi, gerçek HTTP/Data API istekleriyle anon, yetkisiz authenticated ve staff kullanıcı testinin yerine geçmez. Özel video yönetim arayüzü bu davranış testleri ve form iş akışı tamamlanmadan yayımlanmamalıdır.
