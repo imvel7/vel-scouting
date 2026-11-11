@@ -382,3 +382,28 @@ The user should open the expected admin route in their browser and confirm that:
 2. The competition and season registration forms are visible.
 
 Do not ask the user to share credentials, session cookies, or access tokens. Once the deployed panel is confirmed, add only missing records in the order documented in the pilot precheck. The existing Davinson and Galatasaray records must be reused.
+
+
+---
+
+## 11. Competition/season form mobile overflow fix — 11 November 2026
+
+The user supplied mobile screenshots showing that the new competition/season registration form fields extended beyond their containing panel, while the existing match form remained correctly constrained.
+
+### Fix applied
+
+- Changed the competition/season form wrapper to a dedicated single-column `registry-layout`.
+- Constrained the inner forms, nested grids, grid children, fields and inputs/selects/textareas to the available width.
+- Kept the competition and season forms stacked on narrow and wider screens to avoid nested-grid width overflow.
+- No data schema, RLS policy, privileges, or production rows were changed.
+
+**GitHub commit:** 8d39cebbcbab247f153cad97b150111f18964d67  
+**Updated admin.html blob SHA:** 3c43eb3e4bf2422694b5097b9b86d5dd3c9da639
+
+### Verification
+
+- Fetched the updated admin.html back from GitHub.
+- Confirmed the dedicated registry layout and width constraints are present.
+- JavaScript module syntax check passed.
+- Static HTML duplicate-ID check passed.
+- The live Pages deployment was not independently verified in this step; the user should refresh the admin page after GitHub Pages publishes the commit and confirm the form fields stay inside the panel.
