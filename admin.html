@@ -244,7 +244,7 @@ async function runSecurityDiagnostics(){
    const {error}=await anonClient.from(table).select('id').limit(1);
    add('Anonim okuma: '+table,'İzinli',!error,error?.message||'İstek başarılı.');
   }
-  for(const table of ['scouting_sessions','scouting_session_videos','criterion_scores','video_access_checks','scout_report_sessions','rubric_versions','rubric_categories','rubric_criteria','videos','observations']){
+  for(const table of ['competitions','criterion_scores','matches','observations','player_matches','report_versions','rubric_categories','rubric_criteria','rubric_versions','scout_report_sessions','scouting_session_videos','scouting_sessions','seasons','user_roles','video_access_checks','videos']){
    const {error}=await anonClient.from(table).select('id').limit(1);
    const blocked=!!error&&([401,403].includes(Number(error.status))||error.code==='42501'||/permission denied/i.test(error.message||''));
    add('Anonim erişim: '+table,'Engellenmeli',blocked,error?.message||'İstek başarılı döndü; özel tablo anonim için erişilebilir görünüyor.');
