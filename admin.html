@@ -734,19 +734,30 @@ async function buildMultiReportPreview(){
  obs.forEach(o=>{const k=o.session_id+'|'+o.criterion_id;if(!obsMap.has(k))obsMap.set(k,[]);obsMap.get(k).push(o)});
  const noScores=sessions.find(s=>!scores.some(x=>String(x.session_id)===String(s.id)&&x.applicability==='scored'&&Number(x.score)>=1&&Number(x.score)<=10));
  if(noScores)throw Error(sessionLabel(noScores)+' oturumunda sayısal puan yok.');
+ const uniqueMatchIds=[...new Set(sessions.map(s=>String(s.match_id)))];
  let scoredWeight=0,applicableWeight=0;
  const stats=criteria.map(c=>{
   const w=Number(c.weight_percent)||0,entries=[];let total=0,count=0,na=0,ne=0;
+  uniqueMatchIds.forEach(matchId=>{
+   const matchSessions=sessions.filter(s=>String(s.match_id)===matchId);
+   const matchRows=matchSessions.map(s=>scoreMap.get(s.id+'|'+c.id)||null);
+   const scoredRows=matchRows.filter(r=>r?.applicability==='scored'&&Number.isInteger(Number(r.score))&&Number(r.score)>=1&&Number(r.score)<=10);
+   const reasonedNaRows=matchRows.filter(r=>r?.applicability==='not_applicable'&&String(r.rationale||'').trim().length>0);
+   if(scoredRows.length){
+    const matchAverage=scoredRows.reduce((sum,r)=>sum+Number(r.score),0)/scoredRows.length;
+    total+=matchAverage;count++;scoredWeight+=w;applicableWeight+=w;
+   }else if(matchRows.length===matchSessions.length&&reasonedNaRows.length===matchSessions.length){
+    na++;
+   }else{
+    ne++;applicableWeight+=w;
+   }
+  });
   sessions.forEach(s=>{
    const r=scoreMap.get(s.id+'|'+c.id),state=r?.applicability||'not_observed';
-   if(state!=='not_applicable')applicableWeight+=w;
-   if(state==='not_applicable')na++;
-   else if(state==='scored'&&Number(r?.score)>=1&&Number(r?.score)<=10){total+=Number(r.score);count++;scoredWeight+=w}
-   else ne++;
    entries.push({session_id:s.id,match_id:s.match_id,applicability:state,score:state==='scored'?Number(r?.score):null,rationale:r?.rationale||null,
     observations:(obsMap.get(s.id+'|'+c.id)||[]).map(o=>({id:o.id,video_offset_seconds:o.video_offset_seconds,match_clock_seconds:o.match_clock_seconds,evidence_level:o.evidence_level,observation:o.observation,created_at:o.created_at}))});
   });
-  return {id:c.id,code:c.criterion_code,name:c.criterion_name,category_id:c.rubric_category_id,weight_percent:w,average:count?total/count:null,scored_sessions:count,not_observed_sessions:ne,not_applicable_sessions:na,observation_count:entries.reduce((n,x)=>n+x.observations.length,0),session_entries:entries};
+  return {id:c.id,code:c.criterion_code,name:c.criterion_name,category_id:c.rubric_category_id,weight_percent:w,average:count?total/count:null,scored_matches:count,not_observed_matches:ne,not_applicable_matches:na,observation_count:entries.reduce((n,x)=>n+x.observations.length,0),session_entries:entries};
  });
  const rated=stats.filter(c=>c.average!==null),weights=rated.reduce((a,c)=>a+c.weight_percent,0);
  if(!weights)throw Error('Hesaplanabilir sayısal puan yok.');
@@ -765,13 +776,13 @@ async function buildMultiReportPreview(){
  const verdict='Çoklu maç özeti: '+matchCount+' farklı maç, '+sessions.length+' scouting oturumu. Kriter ağırlıklı ortalama '+avg.toFixed(2)+'/10; puanlama kapsamı '+coverage.toFixed(1)+'%. Bu, yalnızca seçili maçlarda gözlenen performansın özetidir; potansiyel veya gelecekteki gelişim hakkında tek başına sonuç vermez.';
  const snapshot={analysis_type:'multi_match_rubric_synthesis_v1',player:{id:player.id,name:player.full_name},rubric:{id:rubric.id,version_code:rubric.version_code,position_group:rubric.position_group,status:rubric.status,methodology_version:rubric.methodology_version||null},
   summary:{session_count:sessions.length,unique_match_count:matchCount,weighted_average:Number(avg.toFixed(2)),coverage_percent:Number(coverage.toFixed(1)),scored_weight:scoredWeight,applicable_weight:applicableWeight,observation_count:obs.length,date_span:span},matches:matchRows,categories:categoryStats,criteria:stats,
-  methodology_note:'Kriter ortalaması sayısal puan verilen oturumların aritmetik ortalamasıdır. Genel puan puan bulunan kriterlerin rubrik ağırlıklarıyla hesaplanır. N/A paydadan çıkarılır; N/E kapsamı düşürür. Her oturum eşit ağırlıktadır.'};
+  methodology_note:'Kriter ortalaması önce maç içindeki sayısal puanlardan hesaplanır, sonra her maç eşit ağırlıkla ortalamaya katkı verir. Genel puan puan bulunan kriterlerin rubrik ağırlıklarıyla hesaplanır. N/A paydadan çıkarılır; N/E kapsamı düşürür. Her oturum eşit ağırlıktadır.'};
  multiReportPreview={player,rubric,sessions,weightedAverage:Number(avg.toFixed(2)),snapshot};
  $('multi-report-summary').innerHTML=multiMetric(matchCount,'Farklı maç')+multiMetric(sessions.length,'Scouting oturumu')+multiMetric(avg.toFixed(2)+'/10','Ağırlıklı ortalama')+multiMetric(coverage.toFixed(1)+'%','Puanlama kapsamı')+multiMetric(obs.length,'Zaman damgalı gözlem')+multiMetric(rated.length+'/'+criteria.length,'Puanı olan kriter');
  $('multi-report-context').textContent='Oyuncu: '+player.full_name+' · Rubrik: '+rubric.version_code+' · Tarih aralığı: '+span+'.';
  $('multi-report-categories').innerHTML=categoryStats.map(cat=>{
   const rows=stats.filter(c=>String(c.category_id)===String(cat.id)).sort((a,b)=>a.code.localeCompare(b.code));
-  return '<details class="synthesis-category" open><summary>'+esc(cat.name)+' · '+cat.weight_percent+'% · '+esc(multiFmt(cat.average))+'</summary><div class="tablewrap"><table><thead><tr><th>Kriter</th><th>Ort.</th><th>Puanlanan</th><th>Gözlem</th></tr></thead><tbody>'+rows.map(c=>'<tr><td>'+esc(c.code+' · '+c.name)+'</td><td>'+esc(multiFmt(c.average))+'</td><td>'+c.scored_sessions+'/'+sessions.length+'</td><td>'+c.observation_count+'</td></tr>').join('')+'</tbody></table></div></details>';
+  return '<details class="synthesis-category" open><summary>'+esc(cat.name)+' · '+cat.weight_percent+'% · '+esc(multiFmt(cat.average))+'</summary><div class="tablewrap"><table><thead><tr><th>Kriter</th><th>Ort.</th><th>Puanlanan maç</th><th>Gözlem</th></tr></thead><tbody>'+rows.map(c=>'<tr><td>'+esc(c.code+' · '+c.name)+'</td><td>'+esc(multiFmt(c.average))+'</td><td>'+c.scored_matches+'/'+uniqueMatchIds.length+'</td><td>'+c.observation_count+'</td></tr>').join('')+'</tbody></table></div></details>';
  }).join('');
  $('multi-report-date').value=new Date().toLocaleDateString('en-CA');$('multi-report-full-match-reviewed').checked=false;$('multi-report-role').value='';$('multi-report-role-evidence').value='';$('multi-report-alt-roles').value='';
  $('multi-report-strengths').value=strengths;$('multi-report-development').value=development;$('multi-report-verdict').value=verdict;
