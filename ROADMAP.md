@@ -303,7 +303,7 @@ The admin panel now provides explicit staff transitions: `draft â†’ in_review â†
 The session lifecycle implementation was committed to `admin.html` on 11 November 2026:
 - Lifecycle controls: `c9a76168f1c85ec1ed670b2db8d7a7bc2f165afa`
 - Rubric-load order hardening: `be9f9896b763298fb47f1c684cb46389f0c3c8f1`
-- Transition-result verification and UI/database lock-scope clarification: `dbc20ced72464fcb04a4391cf090c496`
+- Transition-result verification and UI/database lock-scope clarification: `dbc1e4232cd20ced72464fcb04a4391cf090c496`
 - Latest verified admin file SHA: `b6e550b5e61c50c0ef53b35ec5592b116a1f583e`
 - The module script passed JavaScript syntax compilation; static markup has no duplicate IDs; report direct-insert calls are absent.
 - Actual browser interaction and RPC writes remain untested because there are currently zero scouting-session rows.
