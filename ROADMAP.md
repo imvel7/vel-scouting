@@ -407,3 +407,37 @@ The user supplied mobile screenshots showing that the new competition/season reg
 - JavaScript module syntax check passed.
 - Static HTML duplicate-ID check passed.
 - The live Pages deployment was not independently verified in this step; the user should refresh the admin page after GitHub Pages publishes the commit and confirm the form fields stay inside the panel.
+
+
+---
+
+## 12. Davinson pilot database setup completed — 11 November 2026
+
+### Live records created and verified
+
+The following records are now linked in the live Supabase database:
+- Juventus club (Italy).
+- UEFA Champions League competition (Europe / club competition).
+- 2025/26 season. Start/end dates intentionally left null rather than guessed.
+- Galatasaray 5–2 Juventus match, 17 February 2026, 20:45 Istanbul time (18:45 CET), completed, Senior.
+- Existing Davinson Sánchez Mina player record linked to the existing Galatasaray club and pilot match; position CB, 90 minutes.
+- UEFA.tv Re-Runs source record linked to the match, recorded as full match, listed duration 01:43:05 (stored as rounded 103 minutes), link-only rights status.
+- User-reported Türkiye access from 10 November 2026 logged as a TR access check. Account requirement and price are explicitly unknown; playback continuity and quality still require review.
+- Draft scouting session created with rubric CB-METH-0.8-ANCHORS-1.0, and the UEFA.tv source linked as its primary video.
+
+### Verification
+
+A read-only join across matches, clubs, competitions, seasons, player_matches, videos, video_access_checks, scouting_sessions, rubric_versions and scouting_session_videos confirmed the relationships and expected values.
+
+The draft session currently has:
+- 0 saved criterion scores.
+- 0 timestamped observations.
+- No scouting report.
+
+The video has not been reviewed by the assistant or evaluated. No performance score, permanent role judgement, potential assessment or transfer recommendation has been generated.
+
+New execution record: [Davinson Sánchez Pilot Execution Log 01](pilot/VEL_DAVINSON_SANCHEZ_PILOT_EXECUTION_LOG_01.md).
+
+### Next action — start the real viewing pilot
+
+Open the draft session in the admin panel. First open the linked UEFA.tv recording in its original player and verify full-match continuity, video quality, camera visibility and the video-time/match-clock relationship. Perform the first viewing at normal speed without scoring; then enter only confirmed, timestamped player behaviours as observations. Do not infer actions from match event summaries or team statistics.
