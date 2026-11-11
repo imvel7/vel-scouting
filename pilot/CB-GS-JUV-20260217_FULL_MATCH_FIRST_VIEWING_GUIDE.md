@@ -4,8 +4,9 @@
 **Maç:** Galatasaray 5–2 Juventus · 17 Şubat 2026  
 **Kaynak:** UEFA.tv Re-Runs — Match Re-Run: Galatasaray 5-2 Juventus  
 **Katalog süresi:** 01:43:05  
-**Amaç:** İlk izlemeyi puansız yapmak; video kalitesini, oyuncu görünürlüğünü ve maç bağlamını belirlemek.  
-**Durum:** İzleme rehberidir; maç videosunun izlendiği anlamına gelmez.
+**Amaç:** İlk izlemeyi Vel Scout analiz asistanının yürütmesi; video kalitesini, oyuncu görünürlüğünü, maç bağlamını ve zaman damgalı kanıtları asistanın çıkarması.  
+**Sorumluluk:** Gözlem, video zamanlarını çıkarma, kriter eşleştirmesi, puanlama ve raporlama Vel Scout analiz asistanına aittir. Kullanıcıdan maçı izlemesi, not alması, zaman damgası çıkarması veya oyuncuya puan vermesi istenmez.  
+**Durum:** Video içeriğine asistanın fiilen erişebildiği doğrulanana kadar analiz başlamış sayılmaz; katalog bilgisi izleme kanıtı değildir.
 
 ## 1. İzleme öncesi kaynak kontrolü
 
@@ -18,9 +19,11 @@ UEFA.tv Re-Runs kataloğunda bu maç 01:43:05 süreyle tam maç tekrarı olarak 
 
 Katalog süresi, maç saatinin video içindeki tam konumlarını tek başına vermez. Video başlangıcında intro, devre arası, tekrar grafikleri veya ek içerik olabilir. Bu yüzden video zamanı ile maç saatini tahmini bir formülle eşleştirme. Her gözlemde oynatıcıda görülen gerçek video zamanını ayrı kaydet.
 
-## 2. İlk izleme kuralları
+## 2. Analiz asistanının ilk izleme kuralları
 
-İlk izleme boyunca 1–10 puanı verme. Amaç oyuncunun iyi/kötü olduğuna karar vermek değil, gözlem fırsatlarını ve görüntü sınırlılıklarını tespit etmektir.
+İlk izleme boyunca 1–10 puanı verme. İlk iş, görüntüye fiilen erişerek maç akışını izlemek; oyuncunun görünürlüğünü, gözlem fırsatlarını ve görüntü sınırlılıklarını belirlemektir. Bu işlemi kullanıcı değil, Vel Scout analiz asistanı yürütür.
+
+**Erişim kapısı:** UEFA.tv oynatıcısı asistanın kullanabildiği araçlarla oturum açma gerektirdiği için görüntü içeriğine erişilemiyorsa video analizi başlatılmaz. Bu durumda başka bir yasal ve asistanın gerçekten inceleyebildiği tam maç kaynağı aranır. Kullanıcıdan oynatıcıyı açıp izleyerek not aktarması istenmez.
 
 Her dikkat çeken pozisyon için şu sırayı izle:
 
@@ -100,9 +103,9 @@ Resmî maç raporuna göre:
 
 **Önemli:** 67. dakikadan sonraki daha rahat veya farklı savunma koşulları, 11'e 11 bölümdeki performansın yerine geçmez. İki dönem ayrı notlanmalıdır.
 
-## 4. İlk izleme kayıt çizelgesi
+## 4. Asistanın ilk izleme kayıt çizelgesi
 
-İlk izleme sırasında yalnızca aşağıdaki alanları doldur. Henüz kriter puanı veya nihai yorum yazma.
+Aşağıdaki çizelgeyi gerçek görüntüyü izleyen Vel Scout analiz asistanı doldurur. Kullanıcı bu tabloyu doldurmaz. Görüntü erişimi yoksa satır uydurulmaz; analiz erişim engelinde bekler. Henüz kriter puanı veya nihai yorum yazılmaz.
 
 | Kayıt | Video zamanı | Maç saati | Bölüm / oyun fazı | Davinson görünür mü? | Gözlenen davranış / görüntü sınırlılığı |
 |---|---|---|---|---|---|
@@ -115,7 +118,7 @@ Resmî maç raporuna göre:
 | V07 | [oynatıcı zamanı] | [maç saati] | [ ] | [ ] | [ ] |
 | V08 | [oynatıcı zamanı] | [maç saati] | [ ] | [ ] | [ ] |
 
-İlk izlemede her önemli pozisyonu durdurup uzun uzun analiz etmek zorunda değilsin. Önce maç akışını kesintisiz takip et; tekrar izlenecek anları bu çizelgede işaretle.
+Asistan önce maç akışını mümkün olduğunca kesintisiz izler; tekrar izlenecek pozisyonları video oynatıcı zamanıyla kaydeder. Video zamanı ile maç saati yalnızca fiilen doğrulanmışsa eşleştirilir.
 
 ## 5. Görüntü ve kaynak kalite kontrolü
 
@@ -132,7 +135,7 @@ Resmî maç raporuna göre:
 
 Tam maç süresi kataloğa göre 01:43:05 olarak listelenmiştir. Ancak süre tek başına kesintisiz tamlık kanıtı sayılmaz; başlangıç, devre arası, ikinci yarı ve son bölüm gerçekten oynatılarak kontrol edilmelidir.
 
-## 6. İlk izleme sonrası kısa sonuç
+## 6. Asistanın ilk izleme sonrası kısa sonucu
 
 - En sık gözlem fırsatı oluşan davranışlar: [ ]
 - Tekrar izlenmesi gereken video zamanları: [ ]
@@ -151,4 +154,4 @@ Tam maç süresi kataloğa göre 01:43:05 olarak listelenmiştir. Ancak süre te
 - [UEFA Tactical Line-ups](https://www.uefa.com/newsfiles/UCL/2026/2047762_LU.pdf)
 - [TFF maç özeti ve olay kaydı](https://www.tff.org/default.aspx?ftxtID=49724&pageID=267)
 
-**Bu rehber maç görüntüsünün izlendiği veya Davinson Sánchez'in performansının değerlendirildiği anlamına gelmez. Resmî olaylar yalnızca video içinde gezinme işaretleridir; oyuncu gözlemi yerine kullanılamaz.**
+**Bu rehber maç görüntüsünün izlendiği veya Davinson Sánchez'in performansının değerlendirildiği anlamına gelmez. Resmî olaylar yalnızca video içinde gezinme işaretleridir; oyuncu gözlemi yerine kullanılamaz. Kullanıcı gözlem ve puanlama görevlisi değildir. Video içeriğine asistan erişemiyorsa sonraki iş, asistanın inceleyebileceği yasal tam maç kaynağını bulmaktır.**
