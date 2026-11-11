@@ -56,9 +56,9 @@ Bu alanlar için maç görüntüsünde ilgili pozisyonların görülmesi gerekir
 
 ## 5. Video incelemesi için durum
 
-Kullanıcı, UEFA.tv'de tam maç kaydını bulduğunu doğruladı. Ancak mevcut web erişiminde oturum açmalı UEFA.tv oynatıcısının görüntü akışı asistan tarafından doğrudan incelenemedi. Bu nedenle bu belge, video izlenmiş gibi sunulamaz.
+Kullanıcı, 10 Kasım 2026 tarihinde UEFA.tv'de tam maç kaydını bulduğunu ve Türkiye'den erişebildiğini bildirdi. Bununla birlikte UEFA.tv sayfası izleme için oturum açma istiyor ve mevcut analiz araçları bu oturum açmalı oynatıcıdaki görüntü akışını asistana sunmuyor. Bu nedenle maçın video içeriği henüz analiz edilmiş değildir.
 
-Tam görsel analiz için maç görüntüsünün bu konuşmada analiz edilebilir bir video dosyası veya kısa, ilgili video kesitleri olarak paylaşılması gerekir. Kullanıcının kendi taktik yorumlarını yazması gerekmez; asistan paylaşılan görüntü üzerinden gözlemleri kriterlerle eşleştirir. Yükleme/paylaşım, UEFA yayınını yeniden yayımlama hakkı vermez.
+**Görev paylaşımı:** Gözlem, video zamanlarının çıkarılması, kriter eşleştirmesi, puanlama ve raporlama Vel Scout analiz asistanının sorumluluğudur. Kullanıcıdan maçı izlemesi, görüntü kesitlerini seçmesi, zaman damgası sağlaması veya oyuncu yorumu yapması istenmez. Asistanın fiilen inceleyebildiği, yasal ve tam maç içeriği bulunmadan gözlem/puan üretilmez. İzinsiz kopya veya yeniden yüklenmiş görüntü talep edilmez.
 
 ## 6. Kaynaklar
 
