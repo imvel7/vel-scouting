@@ -251,11 +251,16 @@ The six later migration versions present in the live ledger do not have correspo
 
 Do not invent historical SQL or apply additional DDL until the missing source history is recovered or a reviewed, explicitly labelled live-state recovery baseline is prepared. The live RPC definitions have been inspected, but that is not a substitute for the exact six historical migration scripts.
 
-### Admin report workflow integration gap
+### Admin report workflow integration
 
-The current `admin.html` report form still inserts directly into `scout_reports` and then separately inserts into `report_versions`. A source scan found no `supabase.rpc()` call, and the form hardcodes `methodology_version: '0.8'`. The live database already contains the secure single-session and multi-match report bundle functions.
+The admin report workflow was updated on 11 November 2026 and now uses the existing secure report-bundle RPCs instead of inserting into `scout_reports` and `report_versions` separately:
+- One-match / same-match session bundles call `create_scout_report_bundle()`.
+- Multi-match bundles call `create_multi_match_scout_report_bundle()`; the UI and database both enforce the completed/locked session requirement and the multi-match minimum.
+- Methodology version is read from the selected `rubric_versions` row; the hardcoded `0.8` value was removed.
+- The report snapshot captures the selected player, rubric, session/match context, criterion scores, timestamped observations, and linked video-source metadata.
+- Evidence grade and general rating are calculated server-side; they are no longer manually entered in the report form.
 
-**Next implementation after migration/source reconciliation:** update the admin report workflow to use the appropriate atomic report-bundle function, select the active rubric/methodology version from the database, and create a frozen report snapshot with its linked scouting sessions. Test transaction failure and validation cases before using it for real reports.
+Static verification passed: the fetched module script compiles, duplicate HTML IDs were not found, and the old direct inserts are absent. A real RPC write was intentionally not run because the live database currently contains zero scouting sessions. Multi-match report creation remains blocked until the admin workflow can move sessions through a reviewed completion lifecycle.
 
 ### Latest advisor findings
 
@@ -264,3 +269,37 @@ The current `admin.html` report form still inserts directly into `scout_reports`
 - Health: no advisor findings were returned in this check.
 
 No database rows or schema objects were changed during this continuation audit. The only code change was the read-only admin diagnostic coverage update described above.
+
+
+---
+
+## 8. Report workflow integration — 11 November 2026
+
+### Recovery baseline
+
+A live-state recovery snapshot was added at `supabase/recovery/VEL_REPORT_BUNDLE_FUNCTIONS_LIVE_SNAPSHOT_20261111.sql`.
+- Commit: `fd7f9f6182922c8d00f0ac1dd0342f34d90e0e4f`
+- Contains the two live report RPC definitions and their observed authenticated-only EXECUTE ACLs.
+- This is a recovery baseline only. It does not reconstruct the six missing historical migrations and must not be applied to the current production database as a new migration.
+
+### Admin report RPC integration
+
+`admin.html` now creates reports through the atomic database functions rather than client-side table inserts.
+- Commit: `ce9a6c6dc4c9c1ff2aed0eb099c73e57e1f3e56c`
+- Verified GitHub file SHA: `396dce414aa8a2d58f2662c685eecc73023f0686`
+- The browser code was fetched back from GitHub, its module script passed JavaScript syntax compilation, and the report handler was checked for both RPC paths.
+- No Supabase schema or data rows were changed during this implementation.
+
+### Report validation boundary
+
+The live database currently has zero rows in `scouting_sessions`. The report RPC has therefore not yet been exercised with a real player/session/sample. The single-match function requires at least one saved criterion score and enforces player/rubric consistency. The multi-match function additionally requires at least two distinct matches and every selected session to be `completed` or `locked`.
+
+The current admin panel creates sessions as `draft` and has no session status-transition control. Before a multi-match pilot, add an explicit staff review/completion workflow. It should verify the full rubric has saved scoring states, require reasoned N/A entries, retain the existing 9–10 evidence guard, and record completion deliberately rather than silently changing status.
+
+### Immediate next steps
+
+1. Add controlled session review and completion actions, with clear transitions from `draft` to `in_review` to `completed`; reserve `locked` for final records.
+2. Create the first genuine pilot scouting session and complete its criterion scoring and time-coded evidence.
+3. Test the one-match report RPC in the authenticated admin browser, including validation failures and snapshot contents.
+4. Only after the lifecycle workflow exists, test the multi-match RPC with at least two completed matches.
+5. Continue recovering exact historical migration files separately; do not recreate them from memory or substitute the live snapshot for migration history.
