@@ -70,15 +70,17 @@ Erişim kaydı, kullanıcının 10 Kasım 2026 tarihli teyidine dayalıdır. Gü
 - Scout raporu oluşturulmadı.
 - Tek maçtan genel puan, kalıcı ana rol, potansiyel veya transfer uygunluğu çıkarılmadı.
 
-## 6. İzleme sırasında ilk yapılacaklar
+## 6. Analiz asistanının sıradaki işlemleri
 
-1. UEFA.tv bağlantısını yetkili scout hesabıyla orijinal oynatıcıda aç.
-2. Başlangıç, devre arası sonrası ve maç sonunu kontrol ederek kaydın tamlığını doğrula.
-3. İlk izlemeyi normal hızda ve puan vermeden yap.
-4. Gözlem fırsatlarını, video zamanını ve maç saatini ayrı ayrı not et.
-5. Yalnızca Davinson'un bizzat görüldüğü davranışları kriterlere bağla.
-6. Görüntüde seçilemeyen durumları tahmin etme; görüntü sınırlılığı olarak kaydet.
-7. İkinci izlemeyle doğrulanan pozisyonları admin panelindeki zaman damgalı gözlem formuna gir.
+1. Asistan, UEFA.tv'nin orijinal oynatıcısındaki tam maç görüntüsüne kendi araçlarıyla fiilen erişebiliyor mu kontrol eder.
+2. Oturum açma gereksinimi nedeniyle görüntü akışı asistan tarafından incelenemiyorsa kullanıcıdan maçı izlemesi veya not çıkarması istenmez; asistan yasal ve inceleyebildiği alternatif tam maç kaynağı arar.
+3. Erişilebilir görüntü bulunduğunda asistan başlangıç, devre arası, ikinci yarı ve maç sonunu kontrol ederek tamlığı değerlendirir.
+4. Asistan ilk izlemeyi puan vermeden yapar; gerçek video zamanlarını ve maç saatini ayrı kaydeder.
+5. Yalnızca Davinson'un görüntüde bizzat doğrulanabilen davranışları gözlem olarak kaydeder.
+6. Görüntüde seçilemeyen durumları tahmin etmez; görüntü sınırlılığı olarak kaydeder.
+7. Asistan doğrulanmış pozisyonları admin iş akışındaki zaman damgalı gözlem kayıtlarına dönüştürür; kriter puanları ilk izleme aşamasında girilmez.
+
+**Kullanıcının rolü:** Proje sahibi olarak ürün ve erişim kararlarını verir. Maç videosunu izlemek, zaman damgası çıkarmak, gözlem çizelgesi doldurmak veya oyuncuya puan vermek kullanıcının görevi değildir.
 
 ## 7. Resmî maç kaynakları
 
