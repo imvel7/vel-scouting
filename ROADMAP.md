@@ -315,3 +315,38 @@ The session lifecycle implementation was committed to `admin.html` on 11 Novembe
 3. Test the one-match report RPC with the completed pilot session; inspect the report result and frozen snapshot.
 4. Reconcile the six missing historical migration files before any new database-level lock enforcement DDL.
 5. Test the multi-match RPC only after at least two distinct completed pilot sessions exist.
+
+
+---
+
+## 9. Match registry completion — 11 November 2026
+
+### Competition and season metadata added to the admin workflow
+
+The existing database already contained competitions and seasons tables, but the admin panel's match form did not expose or save those relationships. This has now been completed in the UI:
+- Added staff-only competition and season registration forms.
+- Added optional competition and season selectors to match creation.
+- Match reads now include both foreign keys; match labels show the linked competition and season.
+- Report snapshots now preserve competition/season IDs and their names as match context.
+- Existing database tables and staff RLS policies are reused; no schema migration, grants, policies, or production data rows were changed.
+
+**GitHub:**
+- Admin change commit: a635b8681488dfbffb4f3b3c61307e020ff2acdd
+- Updated admin.html blob SHA: 43c248e71f55c333759da7ef5a9b7ff2a8f72bd6
+- Pilot setup checklist commit: 4b1ea4376b75229c4d18a7c768926e19cb9539ba
+- New guide: [Davinson Sánchez Pilot Setup Checklist v1.0](pilot/VEL_DAVINSON_SANCHEZ_PILOT_SETUP_CHECKLIST_v1.0.md)
+
+### Verification
+
+- The updated admin file was fetched back from GitHub.
+- The JavaScript module passed a syntax compilation check.
+- Static HTML IDs were checked; no duplicate static IDs were found.
+- The live database RLS policies for both catalog tables were inspected and require authenticated staff through private.is_vel_staff().
+- No browser interaction against the deployed GitHub Pages admin panel has been performed in this step.
+- No real competition, season, match, player-match, video, or scouting-session records have been inserted. The live pilot tables remain empty until an authorized staff member completes the setup.
+
+### Next concrete action
+
+Use the updated admin panel to check for existing Galatasaray/Juventus club records and Davinson Sánchez's player record (avoid duplicates), then register the competition, season, match, player participation, UEFA.tv source, and access verification. Create the draft scouting session and link its video. Only after those records exist can the real viewing and time-coded observation pilot begin.
+
+**Important:** A code commit does not prove that GitHub Pages has deployed the updated page. Confirm the deployed admin page contains the new competition and season forms before entering pilot data.
