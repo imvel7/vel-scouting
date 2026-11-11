@@ -210,3 +210,57 @@ Bu kararın teknik ayrıntıları: [Özel Scouting Video ve Maç Kaynak Sistemi 
 **Kalan güvenlik kapısı:** `supabase_admin` rolünün yeni tablolar için varsayılan izinleri, bağlı `postgres` oturumunun yetkisi olmadığı için değiştirilemedi. Yeni tabloları şimdilik doğrulanan `postgres` SQL/migration yolu ile oluşturacağız ve her yeni tabloda RLS/grant kontrolü yapacağız. SQL rol/JWT simülasyonları anon engelini, personel olmayan kullanıcının reddini ve admin erişimini doğruladı; gerçek HTTP/Data API uçtan uca testi henüz çalıştırılamadı. Supabase'in sızdırılmış parola kontrolü resmî belgede Pro ve üzeri plan özelliği olarak listeleniyor; Free planda bu uyarı plan sınırlaması olarak izlenecek, yükseltme önerilmiyor.
 
 **Sıradaki iş:** Admin paneline salt-okunur gerçek Data API erişim testi eklendi. GitHub Pages dağıtımı sonrasında yetkili hesapla çalıştırılmalı; anonim public/private erişim ve mevcut staff erişimi tarayıcıdan doğrulanmalı. Ayrı personel olmayan Auth hesabı olmadığı için bu kullanıcı senaryosu daha sonra test edilmeli. Sonrasında özel admin panelinde maç, kaynak ve değerlendirme oturumu ekranları geliştirilecek. Bu kontroller geçmeden video kaynak UI'si veya kamuya açık özel veri bağlantısı yayımlamayacağız.
+
+
+---
+
+## 7. Continuation audit — 11 November 2026
+
+### Confirmed live database access posture
+
+A read-only audit of the live Supabase project confirmed:
+- All 19 public tables have RLS enabled.
+- Anonymous table-level SELECT is granted only for `players`, `clubs`, and `scout_reports`; their policies expose published player profiles, clubs linked to published players, and published reports belonging to published players.
+- The remaining 16 tables do not grant anonymous SELECT. The `private` schema does not grant USAGE to `anon`.
+- `private.is_vel_staff()` and `private.is_vel_admin()` are SECURITY DEFINER helpers with an empty search_path and EXECUTE granted only to `authenticated` (plus the database owner). They derive authorization from `auth.uid()` and `public.user_roles`.
+- `create_scout_report_bundle()` and `create_multi_match_scout_report_bundle()` are SECURITY INVOKER functions with an empty search_path; EXECUTE is granted to `authenticated`, not `anon`.
+
+These are SQL/catalog-level checks. They do not replace a browser Data API test with real anonymous, staff, and non-staff sessions.
+
+### Admin browser diagnostics expanded
+
+On 11 November 2026, `admin.html` was updated so its read-only anonymous-access diagnostic checks all 16 private tables, rather than the previous subset of 10. The change was committed to `main`:
+- Commit: `6b8ba3a11602e4f6e1125d37cf4751897063ade0`
+- The updated file was fetched again from GitHub and the 16-table list was verified.
+
+**Still pending:** run the diagnostic from the deployed GitHub Pages admin panel using an authorized staff account. A separate authenticated non-staff account is also needed to verify the staff-only RLS boundary through the actual Data API. The assistant has not accessed the user's browser session and has not run these interactive checks.
+
+### Migration source-tracking gap
+
+The live database migration ledger contains eight applied migrations, but the current `main` branch tracks only two SQL files under `supabase/migrations`:
+- `20261110172515_tighten_vel_rls_function_privileges.sql`
+- `20261110174605_create_vel_scouting_sessions_and_rubrics.sql`
+
+The six later migration versions present in the live ledger do not have corresponding SQL files in the current repository tree:
+- `20261111085851_create_atomic_scout_report_bundle`
+- `20261111104333_create_multi_match_scout_report_rpc`
+- `20261111105655_use_existing_secure_scout_report_bundle`
+- `20261111105858_fix_report_bundle_uuid_aggregate`
+- `20261111110233_add_multi_match_report_guard`
+- `20261111110636_enforce_multi_match_rubric_methodology`
+
+Do not invent historical SQL or apply additional DDL until the missing source history is recovered or a reviewed, explicitly labelled live-state recovery baseline is prepared. The live RPC definitions have been inspected, but that is not a substitute for the exact six historical migration scripts.
+
+### Admin report workflow integration gap
+
+The current `admin.html` report form still inserts directly into `scout_reports` and then separately inserts into `report_versions`. A source scan found no `supabase.rpc()` call, and the form hardcodes `methodology_version: '0.8'`. The live database already contains the secure single-session and multi-match report bundle functions.
+
+**Next implementation after migration/source reconciliation:** update the admin report workflow to use the appropriate atomic report-bundle function, select the active rubric/methodology version from the database, and create a frozen report snapshot with its linked scouting sessions. Test transaction failure and validation cases before using it for real reports.
+
+### Latest advisor findings
+
+- Security: leaked-password protection is disabled; this remains a plan limitation already documented for the current Free tier.
+- Performance: 23 foreign keys are reported without covering indexes; four tables have multiple permissive SELECT policies; 12 indexes are currently unused. Review these against actual query patterns before making index or policy changes.
+- Health: no advisor findings were returned in this check.
+
+No database rows or schema objects were changed during this continuation audit. The only code change was the read-only admin diagnostic coverage update described above.
