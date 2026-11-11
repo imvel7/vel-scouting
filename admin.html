@@ -268,7 +268,7 @@ async function verifyAndLoad(user){
  const {data:roleData,error:roleError}=await supabase.from('user_roles').select('role').eq('user_id',user.id).maybeSingle();
  if(roleError)throw new Error('Yetki kontrolü yapılamadı: '+roleError.message);
  if(!roleData||!['admin','editor'].includes(roleData.role))throw new Error('Bu hesapta Vel Scouting yönetim yetkisi bulunmuyor.');
- currentUser=user;showDashboard();await loadClubs();await loadPlayers();await loadReports();await loadMatches();await loadRubrics();await loadPlayerMatches();await loadSessions();await loadVideos();await loadSessionVideos();await loadVideoAccessChecks();await loadRubricCriteria();await loadObservations();await loadCriterionScores();
+ currentUser=user;showDashboard();await loadClubs();await loadPlayers();await loadReports();await loadMatches();await loadRubrics();await loadRubricCriteria();await loadPlayerMatches();await loadSessions();await loadVideos();await loadSessionVideos();await loadVideoAccessChecks();await loadObservations();await loadCriterionScores();
 }
 async function loadClubs(){
  const select=$('current-club');
