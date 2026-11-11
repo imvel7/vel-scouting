@@ -441,3 +441,27 @@ New execution record: [Davinson Sánchez Pilot Execution Log 01](pilot/VEL_DAVIN
 ### Next action — start the real viewing pilot
 
 Open the draft session in the admin panel. First open the linked UEFA.tv recording in its original player and verify full-match continuity, video quality, camera visibility and the video-time/match-clock relationship. Perform the first viewing at normal speed without scoring; then enter only confirmed, timestamped player behaviours as observations. Do not infer actions from match event summaries or team statistics.
+
+
+---
+
+## 13. Davinson pilot — full-match first viewing guide added
+
+The full-match first viewing guide is now available:
+- [Davinson Sánchez — Full Match First Viewing Guide](pilot/CB-GS-JUV-20260217_FULL_MATCH_FIRST_VIEWING_GUIDE.md)
+
+The guide structures the first viewing into:
+1. 0'–33': initial shape and first-half score changes.
+2. 34'–45'+3:34: Juventus change and end of first half.
+3. 46'–66': second-half play before the dismissal.
+4. 67'–90'+2:07: play after Juventus went down to ten players.
+
+It includes the official match-event waypoints, but explicitly treats them only as navigation cues — not individual scouting evidence. It also separates the match clock from the video player's elapsed time, adds a video-quality/continuity checklist, and preserves a no-scoring rule for the first viewing.
+
+### Official catalogue check
+
+The UEFA.tv Re-Runs catalogue currently lists “Match Re-Run: Galatasaray 5-2 Juventus” at 01:43:05 and indicates sign-in is required to watch. This confirms the catalogue listing, not current playback continuity or the user's account access.
+
+### Next action
+
+The authorized scout must open the original UEFA.tv page, complete the first viewing without scoring, and record actual video elapsed times separately from match minutes. Do not estimate player actions from official match events or team statistics.
