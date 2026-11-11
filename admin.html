@@ -70,7 +70,7 @@
 </div>
 <div class="panel">
 <div class="tag">Scouting workflow</div><h2>Yeni scouting oturumu</h2>
-<p class="muted">Oturum; oyuncu-maç kaydına ve pilot/aktif rubriğe bağlanır. Özel notlar yalnızca yönetim paneli ve yetkili personel içindir. Bu ekranda herkese açık video bağlantısı oluşturulmaz.</p>
+<p class="muted">Oturum; oyuncu-maç kaydına ve pilot/aktif rubriğe bağlanır. İş akışı: Taslak → İncelemede → Tamamlandı → Kilitli. Tamamlanma, tüm kriterlerde kayıtlı değerlendirme ve kanıt kontrolleri gerektirir. Kilitli oturum değiştirilemez; tamamlanan oturum yeniden incelemeye açılabilir. Özel notlar yalnızca yetkili personel içindir.</p>
 <form id="session-form">
 <div class="grid">
 <div class="field"><label for="session-player-match">Oyuncu ve maç *</label><select id="session-player-match" required><option value="">Önce oyuncu-maç bağlantısı oluştur</option></select></div>
@@ -80,7 +80,7 @@
 <div class="actions"><button class="btn" type="submit" id="save-session">Taslak scouting oturumu oluştur</button></div>
 </form>
 <div id="sessions-message" class="notice">Scouting oturumları yükleniyor.</div>
-<div class="tablewrap"><table><thead><tr><th>Oyuncu</th><th>Maç</th><th>Rubrik</th><th>Durum</th><th>Oluşturulma</th></tr></thead><tbody id="sessions-body"><tr><td colspan="5" class="muted">Henüz oturum yok.</td></tr></tbody></table></div>
+<div class="tablewrap"><table><thead><tr><th>Oyuncu</th><th>Maç</th><th>Rubrik</th><th>Durum</th><th>Oluşturulma</th><th>İşlem</th></tr></thead><tbody id="sessions-body"><tr><td colspan="6" class="muted">Henüz oturum yok.</td></tr></tbody></table></div>
 </div>
 
 <div class="panel" id="criterion-scoring-panel">
@@ -203,7 +203,7 @@
 <div class="grid">
 <div class="field"><label for="report-player">Oyuncu *</label><select id="report-player" required><option value="">Oyuncu seç</option></select></div>
 <div class="field"><label for="report-date">Rapor tarihi *</label><input id="report-date" type="date" required></div>
-<div class="field" style="grid-column:1/-1"><label>Raporu destekleyen scouting oturumları *</label><div id="report-sessions" class="session-picker"><div class="session-picker-empty">Önce oyuncu seç.</div></div><small class="muted">Bir veya daha fazla oturum seç. Seçilen oturumlar aynı rubrik sürümüne ait olmalıdır. Birden fazla maç içeren raporlarda oturumların tamamlanmış veya kilitlenmiş olması gerekir.</small></div>
+<div class="field" style="grid-column:1/-1"><label>Raporu destekleyen scouting oturumları *</label><div id="report-sessions" class="session-picker"><div class="session-picker-empty">Önce oyuncu seç.</div></div><small class="muted">Bir veya daha fazla tamamlanmış/kilitlenmiş oturum seç. Seçilen oturumlar aynı rubrik sürümüne ait olmalıdır. Birden fazla maçlı rapor ayrıca en az iki ayrı maç gerektirir.</small></div>
 <div class="field"><label for="main-role">Ana rol</label><select id="main-role"><option value="">Henüz belirlenmedi</option><option value="Front-foot Defender">Front-foot Defender</option><option value="Cover Defender">Cover Defender</option><option value="Ball-playing Defender">Ball-playing Defender</option><option value="Wide Centre-back">Wide Centre-back</option></select></div>
 <div class="field"><label for="alternative-roles">Alternatif roller</label><input id="alternative-roles" maxlength="240" placeholder="Virgülle ayırarak yaz"></div>
 <div class="field" style="grid-column:1/-1"><label for="main-role-evidence">Rol değerlendirmesinin maç kanıtı</label><textarea id="main-role-evidence" rows="3" maxlength="3000" placeholder="Rol kararını destekleyen tekrarlanan davranışları ve maç bağlamını yaz. Rol seçildiğinde en az 3 ayrı maç ve en az 50 karakterlik kanıt gerekir."></textarea></div>
@@ -307,7 +307,7 @@ function populateReportSessions(){
  if(!available.length){container.innerHTML='<div class="session-picker-empty">Bu oyuncu için henüz scouting oturumu yok.</div>';return}
  container.innerHTML=available.map(s=>{
   const rubric=rubrics.find(r=>String(r.id)===String(s.rubric_version_id));
-  const statusLabel={draft:'Taslak',in_progress:'Devam ediyor',completed:'Tamamlandı',locked:'Kilitli'}[s.status]||s.status;
+  const statusLabel={draft:'Taslak',in_review:'İncelemede',completed:'Tamamlandı',locked:'Kilitli'}[s.status]||s.status;
   const label=sessionLabel(s)+' · '+(rubric?.version_code||'Rubrik')+' · '+statusLabel;
   return '<label class="session-option"><input type="checkbox" data-report-session="'+esc(s.id)+'"'+(previous.has(String(s.id))?' checked':'')+'><span>'+esc(label)+'</span></label>';
  }).join('');
@@ -380,8 +380,71 @@ function populateSessionParticipants(){
   return '<option value="'+esc(pm.id)+'">'+esc(player?.full_name||'Oyuncu')+' · '+esc(match?formatMatchLabel(match):'Maç')+'</option>';
  }).join('');
 }
+async function validateSessionForTransition(session,strict){
+ const criteria=rubricCriteria.filter(c=>String(c.rubric_version_id)===String(session.rubric_version_id));
+ if(!criteria.length)throw new Error('Bu oturumun rubrik kriterleri bulunamadı.');
+ const [scoreResult,observationResult]=await Promise.all([
+  supabase.from('criterion_scores').select('id,criterion_id,score,applicability,rationale').eq('session_id',session.id).eq('rubric_version_id',session.rubric_version_id),
+  supabase.from('observations').select('id,criterion_id').eq('session_id',session.id)
+ ]);
+ if(scoreResult.error)throw scoreResult.error;
+ if(observationResult.error)throw observationResult.error;
+ const scoreMap=new Map((scoreResult.data||[]).map(row=>[String(row.criterion_id),row]));
+ const missing=criteria.filter(c=>!scoreMap.has(String(c.id)));
+ if(missing.length){
+  const examples=missing.slice(0,5).map(c=>c.criterion_code).join(', ');
+  throw new Error(missing.length+' kriter için puanlama durumu kaydedilmedi'+(examples?' ('+examples+(missing.length>5?', …':'')+')':'')+'. Önce tüm kriterleri kaydet.');
+ }
+ if(!strict)return;
+ const observationCounts=new Map();
+ for(const o of observationResult.data||[]){
+  const key=String(o.criterion_id);
+  observationCounts.set(key,(observationCounts.get(key)||0)+1);
+ }
+ const scored=criteria.filter(c=>scoreMap.get(String(c.id))?.applicability==='scored');
+ if(!scored.length)throw new Error('Oturum tamamlanmadan önce en az bir kriter 1–10 arasında puanlanmalıdır.');
+ for(const criterion of criteria){
+  const row=scoreMap.get(String(criterion.id));
+  const rationale=String(row.rationale||'').trim();
+  if(row.applicability==='not_applicable'&&!rationale)throw new Error(criterion.criterion_code+' için N/A gerekçesi yazılmalı.');
+  if(row.applicability==='not_observed'&&!rationale)throw new Error(criterion.criterion_code+' için N/E gerekçesi yazılmalı.');
+  if(row.applicability==='scored'){
+   if(!rationale)throw new Error(criterion.criterion_code+' puan gerekçesi boş bırakılamaz.');
+   const count=observationCounts.get(String(criterion.id))||0;
+   if(count<1)throw new Error(criterion.criterion_code+' için en az bir zaman damgalı gözlem kaydedilmelidir.');
+   if(Number(row.score)>=9&&(rationale.length<50||count<2))throw new Error(criterion.criterion_code+' için 9–10 puan en az 50 karakterlik gerekçe ve iki zaman damgalı gözlem gerektirir.');
+  }
+ }
+}
+async function transitionScoutingSession(sessionId,action){
+ const session=scoutingSessions.find(s=>String(s.id)===String(sessionId));
+ if(!session)throw new Error('Scouting oturumu bulunamadı.');
+ let update={};
+ if(action==='review'&&session.status==='draft'){
+  await validateSessionForTransition(session,false);
+  update={status:'in_review',started_at:session.started_at||new Date().toISOString(),completed_at:null};
+ }else if(action==='complete'&&session.status==='in_review'){
+  await validateSessionForTransition(session,true);
+  const now=new Date().toISOString();
+  update={status:'completed',started_at:session.started_at||now,completed_at:now};
+ }else if(action==='reopen'&&session.status==='completed'){
+  if(!window.confirm('Bu oturumu yeniden incelemeye açmak istiyor musun? Mevcut rapor anlık görüntüleri değişmez.'))return;
+  update={status:'in_review',completed_at:null};
+ }else if(action==='lock'&&session.status==='completed'){
+  if(!window.confirm('Kilitli oturumda puanlar, gözlemler ve video bağlantıları değiştirilemez. Kilitlemek istiyor musun?'))return;
+  update={status:'locked'};
+ }else{
+  throw new Error('Bu oturum için istenen durum geçişi geçerli değil.');
+ }
+ const {error}=await supabase.from('scouting_sessions').update(update).eq('id',session.id);
+ if(error)throw error;
+ const success={review:'Oturum incelemeye alındı.',complete:'Oturum tamamlandı; rapor oluşturmak için seçilebilir.',reopen:'Oturum yeniden incelemeye açıldı.',lock:'Oturum kilitlendi ve salt okunur hale getirildi.'}[action];
+ message($('sessions-message'),success,'ok');
+ await loadSessions();
+ await loadCriterionScores();
+}
 async function loadSessions(){
- const {data,error}=await supabase.from('scouting_sessions').select('id,player_id,player_match_id,match_id,rubric_version_id,status,created_at').order('created_at',{ascending:false}).limit(100);
+ const {data,error}=await supabase.from('scouting_sessions').select('id,player_id,player_match_id,match_id,rubric_version_id,status,created_at,started_at,completed_at').order('created_at',{ascending:false}).limit(100);
  if(error){message($('sessions-message'),'Scouting oturumları alınamadı: '+error.message,'error');return}
  scoutingSessions=data||[];populateSessionSelects();
  $('sessions-body').innerHTML=scoutingSessions.map(s=>{
@@ -389,8 +452,16 @@ async function loadSessions(){
   const match=matches.find(m=>String(m.id)===String(s.match_id));
   const rubric=rubrics.find(r=>String(r.id)===String(s.rubric_version_id));
   const created=s.created_at?new Date(s.created_at).toLocaleString('tr-TR'):'—';
-  return '<tr><td>'+esc(player?.full_name||'Oyuncu')+'</td><td>'+esc(match?formatMatchLabel(match):'Maç')+'</td><td>'+esc(rubric?.version_code||'Rubrik')+'</td><td class="status">'+esc(s.status)+'</td><td>'+esc(created)+'</td></tr>';
- }).join('')||'<tr><td colspan="5" class="muted">Henüz scouting oturumu yok.</td></tr>';
+  const statusLabel={draft:'Taslak',in_review:'İncelemede',completed:'Tamamlandı',locked:'Kilitli'}[s.status]||s.status;
+  const action=s.status==='draft'
+   ?'<button class="btn secondary" type="button" data-session-action="review" data-session-id="'+esc(s.id)+'">İncelemeye al</button>'
+   :s.status==='in_review'
+    ?'<button class="btn" type="button" data-session-action="complete" data-session-id="'+esc(s.id)+'">Tamamla</button>'
+    :s.status==='completed'
+     ?'<div class="rowactions"><button class="btn secondary" type="button" data-session-action="reopen" data-session-id="'+esc(s.id)+'">Yeniden aç</button><button class="btn danger" type="button" data-session-action="lock" data-session-id="'+esc(s.id)+'">Kilitle</button></div>'
+     :'Salt okunur';
+  return '<tr><td>'+esc(player?.full_name||'Oyuncu')+'</td><td>'+esc(match?formatMatchLabel(match):'Maç')+'</td><td>'+esc(rubric?.version_code||'Rubrik')+'</td><td class="status">'+esc(statusLabel)+'</td><td>'+esc(created)+'</td><td>'+action+'</td></tr>';
+ }).join('')||'<tr><td colspan="6" class="muted">Henüz scouting oturumu yok.</td></tr>';
  message($('sessions-message'),scoutingSessions.length+' scouting oturumu bulundu.',scoutingSessions.length?'ok':'');
 }
 
@@ -596,7 +667,7 @@ function renderCriterionScoring(){
   save.disabled=true;return;
  }
  const saved=new Map(criterionScores.filter(x=>String(x.session_id)===String(session.id)).map(x=>[String(x.criterion_id),x]));
- const locked=session.status==='locked';
+ const readOnly=['completed','locked'].includes(session.status);
  const categoryHtml=rubricCategories.filter(cat=>String(cat.rubric_version_id)===String(session.rubric_version_id)).map((cat,index)=>{
   const rows=criteria.filter(c=>String(c.rubric_category_id)===String(cat.id));
   if(!rows.length)return '';
@@ -611,16 +682,16 @@ function renderCriterionScoring(){
    const options='<option value="not_observed"'+(value==='not_observed'?' selected':'')+'>N/E — Gözlemlenmedi</option><option value="not_applicable"'+(value==='not_applicable'?' selected':'')+'>N/A — Uygulanamaz</option>'+Array.from({length:10},(_,i)=>i+1).map(n=>'<option value="'+n+'"'+(value===String(n)?' selected':'')+'>'+n+' / 10</option>').join('');
    return '<article class="score-criterion">'+
     '<div class="score-criterion-head"><div class="score-criterion-title"><span class="score-criterion-code">'+esc(c.criterion_code)+'</span>'+esc(c.criterion_name)+'</div><span class="score-weight">'+esc(c.weight_percent)+'% ağırlık</span></div>'+
-    '<div class="score-controls"><div><label for="criterion-score-'+esc(c.id)+'">Değerlendirme</label><select id="criterion-score-'+esc(c.id)+'" data-criterion-score="'+esc(c.id)+'"'+(locked?' disabled':'')+'>'+options+'</select></div>'+
-    '<div><label for="criterion-rationale-'+esc(c.id)+'">Puan gerekçesi / kısa kanıt notu</label><textarea id="criterion-rationale-'+esc(c.id)+'" maxlength="1600" placeholder="Bu puanı destekleyen maç davranışını ve bağlamı kısaca açıkla."'+(locked?' disabled':'')+'>'+esc(rationale)+'</textarea></div></div>'+
+    '<div class="score-controls"><div><label for="criterion-score-'+esc(c.id)+'">Değerlendirme</label><select id="criterion-score-'+esc(c.id)+'" data-criterion-score="'+esc(c.id)+'"'+(readOnly?' disabled':'')+'>'+options+'</select></div>'+
+    '<div><label for="criterion-rationale-'+esc(c.id)+'">Puan gerekçesi / kısa kanıt notu</label><textarea id="criterion-rationale-'+esc(c.id)+'" maxlength="1600" placeholder="Bu puanı destekleyen maç davranışını ve bağlamı kısaca açıkla."'+(readOnly?' disabled':'')+'>'+esc(rationale)+'</textarea></div></div>'+
     '<div class="score-anchor" id="criterion-anchor-'+esc(c.id)+'">'+esc(scoreAnchorText(c,value))+'</div>'+evidenceHtml+'</article>';
   }).join('');
   const evaluated=rows.filter(c=>saved.has(String(c.id))).length;
   return '<details class="score-category"'+(index===0?' open':'')+'><summary><strong>'+esc(cat.category_name)+'</strong><span>'+esc(cat.category_weight_percent)+'% · '+rows.length+' kriter · '+evaluated+' kayıtlı değerlendirme</span></summary><div class="score-category-body">'+rowsHtml+'</div></details>';
  }).join('');
  host.innerHTML='<div class="score-categories">'+categoryHtml+'</div>';
- $('scores-message').textContent=sessionLabel(session)+' · '+criteria.length+' kriter · '+(locked?'Kilitli oturum — salt okunur.':'Değişiklikleri kaydetmeden önce her kriterin durumunu kontrol et.');
- save.disabled=locked;
+ $('scores-message').textContent=sessionLabel(session)+' · '+criteria.length+' kriter · '+(session.status==='locked'?'Kilitli oturum — salt okunur.':session.status==='completed'?'Tamamlanmış oturum — düzenlemek için yeniden incelemeye aç.':'Değişiklikleri kaydetmeden önce her kriterin durumunu kontrol et.');
+ save.disabled=readOnly;
  renderScoreSummary();
 }
 async function loadCriterionScores(){
@@ -634,7 +705,7 @@ async function loadCriterionScores(){
 async function saveCriterionScores(){
  const session=selectedScoringSession();
  if(!session)throw new Error('Önce bir scouting oturumu seç.');
- if(session.status==='locked')throw new Error('Kilitli oturumun puanları değiştirilemez.');
+ if(['completed','locked'].includes(session.status))throw new Error('Tamamlanmış veya kilitli oturumun puanları değiştirilemez. Değişiklik için yeniden incelemeye aç.');
  const criteria=rubricCriteria.filter(c=>String(c.rubric_version_id)===String(session.rubric_version_id));
  if(!criteria.length)throw new Error('Bu oturum için rubrik kriterleri bulunamadı.');
  const payload=criteria.map(c=>{
@@ -715,8 +786,8 @@ $('report-form').addEventListener('submit',async e=>{
   if(!rubric||!rubric.methodology_version)throw new Error('Seçilen rubriğin metodoloji sürümü veritabanından alınamadı.');
   const distinctMatchIds=[...new Set(selectedSessions.map(s=>String(s.match_id)))];
   const isMultiMatch=distinctMatchIds.length>=2;
-  if(isMultiMatch&&selectedSessions.some(s=>!['completed','locked'].includes(s.status))){
-   throw new Error('Birden fazla maçlı rapor için seçilen tüm scouting oturumları tamamlanmış veya kilitlenmiş olmalıdır.');
+  if(selectedSessions.some(s=>!['completed','locked'].includes(s.status))){
+   throw new Error('Rapor yalnızca tamamlanmış veya kilitlenmiş scouting oturumlarından oluşturulabilir.');
   }
   const mainRole=$('main-role').value||null;
   const alternativeRoles=$('alternative-roles').value.split(',').map(v=>v.trim()).filter(Boolean);
@@ -887,6 +958,7 @@ $('session-video-form').addEventListener('submit',async e=>{
   const s=scoutingSessions.find(x=>String(x.id)===$('link-session').value);
   const v=videos.find(x=>String(x.id)===$('link-video').value);
   if(!s||!v)throw new Error('Scouting oturumu ve video seçilmelidir.');
+  if(['completed','locked'].includes(s.status))throw new Error('Tamamlanmış veya kilitli oturuma yeni video bağlanamaz.');
   if(String(s.match_id)!==String(v.match_id))throw new Error('Video ile scouting oturumu aynı maça ait olmalıdır.');
   const existing=sessionVideos.find(x=>String(x.session_id)===String(s.id)&&String(x.video_id)===String(v.id));
   if(existing)throw new Error('Bu video zaten seçilen oturuma bağlı.');
@@ -920,6 +992,14 @@ $('access-form').addEventListener('submit',async e=>{
  }catch(err){message($('access-message'),'Erişim kontrolü kaydedilemedi: '+(err.message||'Bilinmeyen hata'),'error')}
  finally{btn.disabled=false;btn.textContent='Erişim kontrolünü kaydet'}
 });
+$('sessions-body').addEventListener('click',async e=>{
+ const button=e.target.closest('button[data-session-action]');
+ if(!button)return;
+ button.disabled=true;
+ try{await transitionScoutingSession(button.dataset.sessionId,button.dataset.sessionAction)}
+ catch(err){message($('sessions-message'),'Oturum durumu değiştirilemedi: '+(err.message||'Bilinmeyen hata'),'error')}
+ finally{button.disabled=false}
+});
 $('scores-session').addEventListener('change',loadCriterionScores);
 $('scores-content').addEventListener('change',e=>{
  const id=e.target?.dataset?.criterionScore;
@@ -929,7 +1009,7 @@ $('save-criterion-scores').addEventListener('click',async()=>{
  const btn=$('save-criterion-scores');btn.disabled=true;btn.textContent='Kaydediliyor...';
  try{await saveCriterionScores()}
  catch(err){message($('scores-message'),'Puanlar kaydedilemedi: '+(err.message||'Bilinmeyen hata'),'error')}
- finally{btn.disabled=selectedScoringSession()?.status==='locked';btn.textContent='Puanları kaydet'}
+ finally{btn.disabled=['completed','locked'].includes(selectedScoringSession()?.status);btn.textContent='Puanları kaydet'}
 });
 
 $('observation-session').addEventListener('change',populateObservationTargets);
@@ -942,6 +1022,7 @@ $('observation-form').addEventListener('submit',async e=>{
   const videoSeconds=parseClock($('observation-video-time').value);
   const matchSeconds=parseClock($('observation-match-time').value);
   if(!s||!sv||!criterion)throw new Error('Oturum, oturuma bağlı video ve rubrik kriteri seçilmelidir.');
+  if(['completed','locked'].includes(s.status))throw new Error('Tamamlanmış veya kilitli oturuma yeni gözlem eklenemez.');
   if(String(sv.session_id)!==String(s.id))throw new Error('Seçilen video bağlantısı bu oturuma ait değil.');
   if(String(criterion.rubric_version_id)!==String(s.rubric_version_id))throw new Error('Kriter, oturumun rubrik sürümüyle eşleşmiyor.');
   if(videoSeconds===null||matchSeconds===null)throw new Error('Zaman alanlarını Dakika:Saniye veya Saat:Dakika:Saniye biçiminde gir.');
