@@ -65,13 +65,13 @@ Ancak resmî Galatasaray maç raporunda ilk 11'de Davinson Sánchez bulunmuyor. 
 - **Premier League Archive:** Davinson'un güncel Galatasaray maçları için doğrudan kaynak değil; Premier League oyuncularına yönelik kaynak olarak tutulur.
 - **TFF ve kulüp kanalları:** Başka aday maçlar için maç bazında aramaya devam edilecek.
 
-## 5. Kullanıcı cihazında yapılacak son erişim kontrolü
+## 5. Asistanın yapacağı son erişim ve görüntü doğrulaması
 
-[UEFA.tv Re-Runs kataloğunu aç](https://www.uefa.tv/section/Re-Runs)
+[UEFA.tv Re-Runs kataloğu](https://www.uefa.tv/section/Re-Runs)
 
-Kullanıcı, 10 Kasım 2026 tarihinde UEFA.tv'de Galatasaray 5–2 Juventus tam maç kaydını bulduğunu bildirdi. Gözlem sırasında başlangıç, devre arası sonrası, ikinci yarı ve maç sonu kontrol edilerek eksik/kesik bölümler not edilecek.
+Kullanıcı, 10 Kasım 2026 tarihinde UEFA.tv'de Galatasaray 5–2 Juventus tam maç kaydını bulduğunu ve Türkiye'den erişebildiğini bildirdi. UEFA kataloğu kaydı 01:43:05 süreyle listeliyor; ancak izleme sayfası oturum açma gerektiriyor. Bu yüzden katalog varlığı ve kullanıcı erişim beyanı, asistanın görüntüyü oynatabildiğinin kanıtı değildir.
 
-Başarısız erişimde bölgesel kısıtlamayı aşmaya çalışılmaz; alternatif resmî kaynak aranır.
+Vel Scout analiz asistanı kendi erişim araçlarıyla başlangıç, devre arası, ikinci yarı ve maç sonunu doğrulamadan video kalitesi/tamlık onayı vermez. Oturum açma nedeniyle görüntü asistan tarafından incelenemiyorsa kullanıcıdan maçı izlemesi veya not çıkarması istenmez; yasal ve asistanın gerçekten inceleyebildiği alternatif kaynak aranır. Bölgesel veya üyelik kısıtlamaları aşılmaya çalışılmaz.
 
 ## 6. Pilot için karar ağacı
 
