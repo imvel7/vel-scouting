@@ -462,6 +462,10 @@ It includes the official match-event waypoints, but explicitly treats them only 
 
 The UEFA.tv Re-Runs catalogue currently lists “Match Re-Run: Galatasaray 5-2 Juventus” at 01:43:05 and indicates sign-in is required to watch. This confirms the catalogue listing, not current playback continuity or the user's account access.
 
-### Next action
+### Next action — assistant-owned analysis, access gate still open
 
-The authorized scout must open the original UEFA.tv page, complete the first viewing without scoring, and record actual video elapsed times separately from match minutes. Do not estimate player actions from official match events or team statistics.
+The Vel Scout analysis assistant is responsible for the complete review: finding a lawful source it can actually inspect, watching the footage, extracting video timestamps, recording player behaviours, mapping criteria, scoring and drafting the report. The user is not the analyst and must not be asked to watch the match or supply timestamps/observations.
+
+The UEFA.tv catalogue listing is confirmed, but its player requires sign-in and the assistant's current tools do not expose that stream. An official TRT Spor page titled “Maçın Tamamı” was found, but the retrieved page text does not expose a playable video stream, so full-match playback is unverified. Prime Video lists a “Full Match Replay” for the same fixture, but free access and assistant playback are not verified. These are leads only, not analysis evidence.
+
+Until an assistant-accessible, lawful full-match video is available, the scouting session remains draft with zero observations and zero scores. Do not shift the viewing or analysis task to the user, and do not infer individual behaviour from event lists, match statistics, or text reports.
