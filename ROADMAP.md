@@ -438,9 +438,9 @@ The video has not been reviewed by the assistant or evaluated. No performance sc
 
 New execution record: [Davinson Sánchez Pilot Execution Log 01](pilot/VEL_DAVINSON_SANCHEZ_PILOT_EXECUTION_LOG_01.md).
 
-### Next action — start the real viewing pilot
+### Next action — assistant-led real viewing pilot
 
-Open the draft session in the admin panel. First open the linked UEFA.tv recording in its original player and verify full-match continuity, video quality, camera visibility and the video-time/match-clock relationship. Perform the first viewing at normal speed without scoring; then enter only confirmed, timestamped player behaviours as observations. Do not infer actions from match event summaries or team statistics.
+The Vel Scout analysis assistant owns the full review workflow: source accessibility checks, video viewing, timecode extraction, observations, criterion mapping, scoring and evidence-based report drafting. The user is not asked to watch the match, supply timestamps, complete observation tables or rate the player. The current UEFA.tv source requires sign-in and is not playable through the assistant's available access in this environment. Until an assistant-accessible video stream is available, no observations or scores may be fabricated. The next action is to locate a lawful full-match source that the assistant can actually inspect; if none can be accessed, report the limitation clearly rather than shifting scouting work to the user.
 
 
 ---
