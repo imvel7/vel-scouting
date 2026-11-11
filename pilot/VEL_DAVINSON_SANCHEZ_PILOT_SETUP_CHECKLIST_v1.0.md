@@ -79,9 +79,11 @@ Video kaynak kaydını oluştururken:
 - Hak durumu: Yalnızca bağlantı (link_only)
 - Süre: İsteğe bağlı; boş bırakılabilir.
 
-Kaynağın resmî oynatıcısını aç. Videonun başlangıcını, devre arasından sonraki bölümü ve maç sonunu kontrol ederek gerçekten tam ve oynatılabilir olduğunu yeniden doğrula. Erişim kontrol kaydında yalnızca o anda bizzat doğruladığın ülke, hesap gereksinimi, ücret ve içerik kapsamını seç. Türkiye'de erişimi tekrar kontrol etmediysen eski kontrolü yeni tarihli kontrol gibi kaydetme.
+**İnceleme sorumluluğu:** Kaynağın oynatılabilirliğini, tam maç bütünlüğünü, görüntü kalitesini, oyuncu görünürlüğünü ve video zamanı/maç saati eşleşmesini Vel Scout analiz asistanı kontrol eder. Kullanıcıdan videoyu izlemesi, bu kontrolleri yapması veya gözlem notu çıkarması istenmez. Asistanın mevcut araçları oturum açmalı oynatıcıyı inceleyemiyorsa erişim doğrulanmış sayılmaz; alternatif yasal ve asistanın gerçekten inceleyebildiği kaynak aranır.
 
-**Hak sınırı:** Ücretsiz izleme, videoyu indirme, kopyalama, klipleme, yeniden barındırma veya yayımlama hakkı vermez. Video yalnızca yetkili scout'un kaynak sağlayıcının orijinal oynatıcısında izlemesi için bağlantılanır.
+**Erişim kaydı doğruluğu:** Ülke, hesap gereksinimi, ücret ve kapsam alanları yalnızca fiilen kanıtlanan bilgiye göre tutulur. Kullanıcının 10 Kasım 2026 tarihli Türkiye erişim beyanı tarihli kullanıcı teyididir; hesabın ücret/üyelik koşulunu veya tüm maçın kesintisiz oynatıldığını tek başına doğrulamaz.
+
+**Hak sınırı:** Ücretsiz izleme, videoyu indirme, kopyalama, klipleme, yeniden barındırma veya yayımlama hakkı vermez. Video dosyası Vel Scout'a izinsiz kopyalanmaz veya yüklenmez.
 
 ### F. Scouting oturumu ve video bağlantısı
 
