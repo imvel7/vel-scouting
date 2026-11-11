@@ -85,7 +85,7 @@
 
 <div class="panel" id="criterion-scoring-panel">
 <div class="tag">Evaluation rubric / 1–10</div><h2>Kriter bazlı puanlama</h2>
-<p class="muted">Seçilen scouting oturumunun 37 kriterini tek tek değerlendir. Her kriter için 1–10 puan verebilir, gözlemlenmediyse N/E veya gerçekten kapsam dışıysa N/A seçebilirsin. Puanlama çıpaları seçtiğin puana göre gösterilir; kaydedilmiş zaman damgalı gözlemler de ilgili kriterin altında görünür.</p>
+<p class="muted">Seçilen scouting oturumunun rubriğindeki kriterleri tek tek değerlendir. Her kriter için 1–10 puan verebilir, gözlemlenmediyse N/E veya gerçekten kapsam dışıysa N/A seçebilirsin. Puanlama çıpaları seçtiğin puana göre gösterilir; kaydedilmiş zaman damgalı gözlemler de ilgili kriterin altında görünür. 9–10 puanları nadir kullanılmalı ve tekrarlanan güçlü kanıtla desteklenmelidir.</p>
 <div class="grid">
 <div class="field"><label for="scores-session">Scouting oturumu *</label><select id="scores-session"><option value="">Önce scouting oturumu oluştur</option></select></div>
 <div class="field"><label>Rubrik aralığı</label><div class="notice">1–10 · N/E: Gözlemlenmedi · N/A: Uygulanamaz</div></div>
@@ -547,7 +547,7 @@ function renderScoreSummary(){
  $('score-summary').innerHTML=
   '<div class="score-metric"><strong>'+(average===null?'—':average.toFixed(2)+'/10')+'</strong><span>Ağırlıklı ortalama</span></div>'+
   '<div class="score-metric"><strong>'+coverage+'%</strong><span>Puanlama kapsamı · '+scoredWeight+'/'+applicableWeight+' ağırlık</span></div>'+
-  '<div class="score-metric"><strong>'+scoredCount+'/37</strong><span>Sayısal puan girilen kriter</span></div>'+
+  '<div class="score-metric"><strong>'+scoredCount+'/'+criteria.length+'</strong><span>Sayısal puan girilen kriter</span></div>'+
   '<div class="score-metric"><strong>'+neCount+' / '+naCount+'</strong><span>N/E / N/A kriter sayısı</span></div>'+
   '<div class="score-empty" style="grid-column:1/-1">Puanlanmayan ağırlık: '+notObservedWeight+'% N/E · '+notApplicableWeight+'% N/A. '+esc(categoryScores)+'</div>';
 }
@@ -590,7 +590,7 @@ function renderCriterionScoring(){
     '<div><label for="criterion-rationale-'+esc(c.id)+'">Puan gerekçesi / kısa kanıt notu</label><textarea id="criterion-rationale-'+esc(c.id)+'" maxlength="1600" placeholder="Bu puanı destekleyen maç davranışını ve bağlamı kısaca açıkla."'+(locked?' disabled':'')+'>'+esc(rationale)+'</textarea></div></div>'+
     '<div class="score-anchor" id="criterion-anchor-'+esc(c.id)+'">'+esc(scoreAnchorText(c,value))+'</div>'+evidenceHtml+'</article>';
   }).join('');
-  const evaluated=saved.size;
+  const evaluated=rows.filter(c=>saved.has(String(c.id))).length;
   return '<details class="score-category"'+(index===0?' open':'')+'><summary><strong>'+esc(cat.category_name)+'</strong><span>'+esc(cat.category_weight_percent)+'% · '+rows.length+' kriter · '+evaluated+' kayıtlı değerlendirme</span></summary><div class="score-category-body">'+rowsHtml+'</div></details>';
  }).join('');
  host.innerHTML='<div class="score-categories">'+categoryHtml+'</div>';
@@ -619,6 +619,10 @@ async function saveCriterionScores(){
   const applicability=value==='not_applicable'?'not_applicable':value==='not_observed'?'not_observed':'scored';
   const score=applicability==='scored'?Number(value):null;
   if(applicability==='scored'&&(!Number.isInteger(score)||score<1||score>10))throw new Error(c.criterion_code+' puanı 1–10 arasında olmalı.');
+  if(score>=9){
+   const evidenceCount=observations.filter(o=>String(o.session_id)===String(session.id)&&String(o.criterion_id)===String(c.id)).length;
+   if((rationale.value.trim()||'').length<50||evidenceCount<2)throw new Error(c.criterion_code+' için 9–10 puan; en az 50 karakterlik güçlü gerekçe ve aynı kritere bağlı en az iki zaman damgalı gözlem gerektirir. Tekrarlanan kanıt henüz yoksa 7–8 veya daha düşük puanı değerlendir.');
+  }
   return {
    session_id:session.id,rubric_version_id:session.rubric_version_id,criterion_id:c.id,
    score,applicability,rationale:rationale.value.trim()||null
@@ -627,7 +631,7 @@ async function saveCriterionScores(){
  const {error}=await supabase.from('criterion_scores').upsert(payload,{onConflict:'session_id,criterion_id'});
  if(error)throw error;
  await loadCriterionScores();
- message($('scores-message'),'37 kriterin puanlama durumu ve gerekçeleri kaydedildi.','ok');
+ message($('scores-message'),criteria.length+' kriterin puanlama durumu ve gerekçeleri kaydedildi.','ok');
 }
 
 function resetForm(){ $('player-form').reset();$('player-id').value='';$('form-title').textContent='Yeni oyuncu profili';$('save-player').textContent='Taslak olarak kaydet';$('cancel-edit').classList.add('hidden');}
