@@ -785,8 +785,8 @@ async function saveMultiReportDraft(){
   alternative_roles:$('multi-report-alt-roles').value.split(',').map(v=>v.trim()).filter(Boolean),strengths:$('multi-report-strengths').value.trim()||null,
   development_areas:$('multi-report-development').value.trim()||null,final_verdict:$('multi-report-verdict').value.trim()||null,
   full_match_review_confirmed:$('multi-report-full-match-reviewed').checked};
- const {data,error}=await supabase.rpc('create_scout_report_bundle',{
-  p_player_id:multiReportPreview.player.id,p_report_date:date,
+ const {data,error}=await supabase.rpc('create_multi_match_scout_report_bundle',{
+  p_player_id:multiReportPreview.player.id,p_rubric_version_id:multiReportPreview.rubric.id,p_report_date:date,
   p_methodology_version:multiReportPreview.rubric.methodology_version,
   p_main_role:fields.main_role,p_alternative_roles:fields.alternative_roles,
   p_main_role_evidence:fields.main_role_evidence,p_strengths:fields.strengths,
