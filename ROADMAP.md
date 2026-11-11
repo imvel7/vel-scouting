@@ -469,3 +469,37 @@ The Vel Scout analysis assistant is responsible for the complete review: finding
 The UEFA.tv catalogue listing is confirmed, but its player requires sign-in and the assistant's current tools do not expose that stream. An official TRT Spor page titled “Maçın Tamamı” was found, but the retrieved page text does not expose a playable video stream, so full-match playback is unverified. Prime Video lists a “Full Match Replay” for the same fixture, but free access and assistant playback are not verified. These are leads only, not analysis evidence.
 
 Until an assistant-accessible, lawful full-match video is available, the scouting session remains draft with zero observations and zero scores. Do not shift the viewing or analysis task to the user, and do not infer individual behaviour from event lists, match statistics, or text reports.
+
+
+---
+
+## 14. Davinson pilot — alternate official source indexed, playback still unverified
+
+### TRT Spor official full-match page added as secondary source
+
+Search identified an official TRT Spor page titled “Maçın Tamamı | Galatasaray - Juventus: 5-2 Şampiyonlar Ligi Son 16 Play-off Turu” (published 17 February 2026; last updated 21 February 2026). The page text retrieved in this audit does not expose the video player or a playable stream, so actual playback, runtime, completeness, and image quality remain unverified.
+
+The link was added to the existing draft scouting session as a **secondary** source:
+- Source: TRT Spor — Maçın Tamamı
+- Video type field: full_match (based on the publisher page title; not yet playback-verified)
+- Access status: unknown
+- Rights status: link_only
+- Duration: not set
+- Last checked: not set
+- Session link: secondary (is_primary=false)
+
+The UEFA.tv Re-Runs listing remains the primary source, but its watch player requires sign-in and the assistant's current tools do not expose its stream. Prime Video and Apple TV list full-match replay entries, but free availability and assistant playback could not be verified. Third-party replay copies and unofficial hosts were not accepted as scouting sources.
+
+### Verification
+
+- Supabase join confirmed the TRT video row is attached to the pilot draft session as a non-primary source.
+- Access status remains unknown; no Turkey access check was fabricated.
+- Pilot session remains draft.
+- Saved scores: 0.
+- Time-coded observations: 0.
+
+Research record: [Davinson Sánchez Video Source Research 02](pilot/VEL_DAVINSON_SANCHEZ_VIDEO_SOURCE_RESEARCH_02.md).
+
+### Next action — source access, not user observation
+
+The Vel Scout analysis assistant must continue seeking a lawful source whose video stream it can actually inspect. The user is not asked to watch, timestamp, or evaluate the match. If no such video access exists in the current environment, keep the session draft and report the technical limitation rather than fabricating observations.
