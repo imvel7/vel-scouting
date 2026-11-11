@@ -294,15 +294,18 @@ A live-state recovery snapshot was added at `supabase/recovery/VEL_REPORT_BUNDLE
 
 The live database currently has zero rows in `scouting_sessions`. The report RPC has therefore not yet been exercised with a real player/session/sample. The single-match function requires at least one saved criterion score and enforces player/rubric consistency. The multi-match function additionally requires at least two distinct matches and every selected session to be `completed` or `locked`.
 
-The admin panel now provides explicit staff transitions: `draft → in_review → completed → locked`, with a completed-session reopen path. Moving to review requires a saved status for every rubric criterion. Completing a session requires at least one scored criterion, a reason for every N/E and N/A entry, a time-coded observation for each numerically scored criterion, and the existing stricter rationale plus two-observation rule for 9–10. Completed and locked sessions are read-only for scores, observations, and new video links; completed sessions can be reopened deliberately. The controls use the existing staff-only RLS policy and do not require a database schema change.
+The admin panel now provides explicit staff transitions: `draft → in_review → completed → locked`, with a completed-session reopen path. Moving to review requires a saved status for every rubric criterion. Completing a session requires at least one scored criterion, a reason for every N/E and N/A entry, a time-coded observation for each numerically scored criterion, and the existing stricter rationale plus two-observation rule for 9–10. In the admin panel, completed and locked sessions are read-only for scores, observations, and new video links; completed sessions can be reopened deliberately. The controls use the existing staff-only RLS policy and do not require a database schema change.
+
+**Security boundary:** this is currently an admin-UI workflow guard, not database-enforced immutability. The current staff RLS policies still permit authenticated staff to write through the Data API directly. A database-level lock guard for scores, observations, and session-video links is still required, but it must be introduced as a reviewed migration after the six missing historical migration files are reconciled.
 
 
 
 The session lifecycle implementation was committed to `admin.html` on 11 November 2026:
-- Commit: `c9a76168f1c85ec1ed670b2db8d7a7bc2f165afa`
-- Follow-up load-order hardening: `be9f9896b763298fb47f1c684cb46389f0c3c8f1`
-- Verified file SHA: `39b10fe1bb71ce5dde2f26c1eb74632cad7df6f9`
-- The module script passed syntax compilation; static markup has no duplicate IDs; report direct-insert calls are absent.
+- Lifecycle controls: `c9a76168f1c85ec1ed670b2db8d7a7bc2f165afa`
+- Rubric-load order hardening: `be9f9896b763298fb47f1c684cb46389f0c3c8f1`
+- Transition-result verification and UI/database lock-scope clarification: `dbc20ced72464fcb04a4391cf090c496`
+- Latest verified admin file SHA: `b6e550b5e61c50c0ef53b35ec5592b116a1f583e`
+- The module script passed JavaScript syntax compilation; static markup has no duplicate IDs; report direct-insert calls are absent.
 - Actual browser interaction and RPC writes remain untested because there are currently zero scouting-session rows.
 
 ### Immediate next steps
@@ -310,5 +313,5 @@ The session lifecycle implementation was committed to `admin.html` on 11 Novembe
 1. Create the first genuine pilot scouting session and complete its criterion scoring and time-coded evidence.
 2. Test the session review/completion gates in the authenticated admin browser, including missing scores, missing N/E/N/A reasons, and missing time-coded evidence.
 3. Test the one-match report RPC with the completed pilot session; inspect the report result and frozen snapshot.
-4. Test the multi-match RPC only after at least two distinct completed pilot sessions exist.
-5. Continue recovering exact historical migration files separately; do not recreate them from memory or substitute the live snapshot for migration history.
+4. Reconcile the six missing historical migration files before any new database-level lock enforcement DDL.
+5. Test the multi-match RPC only after at least two distinct completed pilot sessions exist.
