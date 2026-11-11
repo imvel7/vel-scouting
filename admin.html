@@ -212,7 +212,7 @@
 
 <div class="panel" id="multi-match-report-panel">
 <div class="tag">Multi-match synthesis</div><h2>Çoklu maç performans özeti</h2>
-<p class="muted">Aynı oyuncu ve aynı rubrik sürümündeki tamamlanmış/kilitlenmiş oturumları birleştirir. En az iki farklı maç gerekir. Otomatik sonuçlar taslaktır; scout yorumu ve kanıt seviyesi personel tarafından gözden geçirilir.</p>
+<p class="muted">Aynı oyuncu ve aynı rubrik sürümündeki tamamlanmış/kilitlenmiş oturumları birleştirir. En az iki farklı maç gerekir. Kanıt seviyesi tam maç sayısı ve tam maç izleme doğrulamasıyla; genel puan ise her kategoride yeterli puanlama kapsamı oluştuğunda belirlenir.</p>
 <div class="grid">
 <div class="field"><label for="multi-report-player">Oyuncu *</label><select id="multi-report-player"><option value="">Oyuncu seç</option></select></div>
 <div class="field"><label for="multi-report-rubric">Rubrik sürümü *</label><select id="multi-report-rubric"><option value="">Önce oyuncu seç</option></select></div>
@@ -229,8 +229,9 @@
 <p class="muted">Otomatik kriter listeleri gözlem yerine geçmez. Nihai değerlendirmeyi scout doğrulamalıdır.</p>
 <div class="grid">
 <div class="field"><label for="multi-report-date">Rapor tarihi *</label><input id="multi-report-date" type="date" required></div>
-<div class="field"><label for="multi-report-grade">Kanıt seviyesi</label><select id="multi-report-grade"><option value="">Henüz belirlenmedi</option><option value="A">A — Güçlü kanıt</option><option value="B">B — Orta kanıt</option><option value="C">C — Sınırlı kanıt</option></select></div>
+<div class="field"><label for="multi-report-full-match-reviewed">Tam maç izleme doğrulaması</label><label class="synthesis-session"><input id="multi-report-full-match-reviewed" type="checkbox"><span><strong>Tüm seçili maçları tam maç kaydı üzerinden baştan sona inceledim.</strong><small>İşaretlenmesi, seçilen maçların tamamının gerçekten tam maç olarak incelendiğini doğrular.</small></span></label></div>
 <div class="field"><label for="multi-report-role">Ana rol</label><input id="multi-report-role" maxlength="120" placeholder="Scout tarafından doğrulanacak"></div>
+<div class="field" style="grid-column:1/-1"><label for="multi-report-role-evidence">Ana rol kanıt notu (en az 50 karakter)</label><textarea id="multi-report-role-evidence" maxlength="2000" placeholder="Rol kararını destekleyen tekrar eden davranışları ve farklı maçlardaki bağlamı yaz."></textarea></div>
 <div class="field"><label for="multi-report-alt-roles">Alternatif roller</label><input id="multi-report-alt-roles" maxlength="240" placeholder="Virgülle ayır"></div>
 <div class="field"><label for="multi-report-strengths">Yüksek puan ortalamalı kriterler</label><textarea id="multi-report-strengths" maxlength="2000"></textarea></div>
 <div class="field"><label for="multi-report-development">Düşük puan ortalamalı kriterler</label><textarea id="multi-report-development" maxlength="2000"></textarea></div>
@@ -772,25 +773,34 @@ async function buildMultiReportPreview(){
   const rows=stats.filter(c=>String(c.category_id)===String(cat.id)).sort((a,b)=>a.code.localeCompare(b.code));
   return '<details class="synthesis-category" open><summary>'+esc(cat.name)+' · '+cat.weight_percent+'% · '+esc(multiFmt(cat.average))+'</summary><div class="tablewrap"><table><thead><tr><th>Kriter</th><th>Ort.</th><th>Puanlanan</th><th>Gözlem</th></tr></thead><tbody>'+rows.map(c=>'<tr><td>'+esc(c.code+' · '+c.name)+'</td><td>'+esc(multiFmt(c.average))+'</td><td>'+c.scored_sessions+'/'+sessions.length+'</td><td>'+c.observation_count+'</td></tr>').join('')+'</tbody></table></div></details>';
  }).join('');
- $('multi-report-date').value=new Date().toLocaleDateString('en-CA');$('multi-report-grade').value='';$('multi-report-role').value='';$('multi-report-alt-roles').value='';
+ $('multi-report-date').value=new Date().toLocaleDateString('en-CA');$('multi-report-full-match-reviewed').checked=false;$('multi-report-role').value='';$('multi-report-role-evidence').value='';$('multi-report-alt-roles').value='';
  $('multi-report-strengths').value=strengths;$('multi-report-development').value=development;$('multi-report-verdict').value=verdict;
  $('multi-report-preview').classList.remove('hidden');$('save-multi-report').disabled=false;
 }
 async function saveMultiReportDraft(){
  if(!multiReportPreview)throw Error('Önce analiz oluştur.');
  const date=$('multi-report-date').value;if(!date)throw Error('Rapor tarihi zorunludur.');
- const fields={report_date:date,evidence_grade:$('multi-report-grade').value||null,main_role:$('multi-report-role').value.trim()||null,
+ const fields={report_date:date,main_role:$('multi-report-role').value.trim()||null,
+  main_role_evidence:$('multi-report-role-evidence').value.trim()||null,
   alternative_roles:$('multi-report-alt-roles').value.split(',').map(v=>v.trim()).filter(Boolean),strengths:$('multi-report-strengths').value.trim()||null,
-  development_areas:$('multi-report-development').value.trim()||null,final_verdict:$('multi-report-verdict').value.trim()||null};
- const {data,error}=await supabase.rpc('create_multi_match_scout_report',{
-  p_player_id:multiReportPreview.player.id,p_rubric_version_id:multiReportPreview.rubric.id,
-  p_session_ids:multiReportPreview.sessions.map(s=>s.id),p_report_date:date,p_general_rating:multiReportPreview.weightedAverage,
-  p_evidence_grade:fields.evidence_grade,p_main_role:fields.main_role,p_alternative_roles:fields.alternative_roles,
-  p_strengths:fields.strengths,p_development_areas:fields.development_areas,p_final_verdict:fields.final_verdict,
+  development_areas:$('multi-report-development').value.trim()||null,final_verdict:$('multi-report-verdict').value.trim()||null,
+  full_match_review_confirmed:$('multi-report-full-match-reviewed').checked};
+ const {data,error}=await supabase.rpc('create_scout_report_bundle',{
+  p_player_id:multiReportPreview.player.id,p_report_date:date,
+  p_methodology_version:multiReportPreview.rubric.methodology_version,
+  p_main_role:fields.main_role,p_alternative_roles:fields.alternative_roles,
+  p_main_role_evidence:fields.main_role_evidence,p_strengths:fields.strengths,
+  p_development_areas:fields.development_areas,p_final_verdict:fields.final_verdict,
+  p_full_match_review_confirmed:fields.full_match_review_confirmed,
+  p_session_ids:multiReportPreview.sessions.map(s=>s.id),
   p_snapshot:{...multiReportPreview.snapshot,report_fields:fields}
  });
  if(error)throw error;
- await loadReports();message($('multi-report-message'),'Çoklu maç scout raporu taslak olarak kaydedildi. Rapor ID: '+String(data),'ok');$('save-multi-report').disabled=true;
+ await loadReports();
+ const grade=data?.evidence_grade||'Belirlenmedi';
+ const rating=data?.general_rating===null||data?.general_rating===undefined?'Genel puan için kanıt/kapsam eşiği sağlanmadı':String(data.general_rating)+'/10';
+ message($('multi-report-message'),'Taslak rapor kaydedildi. ID: '+String(data?.report_id||'oluşturuldu')+' · Kanıt: '+grade+' · '+rating,'ok');
+ $('save-multi-report').disabled=true;
 }
 
 function resetForm(){ $('player-form').reset();$('player-id').value='';$('form-title').textContent='Yeni oyuncu profili';$('save-player').textContent='Taslak olarak kaydet';$('cancel-edit').classList.add('hidden');}
