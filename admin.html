@@ -70,7 +70,7 @@
 </div>
 <div class="panel">
 <div class="tag">Scouting workflow</div><h2>Yeni scouting oturumu</h2>
-<p class="muted">Oturum; oyuncu-maç kaydına ve pilot/aktif rubriğe bağlanır. İş akışı: Taslak → İncelemede → Tamamlandı → Kilitli. Tamamlanma, tüm kriterlerde kayıtlı değerlendirme ve kanıt kontrolleri gerektirir. Kilitli oturum değiştirilemez; tamamlanan oturum yeniden incelemeye açılabilir. Özel notlar yalnızca yetkili personel içindir.</p>
+<p class="muted">Oturum; oyuncu-maç kaydına ve pilot/aktif rubriğe bağlanır. İş akışı: Taslak → İncelemede → Tamamlandı → Kilitli. Tamamlanma, tüm kriterlerde kayıtlı değerlendirme ve kanıt kontrolleri gerektirir. Tamamlanan oturum panelde salt okunur olur ve yeniden incelemeye açılabilir; kilitli oturum panelde son durumdur. Veritabanı seviyesinde değişmezlik kuralı ayrıca uygulanacaktır. Özel notlar yalnızca yetkili personel içindir.</p>
 <form id="session-form">
 <div class="grid">
 <div class="field"><label for="session-player-match">Oyuncu ve maç *</label><select id="session-player-match" required><option value="">Önce oyuncu-maç bağlantısı oluştur</option></select></div>
@@ -431,14 +431,15 @@ async function transitionScoutingSession(sessionId,action){
   if(!window.confirm('Bu oturumu yeniden incelemeye açmak istiyor musun? Mevcut rapor anlık görüntüleri değişmez.'))return;
   update={status:'in_review',completed_at:null};
  }else if(action==='lock'&&session.status==='completed'){
-  if(!window.confirm('Kilitli oturumda puanlar, gözlemler ve video bağlantıları değiştirilemez. Kilitlemek istiyor musun?'))return;
+  if(!window.confirm('Oturum panelde salt okunur olarak işaretlenecek. Veritabanı seviyesinde değişmezlik kuralı ayrı güvenlik çalışmasıdır. Devam etmek istiyor musun?'))return;
   update={status:'locked'};
  }else{
   throw new Error('Bu oturum için istenen durum geçişi geçerli değil.');
  }
- const {error}=await supabase.from('scouting_sessions').update(update).eq('id',session.id);
+ const {data,error}=await supabase.from('scouting_sessions').update(update).eq('id',session.id).select('id,status').single();
  if(error)throw error;
- const success={review:'Oturum incelemeye alındı.',complete:'Oturum tamamlandı; rapor oluşturmak için seçilebilir.',reopen:'Oturum yeniden incelemeye açıldı.',lock:'Oturum kilitlendi ve salt okunur hale getirildi.'}[action];
+ if(data?.status!==update.status)throw new Error('Oturum durumu beklenen değere geçmedi.');
+ const success={review:'Oturum incelemeye alındı.',complete:'Oturum tamamlandı; rapor oluşturmak için seçilebilir.',reopen:'Oturum yeniden incelemeye açıldı.',lock:'Oturum panelde kilitli olarak işaretlendi.'}[action];
  message($('sessions-message'),success,'ok');
  await loadSessions();
  await loadCriterionScores();
