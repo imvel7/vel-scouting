@@ -350,3 +350,35 @@ The existing database already contained competitions and seasons tables, but the
 Use the updated admin panel to check for existing Galatasaray/Juventus club records and Davinson Sánchez's player record (avoid duplicates), then register the competition, season, match, player participation, UEFA.tv source, and access verification. Create the draft scouting session and link its video. Only after those records exist can the real viewing and time-coded observation pilot begin.
 
 **Important:** A code commit does not prove that GitHub Pages has deployed the updated page. Confirm the deployed admin page contains the new competition and season forms before entering pilot data.
+
+
+---
+
+## 10. Davinson pilot precheck — 11 November 2026
+
+### Existing records checked (read-only)
+
+A live Supabase read-only precheck identified:
+- Existing player record: Davinson Sánchez Mina, main position CB, profile status draft. Reuse this record; do not create a duplicate.
+- Existing club record: Galatasaray. Reuse it.
+- Missing: Juventus club, UEFA Champions League competition, 2025/26 season, pilot match, player-match participation, video record, video access check, and scouting session.
+- No rows currently exist in the pilot's match, player-match, video, observation, or scouting-session tables.
+
+New audit file: [Davinson Sánchez Pilot Precheck 01](pilot/VEL_DAVINSON_SANCHEZ_PILOT_PRECHECK_01.md).
+
+### Deployment verification limitation
+
+The latest admin source exists on GitHub main and includes the competition/season forms. However, the live GitHub Pages admin route could not be verified in this audit environment. Do not treat a GitHub source commit as proof that the Pages deployment is active or current.
+
+Expected standard Pages route:
+- https://imvel7.github.io/vel-scouting/admin.html
+
+This is an expected route based on the repository owner/name and standard GitHub Pages convention, not a confirmed live deployment.
+
+### Next gate
+
+The user should open the expected admin route in their browser and confirm that:
+1. The admin page loads and the existing authorized staff account can sign in.
+2. The competition and season registration forms are visible.
+
+Do not ask the user to share credentials, session cookies, or access tokens. Once the deployed panel is confirmed, add only missing records in the order documented in the pilot precheck. The existing Davinson and Galatasaray records must be reused.
