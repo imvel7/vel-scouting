@@ -36,6 +36,38 @@
 <p class="muted" style="font-size:12px">Not: Personel olmayan ayrı bir Auth hesabı bulunmadığı için bu panel o hesabın testini yapmaz. Bu senaryo ayrıca test edilmelidir.</p>
 </div>
 <div class="panel">
+<div class="tag">Competition & season registry</div><h2>Organizasyon ve sezon kayıtları</h2>
+<p class="muted">Maç kayıtlarını yalnızca takım ve skorla bırakma. Organizasyon ve sezonu burada oluşturup maçla ilişkilendir; böylece aynı yarışmadaki maçlar tutarlı biçimde filtrelenebilir.</p>
+<div class="grid">
+<div>
+<h3>Organizasyon ekle</h3>
+<form id="competition-form">
+<div class="grid">
+<div class="field"><label for="competition-name">Organizasyon adı *</label><input id="competition-name" required maxlength="160" placeholder="Örn. UEFA Champions League"></div>
+<div class="field"><label for="competition-country">Bölge / ülke</label><input id="competition-country" maxlength="80" placeholder="Örn. Europe"></div>
+<div class="field"><label for="competition-type">Organizasyon türü</label><input id="competition-type" maxlength="80" placeholder="Örn. Club competition"></div>
+</div>
+<div class="actions"><button class="btn" type="submit" id="save-competition">Organizasyonu kaydet</button></div>
+</form>
+<div id="competitions-message" class="notice">Organizasyon kayıtları yükleniyor.</div>
+<div class="tablewrap"><table><thead><tr><th>Organizasyon</th><th>Bölge / ülke</th><th>Tür</th></tr></thead><tbody id="competitions-body"></tbody></table></div>
+</div>
+<div>
+<h3>Sezon ekle</h3>
+<form id="season-form">
+<div class="grid">
+<div class="field"><label for="season-name">Sezon adı *</label><input id="season-name" required maxlength="40" placeholder="Örn. 2025/26"></div>
+<div class="field"><label for="season-start">Başlangıç tarihi</label><input id="season-start" type="date"></div>
+<div class="field"><label for="season-end">Bitiş tarihi</label><input id="season-end" type="date"></div>
+</div>
+<div class="actions"><button class="btn" type="submit" id="save-season">Sezonu kaydet</button></div>
+</form>
+<div id="seasons-message" class="notice">Sezon kayıtları yükleniyor.</div>
+<div class="tablewrap"><table><thead><tr><th>Sezon</th><th>Başlangıç</th><th>Bitiş</th></tr></thead><tbody id="seasons-body"></tbody></table></div>
+</div>
+</div>
+</div>
+<div class="panel">
 <div class="tag">Match registry</div><h2>Yeni maç kaydı</h2>
 <p class="muted">Önce maçı ve takımları kaydet. Ardından oyuncu-maç katılımını oluşturup scouting oturumu başlatabilirsin.</p>
 <form id="match-form">
@@ -43,6 +75,8 @@
 <div class="field"><label for="match-home">Ev sahibi kulüp *</label><select id="match-home" required><option value="">Kulüp seç</option></select></div>
 <div class="field"><label for="match-away">Deplasman kulübü *</label><select id="match-away" required><option value="">Kulüp seç</option></select></div>
 <div class="field"><label for="match-date">Maç tarihi ve saati *</label><input id="match-date" type="datetime-local" required></div>
+<div class="field"><label for="match-competition">Organizasyon</label><select id="match-competition"><option value="">Belirtilmedi</option></select></div>
+<div class="field"><label for="match-season">Sezon</label><select id="match-season"><option value="">Belirtilmedi</option></select></div>
 <div class="field"><label for="match-status">Maç durumu</label><select id="match-status"><option value="completed">Tamamlandı</option><option value="scheduled">Planlandı</option><option value="cancelled">İptal edildi</option></select></div>
 <div class="field"><label for="match-home-score">Ev sahibi golü</label><input id="match-home-score" type="number" min="0" max="99" inputmode="numeric"></div>
 <div class="field"><label for="match-away-score">Deplasman golü</label><input id="match-away-score" type="number" min="0" max="99" inputmode="numeric"></div>
@@ -228,7 +262,7 @@ const SUPABASE_PUBLIC_KEY='sb_publishable_Gi8Al3ubX_ptadWYYV35kQ_9gm7vxOq';
 const supabase=createClient(SUPABASE_URL,SUPABASE_PUBLIC_KEY);
 const $=id=>document.getElementById(id);
 const loginPanel=$('login-panel'),dashboard=$('dashboard');
-let currentUser=null,records=[],clubs=[],reports=[],matches=[],playerMatches=[],rubrics=[],scoutingSessions=[],videos=[],sessionVideos=[],videoAccessChecks=[],rubricCategories=[],rubricCriteria=[],observations=[],criterionScores=[];
+let currentUser=null,records=[],clubs=[],competitions=[],seasons=[],reports=[],matches=[],playerMatches=[],rubrics=[],scoutingSessions=[],videos=[],sessionVideos=[],videoAccessChecks=[],rubricCategories=[],rubricCriteria=[],observations=[],criterionScores=[];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function message(el,text,type=''){el.textContent=text;el.className='notice '+type}
 function showLogin(text,type=''){loginPanel.classList.remove('hidden');dashboard.classList.add('hidden');$('logout').classList.add('hidden');if(text)message($('login-message'),text,type)}
@@ -268,7 +302,7 @@ async function verifyAndLoad(user){
  const {data:roleData,error:roleError}=await supabase.from('user_roles').select('role').eq('user_id',user.id).maybeSingle();
  if(roleError)throw new Error('Yetki kontrolü yapılamadı: '+roleError.message);
  if(!roleData||!['admin','editor'].includes(roleData.role))throw new Error('Bu hesapta Vel Scouting yönetim yetkisi bulunmuyor.');
- currentUser=user;showDashboard();await loadClubs();await loadPlayers();await loadReports();await loadMatches();await loadRubrics();await loadRubricCriteria();await loadPlayerMatches();await loadSessions();await loadVideos();await loadSessionVideos();await loadVideoAccessChecks();await loadObservations();await loadCriterionScores();
+ currentUser=user;showDashboard();await loadClubs();await loadCompetitions();await loadSeasons();await loadPlayers();await loadReports();await loadMatches();await loadRubrics();await loadRubricCriteria();await loadPlayerMatches();await loadSessions();await loadVideos();await loadSessionVideos();await loadVideoAccessChecks();await loadObservations();await loadCriterionScores();
 }
 async function loadClubs(){
  const select=$('current-club');
@@ -279,6 +313,30 @@ async function loadClubs(){
  $('club-help').textContent=clubs.length?clubs.length+' kulüp arasından seçim yapabilirsin.':'Henüz kulüp kaydı yok.';
  $('clubs-message').textContent=clubs.length+ ' kulüp kaydı bulundu.';
  $('clubs-body').innerHTML=clubs.map(c=>'<tr><td>'+esc(c.name)+'</td><td class="muted">Kayıtlı</td></tr>').join('')||'<tr><td colspan="2" class="muted">Henüz kulüp kaydı yok.</td></tr>';
+}
+async function loadCompetitions(){
+ const {data,error}=await supabase.from('competitions').select('id,name,country,competition_type').order('name');
+ if(error){competitions=[];message($('competitions-message'),'Organizasyonlar alınamadı: '+error.message,'error')}
+ else{
+  competitions=data||[];
+  $('competitions-body').innerHTML=competitions.map(c=>'<tr><td>'+esc(c.name)+'</td><td>'+esc(c.country||'—')+'</td><td>'+esc(c.competition_type||'—')+'</td></tr>').join('')||'<tr><td colspan="3" class="muted">Henüz organizasyon kaydı yok.</td></tr>';
+  message($('competitions-message'),competitions.length+' organizasyon kaydı bulundu.', 'ok');
+ }
+ const select=$('match-competition'),previous=select.value;
+ select.innerHTML='<option value="">Belirtilmedi</option>'+competitions.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name)+(c.country?' · '+esc(c.country):'')+'</option>').join('');
+ if(competitions.some(c=>String(c.id)===previous))select.value=previous;
+}
+async function loadSeasons(){
+ const {data,error}=await supabase.from('seasons').select('id,name,start_date,end_date').order('start_date',{ascending:false,nullsFirst:false}).order('name');
+ if(error){seasons=[];message($('seasons-message'),'Sezonlar alınamadı: '+error.message,'error')}
+ else{
+  seasons=data||[];
+  $('seasons-body').innerHTML=seasons.map(s=>'<tr><td>'+esc(s.name)+'</td><td>'+esc(s.start_date||'—')+'</td><td>'+esc(s.end_date||'—')+'</td></tr>').join('')||'<tr><td colspan="3" class="muted">Henüz sezon kaydı yok.</td></tr>';
+  message($('seasons-message'),seasons.length+' sezon kaydı bulundu.','ok');
+ }
+ const select=$('match-season'),previous=select.value;
+ select.innerHTML='<option value="">Belirtilmedi</option>'+seasons.map(s=>'<option value="'+esc(s.id)+'">'+esc(s.name)+'</option>').join('');
+ if(seasons.some(s=>String(s.id)===previous))select.value=previous;
 }
 async function loadPlayers(){
  message($('players-message'),'Oyuncu kayıtları yükleniyor...');
@@ -333,9 +391,12 @@ async function loadReports(){
 function formatMatchLabel(m){
  const home=clubs.find(c=>String(c.id)===String(m.home_club_id))?.name||'Ev sahibi';
  const away=clubs.find(c=>String(c.id)===String(m.away_club_id))?.name||'Deplasman';
+ const competition=competitions.find(c=>String(c.id)===String(m.competition_id))?.name;
+ const season=seasons.find(s=>String(s.id)===String(m.season_id))?.name;
  const date=m.match_date?new Date(m.match_date).toLocaleDateString('tr-TR'):'Tarih yok';
  const score=m.home_score!==null&&m.away_score!==null?' · '+m.home_score+'-'+m.away_score:'';
- return home+' - '+away+' · '+date+score;
+ const context=[competition,season].filter(Boolean).join(' · ');
+ return home+' - '+away+' · '+date+(context?' · '+context:'')+score;
 }
 function populateMatchClubSelects(){
  const options='<option value="">Kulüp seç</option>'+clubs.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>').join('');
@@ -355,7 +416,7 @@ function updateRosterTeams(){
  $('roster-club').innerHTML='<option value="">Kulüp seç</option>'+clubs.filter(c=>allowed.includes(c.id)).map(c=>'<option value="'+esc(c.id)+'">'+esc(c.name)+'</option>').join('');
 }
 async function loadMatches(){
- const {data,error}=await supabase.from('matches').select('id,home_club_id,away_club_id,match_date,home_score,away_score,match_status,age_category').order('match_date',{ascending:false}).limit(200);
+ const {data,error}=await supabase.from('matches').select('id,home_club_id,away_club_id,competition_id,season_id,match_date,home_score,away_score,match_status,age_category').order('match_date',{ascending:false}).limit(200);
  if(error){matches=[];message($('matches-message'),'Maç kayıtları alınamadı: '+error.message,'error')}
  else{matches=data||[];message($('matches-message'),matches.length+' maç kaydı bulundu.',matches.length?'ok':'')}
  populateRosterMatches();updateRosterTeams();$('video-match').innerHTML='<option value="">Maç seç</option>'+matches.map(m=>'<option value="'+esc(m.id)+'">'+esc(formatMatchLabel(m))+'</option>').join('');
@@ -755,6 +816,31 @@ $('player-form').addEventListener('submit',async e=>{
  }catch(err){message($('dashboard-message'),'Kayıt yapılamadı: '+(err.message||'Bilinmeyen hata'),'error')}
  finally{btn.disabled=false}
 });
+$('competition-form').addEventListener('submit',async e=>{
+ e.preventDefault();const btn=$('save-competition');btn.disabled=true;btn.textContent='Kaydediliyor...';
+ try{
+  const name=$('competition-name').value.trim(),country=$('competition-country').value.trim()||null,type=$('competition-type').value.trim()||null;
+  if(!name)throw new Error('Organizasyon adı zorunludur.');
+  const duplicate=competitions.some(c=>c.name.trim().toLocaleLowerCase()===name.toLocaleLowerCase()&&(c.country||'').trim().toLocaleLowerCase()===(country||'').toLocaleLowerCase());
+  if(duplicate)throw new Error('Bu organizasyon ve bölge/ülke kaydı zaten mevcut.');
+  const {data,error}=await supabase.from('competitions').insert({name,country,competition_type:type}).select('id').single();
+  if(error)throw error;
+  $('competition-form').reset();await loadCompetitions();$('match-competition').value=data.id;
+ }catch(err){message($('competitions-message'),'Organizasyon kaydedilemedi: '+(err.message||'Bilinmeyen hata'),'error')}
+ finally{btn.disabled=false;btn.textContent='Organizasyonu kaydet'}
+});
+$('season-form').addEventListener('submit',async e=>{
+ e.preventDefault();const btn=$('save-season');btn.disabled=true;btn.textContent='Kaydediliyor...';
+ try{
+  const name=$('season-name').value.trim(),start=$('season-start').value||null,end=$('season-end').value||null;
+  if(!name)throw new Error('Sezon adı zorunludur.');
+  if(start&&end&&start>end)throw new Error('Sezon başlangıcı bitiş tarihinden sonra olamaz.');
+  const {data,error}=await supabase.from('seasons').insert({name,start_date:start,end_date:end}).select('id').single();
+  if(error)throw error;
+  $('season-form').reset();await loadSeasons();$('match-season').value=data.id;
+ }catch(err){message($('seasons-message'),'Sezon kaydedilemedi: '+(err.message||'Bilinmeyen hata'),'error')}
+ finally{btn.disabled=false;btn.textContent='Sezonu kaydet'}
+});
 $('club-form').addEventListener('submit',async e=>{
  e.preventDefault();const btn=$('save-club');btn.disabled=true;
  try{
@@ -816,6 +902,10 @@ $('report-form').addEventListener('submit',async e=>{
      id:match.id,match_date:match.match_date,match_status:match.match_status,
      home_club_id:match.home_club_id,home_club_name:home?.name||null,
      away_club_id:match.away_club_id,away_club_name:away?.name||null,
+     competition_id:match.competition_id||null,
+     competition_name:competitions.find(c=>String(c.id)===String(match.competition_id))?.name||null,
+     season_id:match.season_id||null,
+     season_name:seasons.find(s=>String(s.id)===String(match.season_id))?.name||null,
      home_score:match.home_score,away_score:match.away_score,age_category:match.age_category
     }:null
    };
@@ -880,8 +970,9 @@ $('match-form').addEventListener('submit',async e=>{
   if(!date)throw new Error('Maç tarihi zorunludur.');
   const homeScore=$('match-home-score').value,awayScore=$('match-away-score').value;
   const payload={
-   home_club_id:home,away_club_id:away,match_date:new Date(date).toISOString(),
-   match_status:$('match-status').value,
+   home_club_id:home,away_club_id:away,
+   competition_id:$('match-competition').value||null,season_id:$('match-season').value||null,
+   match_date:new Date(date).toISOString(),match_status:$('match-status').value,
    home_score:homeScore===''?null:Number(homeScore),away_score:awayScore===''?null:Number(awayScore),
    match_duration:$('match-duration').value?Number($('match-duration').value):null,
    age_category:$('match-age').value.trim()||null
