@@ -202,6 +202,237 @@ def _lineup_players(lineups: Any) -> tuple[dict[str, dict[str, Any]], list[str]]
     return players, warnings
 
 
+
+def _timestamp_seconds(value: Any) -> float | None:
+    """Parse a StatsBomb period-local HH:MM:SS[.mmm] timestamp."""
+    if not isinstance(value, str):
+        return None
+    parts = value.split(":")
+    if len(parts) != 3:
+        return None
+    try:
+        hours = int(parts[0])
+        minutes = int(parts[1])
+        seconds = float(parts[2])
+    except (TypeError, ValueError):
+        return None
+    if hours < 0 or minutes < 0 or not math.isfinite(seconds) or seconds < 0 or seconds >= 60:
+        return None
+    return hours * 3600 + minutes * 60 + seconds
+
+
+def calculate_minutes_played(events: Any) -> dict[str, Any]:
+    """Calculate on-pitch time from ordered StatsBomb events.
+
+    Time is accumulated within each period from its local timestamp. Half-time
+    and the interval between extra-time periods are not counted. Period 5
+    (penalty shootout) is excluded. Missing or contradictory clock/state
+    evidence makes the whole match result unavailable rather than guessed.
+    """
+    result = {
+        "valid": False,
+        "seconds_by_player": {},
+        "player_names": {},
+        "periods": [],
+        "warnings": [],
+        "errors": [],
+    }
+    if not isinstance(events, list):
+        result["errors"] = ["Events kökü liste değil."]
+        return result
+
+    indexed_events = [(index, event) for index, event in enumerate(events) if isinstance(event, dict)]
+    if indexed_events and all(isinstance(event.get("index"), int) for _, event in indexed_events):
+        indexed_events.sort(key=lambda item: item[1]["index"])
+
+    active: set[str] = set()
+    permanently_off: set[str] = set()
+    temporarily_off: set[str] = set()
+    seconds_by_player: defaultdict[str, float] = defaultdict(float)
+    player_names: dict[str, str] = {}
+    warnings: list[str] = []
+    errors: list[str] = []
+    periods_seen: set[int] = set()
+    periods_closed: set[int] = set()
+    current_period: int | None = None
+    last_time = 0.0
+    starting_xi_count = 0
+
+    def remember_player(player: Any) -> str | None:
+        player_id = _id(player)
+        if player_id is None:
+            return None
+        key = str(player_id)
+        name = _name(player)
+        if name:
+            player_names[key] = name
+        seconds_by_player.setdefault(key, 0.0)
+        return key
+
+    for _, event in indexed_events:
+        try:
+            period = int(event.get("period"))
+        except (TypeError, ValueError):
+            errors.append("Bir event için geçerli period alanı yok.")
+            continue
+        if period == 5:
+            continue
+        if period not in (1, 2, 3, 4):
+            errors.append(f"Desteklenmeyen maç periodu: {period}.")
+            continue
+
+        event_type = _name(event.get("type")) or "Unknown"
+        event_time = _timestamp_seconds(event.get("timestamp"))
+        if event_time is None:
+            errors.append(f"Geçersiz event timestamp: period {period}, index {event.get('index')}.")
+            continue
+
+        periods_seen.add(period)
+        if current_period is None:
+            if period != 1:
+                errors.append("Maç period 1 ile başlamıyor.")
+            current_period = period
+            last_time = 0.0
+        elif period != current_period:
+            if period != current_period + 1:
+                errors.append(
+                    f"Period sırası kesintili: {current_period} sonrasında {period} geldi."
+                )
+            if current_period not in periods_closed:
+                errors.append(f"Period {current_period} için Half End olayı eksik.")
+            current_period = period
+            last_time = 0.0
+
+        if period in periods_closed and event_type != "Half End":
+            errors.append(f"Period {period}, Half End sonrasında yeni event içeriyor.")
+        if event_time < last_time - 0.001:
+            errors.append(
+                f"Period {period} timestamp geriye gidiyor: {event_time:.3f} < {last_time:.3f}."
+            )
+            continue
+
+        delta = max(0.0, event_time - last_time)
+        if delta:
+            for player_id in active:
+                seconds_by_player[player_id] += delta
+        last_time = max(last_time, event_time)
+
+        if event_type == "Starting XI":
+            tactics = event.get("tactics") or {}
+            lineup = tactics.get("lineup")
+            if not isinstance(lineup, list) or not lineup:
+                errors.append(f"Period {period} Starting XI lineup verisi eksik.")
+                continue
+            starting_xi_count += 1
+            for member in lineup:
+                member = member or {}
+                player_id = remember_player(member.get("player"))
+                if player_id is None:
+                    errors.append("Starting XI içinde player_id eksik.")
+                    continue
+                active.add(player_id)
+                permanently_off.discard(player_id)
+                temporarily_off.discard(player_id)
+
+        elif event_type == "Substitution":
+            outgoing_id = remember_player(event.get("player"))
+            substitution = event.get("substitution") or {}
+            incoming_id = remember_player(substitution.get("replacement"))
+            if outgoing_id is None or incoming_id is None:
+                errors.append(f"Period {period} substitution oyuncu bilgisi eksik.")
+                continue
+            if outgoing_id not in active:
+                warnings.append(
+                    f"Substitution sırasında çıkan oyuncu aktif görünmüyor: {player_names.get(outgoing_id, outgoing_id)}."
+                )
+                errors.append("Substitution state uyuşmazlığı.")
+            active.discard(outgoing_id)
+            temporarily_off.discard(outgoing_id)
+            if incoming_id in permanently_off or incoming_id in active:
+                errors.append(
+                    f"Substitution ile giren oyuncu zaten aktif veya kalıcı olarak çıkmış: {player_names.get(incoming_id, incoming_id)}."
+                )
+            active.add(incoming_id)
+            temporarily_off.discard(incoming_id)
+
+        elif event_type == "Player Off":
+            player_id = remember_player(event.get("player"))
+            if player_id is None:
+                errors.append("Player Off event içinde player_id eksik.")
+                continue
+            if player_id not in active:
+                errors.append(
+                    f"Player Off sırasında oyuncu aktif görünmüyor: {player_names.get(player_id, player_id)}."
+                )
+            active.discard(player_id)
+            off_data = event.get("player_off") or {}
+            if off_data.get("permanent") is True:
+                permanently_off.add(player_id)
+                temporarily_off.discard(player_id)
+            else:
+                temporarily_off.add(player_id)
+
+        elif event_type == "Player On":
+            player_id = remember_player(event.get("player"))
+            if player_id is None:
+                errors.append("Player On event içinde player_id eksik.")
+                continue
+            if player_id in permanently_off:
+                errors.append(
+                    f"Kalıcı olarak çıkmış oyuncu tekrar döndü olarak işaretlenmiş: {player_names.get(player_id, player_id)}."
+                )
+            elif player_id not in temporarily_off:
+                errors.append(
+                    f"Karşılık gelen Player Off olmadan Player On geldi: {player_names.get(player_id, player_id)}."
+                )
+            else:
+                active.add(player_id)
+                temporarily_off.discard(player_id)
+
+        elif event_type in ("Bad Behaviour", "Foul Committed"):
+            payload_key = "bad_behaviour" if event_type == "Bad Behaviour" else "foul_committed"
+            card = _name((event.get(payload_key) or {}).get("card"))
+            if card in ("Red Card", "Second Yellow"):
+                player_id = remember_player(event.get("player"))
+                if player_id is None:
+                    errors.append(f"{card} event içinde player_id eksik.")
+                else:
+                    if player_id not in active:
+                        errors.append(
+                            f"{card} sırasında oyuncu aktif görünmüyor: {player_names.get(player_id, player_id)}."
+                        )
+                    active.discard(player_id)
+                    temporarily_off.discard(player_id)
+                    permanently_off.add(player_id)
+
+        elif event_type == "Half End":
+            if event.get("early_video_end") is True or event.get("match_suspended") is True:
+                errors.append(
+                    f"Period {period} Half End kaydı erken video bitişi veya maçın askıya alınmasını işaretliyor."
+                )
+            periods_closed.add(period)
+
+    if starting_xi_count == 0:
+        errors.append("Starting XI eventleri bulunamadı.")
+    if not periods_seen:
+        errors.append("Süre hesaplamak için geçerli maç periodu bulunamadı.")
+    if periods_seen and sorted(periods_seen) != list(range(1, max(periods_seen) + 1)):
+        errors.append("Maç periodları kesintisiz değil.")
+    for period in sorted(periods_seen):
+        if period not in periods_closed:
+            errors.append(f"Period {period} için Half End olayı eksik.")
+
+    result["periods"] = sorted(periods_seen)
+    result["warnings"] = sorted(set(warnings))
+    result["errors"] = sorted(set(errors))
+    if errors:
+        return result
+
+    result["valid"] = True
+    result["seconds_by_player"] = dict(seconds_by_player)
+    result["player_names"] = player_names
+    return result
+
 def analyse_match(match: dict[str, Any], lineups: Any,
                   events: Any) -> dict[str, Any]:
     """Build a cautious single-match player event summary."""
@@ -209,6 +440,7 @@ def analyse_match(match: dict[str, Any], lineups: Any,
         raise ImportErrorWithContext("Events dosyasının kökü JSON dizisi değil.")
 
     players, warnings = _lineup_players(lineups)
+    minutes_result = calculate_minutes_played(events)
     counters: dict[str, Counter[str]] = defaultdict(Counter)
     pass_lengths: dict[str, list[float]] = defaultdict(list)
     xg_values: dict[str, list[float]] = defaultdict(list)
@@ -312,6 +544,15 @@ def analyse_match(match: dict[str, Any], lineups: Any,
         lengths = pass_lengths.get(player_key, [])
         xg = xg_values.get(player_key, [])
         metrics = {field: int(values.get(field, 0)) for field in COUNTER_FIELDS}
+        player_seconds = None
+        if minutes_result["valid"]:
+            if player_key in minutes_result["seconds_by_player"]:
+                player_seconds = minutes_result["seconds_by_player"][player_key]
+            elif not player.get("appearance_evidence"):
+                # A listed squad member with no on-pitch event is an unused substitute.
+                player_seconds = 0.0
+        if player_seconds is not None and player_seconds > 0:
+            player["appearance_evidence"] = True
         metrics.update({
             "pass_completion_pct": round(completed / attempted * 100, 2) if attempted else None,
             "pass_length_mean": round(sum(lengths) / len(lengths), 2) if lengths else None,
@@ -320,12 +561,21 @@ def analyse_match(match: dict[str, Any], lineups: Any,
             "xg": round(sum(xg), 3) if xg else None,
             "xg_shots_with_value": len(xg),
         })
+        if (
+            minutes_result["valid"]
+            and player.get("appearance_evidence")
+            and player_seconds is None
+        ):
+            warnings.append(
+                f"Minutes hesaplanamadı; oyuncu appearance kanıtı var: {player.get('player_name', player_key)}"
+            )
         player_rows.append({
             **player,
             "metrics": metrics,
             "pass_length_sum": round(sum(lengths), 3),
             "pass_length_observations": len(lengths),
-            "minutes_played": None,
+            "minutes_played": round(player_seconds / 60.0, 2) if player_seconds is not None else None,
+            "minutes_played_seconds": round(player_seconds, 3) if player_seconds is not None else None,
             "per90_metrics": None,
         })
 
@@ -356,6 +606,15 @@ def analyse_match(match: dict[str, Any], lineups: Any,
             "events_without_team_id": unknown_team_events,
             "event_types": dict(sorted(event_types.items())),
             "warnings": sorted(set(warnings)),
+            "minutes_calculation": {
+                "status": "valid" if minutes_result["valid"] else "unavailable",
+                "periods": minutes_result["periods"],
+                "players_with_minutes": sum(
+                    1 for value in minutes_result["seconds_by_player"].values() if value > 0
+                ),
+                "warnings": minutes_result["warnings"],
+                "errors": minutes_result["errors"],
+            },
         },
         "player_metrics": player_rows,
     }
@@ -397,7 +656,7 @@ def build_cb_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
             "positions_seen": positions,
             "matches_listed_in_squads": player.get("matches_listed_in_squads", 0),
             "matches_with_appearance_evidence": player.get("matches_with_appearance_evidence", 0),
-            "minutes_played": None,
+            "minutes_played": player.get("minutes_played"),
             "metrics": {key: metrics.get(key) for key in CB_PROFILE_METRICS},
         })
 
@@ -484,6 +743,9 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 "positions": set(),
                 "squad_listings": 0,
                 "matches_with_appearance_evidence": 0,
+                "minutes_played_seconds": 0.0,
+                "minutes_calculation_complete": True,
+                "minutes_matches_valid": 0,
                 "metrics": Counter(),
                 "pass_length_sum": 0.0,
                 "pass_length_observations": 0,
@@ -492,6 +754,14 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             aggregate["squad_listings"] += 1
             if player.get("appearance_evidence"):
                 aggregate["matches_with_appearance_evidence"] += 1
+            if (
+                match_report["quality"]["minutes_calculation"]["status"] == "valid"
+                and player.get("minutes_played_seconds") is not None
+            ):
+                aggregate["minutes_played_seconds"] += player["minutes_played_seconds"]
+                aggregate["minutes_matches_valid"] += 1
+            else:
+                aggregate["minutes_calculation_complete"] = False
             if player.get("team_name"):
                 aggregate["team_names"].add(player["team_name"])
             aggregate["positions"].update(player.get("positions") or [])
@@ -524,7 +794,12 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "positions_seen": sorted(player["positions"]),
             "matches_listed_in_squads": player["squad_listings"],
             "matches_with_appearance_evidence": player["matches_with_appearance_evidence"],
-            "minutes_played": None,
+            "minutes_played": (
+                round(player["minutes_played_seconds"] / 60.0, 2)
+                if player["minutes_calculation_complete"] else None
+            ),
+            "minutes_calculation_complete": player["minutes_calculation_complete"],
+            "minutes_matches_valid": player["minutes_matches_valid"],
             "per90_metrics": None,
             "metrics": counts,
         })
@@ -564,8 +839,8 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
         },
         "metric_definitions": METRIC_DEFINITIONS,
         "limitations": [
-            "Minutes played are not calculated in this first importer; per-90 metrics are deliberately null.",
-            "Lineup/squad listings can include unused substitutes; matches_with_appearance_evidence uses position records or attributed player events and is not a minutes calculation.",
+            "Minutes are calculated from Starting XI, substitutions, Player Off/On, dismissal events and period-local timestamps. If period clocks or required state transitions are incomplete, minutes remain null; per-90 metrics are still deliberately disabled pending real-match validation.",
+            "Lineup/squad listings can include unused substitutes; unused substitutes receive 0.00 minutes only when the match-level event clock passes validation.",
             "Percentiles and peer rankings are not produced by this single-source ingestion proof.",
             "Event data cannot establish off-ball positioning, scanning, body orientation, communication or visual tactical behaviour.",
             "This is a selected research dataset, not complete coverage of all leagues, seasons or youth players.",
@@ -588,6 +863,7 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
         fields = [
             "player_id", "player_name", "team_names", "positions_seen",
             "matches_listed_in_squads", "matches_with_appearance_evidence",
+            "minutes_played", "minutes_calculation_complete", "minutes_matches_valid",
             *COUNTER_FIELDS, "pass_completion_pct", "pass_length_mean", "xg",
         ]
         writer = csv.DictWriter(stream, fieldnames=fields)
@@ -600,6 +876,9 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 "positions_seen": " | ".join(row["positions_seen"]),
                 "matches_listed_in_squads": row["matches_listed_in_squads"],
                 "matches_with_appearance_evidence": row["matches_with_appearance_evidence"],
+                "minutes_played": row["minutes_played"],
+                "minutes_calculation_complete": row["minutes_calculation_complete"],
+                "minutes_matches_valid": row["minutes_matches_valid"],
                 **row["metrics"],
             }
             writer.writerow(output)
