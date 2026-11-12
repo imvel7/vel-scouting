@@ -235,21 +235,24 @@ On 11 November 2026, `admin.html` was updated so its read-only anonymous-access 
 
 **Still pending:** run the diagnostic from the deployed GitHub Pages admin panel using an authorized staff account. A separate authenticated non-staff account is also needed to verify the staff-only RLS boundary through the actual Data API. The assistant has not accessed the user's browser session and has not run these interactive checks.
 
-### Migration source-tracking gap
+### Migration source-tracking gap — resolved 12 November 2026
 
-The live database migration ledger contains eight applied migrations, but the current `main` branch tracks only two SQL files under `supabase/migrations`:
-- `20261110172515_tighten_vel_rls_function_privileges.sql`
-- `20261110174605_create_vel_scouting_sessions_and_rubrics.sql`
+The six SQL files missing from `main` were recovered under their original applied versions and names:
+- `20261111085851_create_atomic_scout_report_bundle.sql`
+- `20261111104333_create_multi_match_scout_report_rpc.sql`
+- `20261111105655_use_existing_secure_scout_report_bundle.sql`
+- `20261111105858_fix_report_bundle_uuid_aggregate.sql`
+- `20261111110233_add_multi_match_report_guard.sql`
+- `20261111110636_enforce_multi_match_rubric_methodology.sql`
 
-The six later migration versions present in the live ledger do not have corresponding SQL files in the current repository tree:
-- `20261111085851_create_atomic_scout_report_bundle`
-- `20261111104333_create_multi_match_scout_report_rpc`
-- `20261111105655_use_existing_secure_scout_report_bundle`
-- `20261111105858_fix_report_bundle_uuid_aggregate`
-- `20261111110233_add_multi_match_report_guard`
-- `20261111110636_enforce_multi_match_rubric_methodology`
+The first two were reconstructed from the original SQL statements retained by the live database's `pg_stat_statements`; the remaining four were recovered from the corresponding development branch files. The resulting `main` tree now tracks all eight historical migrations, and their live function state was checked:
+- `create_scout_report_bundle()` is SECURITY INVOKER, uses an empty search_path, and contains the UUID aggregation fix.
+- `create_multi_match_scout_report_bundle()` is SECURITY INVOKER, uses an empty search_path, and checks that the supplied methodology matches the selected rubric.
+- The retired temporary `create_multi_match_scout_report()` function is absent.
 
-Do not invent historical SQL or apply additional DDL until the missing source history is recovered or a reviewed, explicitly labelled live-state recovery baseline is prepared. The live RPC definitions have been inspected, but that is not a substitute for the exact six historical migration scripts.
+The new ninth migration, `20261112092105_create_video_source_registry_and_rights_assessments.sql`, is also present in `main` and applied remotely. The live migration ledger reports all nine versions. A clean local `supabase db reset` / replay was not run because the Supabase CLI is not installed in this runtime; that separate reproducibility check remains open.
+
+Recovery detail: [Source Registry and Rights Standard](video-sources/VEL_SOURCE_REGISTRY_AND_RIGHTS_STANDARD_v1.0.md).
 
 ### Admin report workflow integration
 
@@ -507,42 +510,73 @@ The Vel Scout analysis assistant must continue seeking a lawful source whose vid
 
 ---
 
-## 15. Maç Keşif Ağı — kaynak kataloğu ve kullanım hakları standardı (12 Kasım 2026)
+## 15. Maç Keşif Ağı — kaynak kataloğu ve kullanım hakları (12 Kasım 2026)
 
-İlk uygulama aşamasının veri modeli ve operasyon standardı hazırlandı:
-- [Kaynak Kataloğu ve Video Kullanım Hakları Standardı v1.0](video-sources/VEL_SOURCE_REGISTRY_AND_RIGHTS_STANDARD_v1.0.md)
+**İlk veri katmanı ve admin paneli entegre edildi.** İşletim standardı: [Kaynak Kataloğu ve Video Kullanım Hakları Standardı v1.0](video-sources/VEL_SOURCE_REGISTRY_AND_RIGHTS_STANDARD_v1.0.md).
 
-### Alınan teknik karar
+### Canlı veri modeli
 
-Kaynak sağlayıcı, tekil maç videosu, ülkeye göre izleme erişimi ve kullanım hakları ayrı katmanlar olarak ele alınacak:
+Kaynak sağlayıcı, tekil video, izleme erişimi ve kullanım hakları birbirinden ayrılmıştır:
 
-1. `video_sources`: FIFA+, UEFA.tv, lig/kulüp/federasyon kanalları, keşif indeksleri ve lisanslı sağlayıcılar için yeniden kullanılabilir kaynak kataloğu.
-2. `videos`: belirli maçın belirli yayıncıdaki video kaydı; mevcut `videos` tablosu korunacak ve yeni sağlayıcı bağlantısı eklemeli olacak.
-3. `video_access_checks`: mevcut ülke/hesap/ücret/tamlık geçmişi korunacak; bu kayıt yalnızca izleme erişimini gösterir.
-4. `video_rights_assessments`: manuel scouting, otomatik analiz, ticari kullanım, indirme/depolama, klip çıkarma ve dağıtım haklarını ayrı ayrı, kanıt ve geçerlilik bilgisiyle kaydedecek.
+1. `video_sources`: tekrar kullanılabilir kaynak sağlayıcı ve keşif indeksi kataloğu.
+2. `videos.video_source_id`: belirli maç videosunu katalogdaki sağlayıcıya bağlayan nullable FK. Eski `source_name` alanı geriye uyumluluk için korunur.
+3. `video_access_checks`: ülke, hesap, fiyat ve görüntü tamlığı bazında izleme erişim geçmişi; mevcut tablo korunmuştur.
+4. `video_rights_assessments`: manuel scouting, otomatik analiz, ticari kullanım, indirme/depolama, klip çıkarma ve dağıtım için altı ayrı kullanım hakkı geçmişi.
 
-**Kural:** Her kullanım hakkının varsayılanı `unknown`. Kaynağın ücretsiz izlenmesi veya bağlantısının kayıtlı olması otomatik analiz ya da ticari kullanım izni sayılmaz.
+**Değişmez kural:** Her hak türü yeni videoda `unknown` başlar. Bir kaynağın ücretsiz izlenebilmesi veya bağlantısının kayıtlı olması AI işleme, ticari kullanım, indirme ya da yeniden yayımlama izni değildir.
 
-### 12 Kasım canlı şema kontrolü
+### Seed edilen kaynak adayları
 
-- `videos` ve `video_access_checks` tabloları mevcut, RLS etkin ve `private.is_vel_staff()` ile yalnızca personel erişimine açık.
-- `video_access_checks` ülke, erişim, hesap, fiyat ve kapsam alanlarını zaten taşıyor.
-- `videos.rights_status` mevcut haliyle kullanım amacına göre izinleri ayıramıyor; yeni hak değerlendirme katmanı gerekiyor.
+Canlı katalogda sekiz aday var:
+- FIFA+
+- UEFA.tv Re-Runs
+- Premier League Archive
+- TFF resmî YouTube
+- Football Archive (video barındırıcısı değil, keşif indeksi)
+- Hudl Wyscout (lisanslı profesyonel sağlayıcı)
+- SoccerNet (araştırma veri seti)
+- Metrica Sports Sample Data (anonim örnek takip/olay verisi)
 
-### Migration güvenlik engeli
+Hepsi `candidate` durumunda. Henüz hiçbir kaynak genel olarak AI veya ticari kullanım için onaylanmadı. StatsBomb Open Data video sağlayıcısı olmadığı, seçili maçlar için olay verisi sunduğu için video kaynakları listesine eklenmedi.
 
-Canlı migration defterinde sekiz kayıt var; `main` dalında yalnızca ilk iki SQL dosyası bulunuyor. Altı tarihsel migration kaynağı eksik. Bu nedenle bu aşamada canlı veritabanına DDL uygulanmadı. Önce eksik kaynaklar geri kazanılacak veya gözden geçirilmiş ve açıkça recovery baseline olarak etiketlenmiş bir başlangıç noktası hazırlanacak.
+### Canlı uygulama ve doğrulama
+
+Migration: `20261112092105_create_video_source_registry_and_rights_assessments`.
+
+- `video_sources` tablosunda 8 aday kaynak bulunuyor.
+- Canlı sistemdeki 2 video kaydı korunuyor.
+- Bu videolar için 6'şar olmak üzere toplam 12 kullanım hakkı kaydı oluşturuldu; tamamı `unknown`.
+- Eski video kaynak adları doğrulanmış eşleşme olmadığı için otomatik biçimde `video_source_id` alanına bağlanmadı.
+- Yeni video eklendiğinde altı bilinmeyen hak kaydı oluşturan tetikleyici kuruldu ve gerçek authenticated staff rolü altında transaction/rollback testiyle doğrulandı.
+- Her iki yeni tabloda RLS etkin; anon SELECT ayrıcalığı yok.
+- Kaynak kataloğu staff-only CRUD; hak geçmişi staff-only SELECT + INSERT. Hak kararları UPDATE/DELETE ile değiştirilemez; yeni kayıt eklenir.
+- Security advisor'da bu migration kaynaklı yeni bir security linti görülmedi. Mevcut leaked-password protection uyarısı ayrı ve daha önce belgelenmiş plan/ayar konusu olarak duruyor. Performance advisor'daki 23 unindexed FK uyarısı mevcut genel şemanın bulgusudur; yeni kaynak/hak FK'ları için gerekli indeksler migration'da eklendi.
+
+### Admin paneli
+
+`admin.html` güncellendi:
+- Kaynak kataloğu listeleme ve yeni sağlayıcı/indeks ekleme.
+- Katalogdan sağlayıcı seçip videoya bağlama.
+- Video başına altı kullanım hakkı özetini görme.
+- Kanıt URL'si/notu, kullanım türü, karar durumu, dayanak ve bölge kapsamıyla yeni hak değerlendirmesi ekleme.
+- Hak geçmişinin append-only listelenmesi.
+- Anonim güvenlik tanılamasına `video_sources` ve `video_rights_assessments` eklendi; staff için bu tablolara Data API read kontrolü de eklendi.
+
+Admin JS modülünün sözdizimi kontrolü geçti. **GitHub Pages dağıtımı ve gerçek tarayıcı/Data API kontrolü bu ortamda doğrulanmadı.** Admin panelindeki “Güvenlik testlerini çalıştır” kontrolü deploy sonrasında personel hesabıyla çalıştırılmalıdır; ayrıca authenticated non-staff hesabı için gerçek RLS sınır testi henüz yoktur.
 
 ### Durum
 
 | İş | Durum |
 |---|---|
-| Kaynak sağlayıcı / maç videosu ayrımı | Tasarım tamamlandı |
-| İzleme erişimi / kullanım hakları ayrımı | Tasarım tamamlandı |
-| İlk kaynak türleri ve adayları | Sınıflandırıldı |
-| Supabase kaynak geçmişi uzlaştırması | Bekliyor |
-| Yeni tablolar ve RLS migration'ı | Bekliyor |
-| Kaynak kataloğu admin ekranı | Bekliyor |
-| Staff / anon / non-staff API testleri | Bekliyor |
+| Kaynak katalog ve video hakkı standardı | Tamamlandı |
+| 8 kaynak adayının kataloglanması | Tamamlandı — hepsi candidate |
+| Kullanım hakları tablosu, trigger ve backfill | Tamamlandı — 12 mevcut hak satırı |
+| RLS / grants / rollback trigger testi | SQL düzeyinde tamamlandı |
+| Eksik 6 tarihsel migration'ın geri yüklenmesi | Tamamlandı — main dalında |
+| Yeni migration SQL dosyasının repo ile eşleştirilmesi | Tamamlandı |
+| Admin katalog ve hak geçmişi UI'si | Kod tamamlandı; canlı deploy/API testi bekliyor |
+| Anonim browser ve staff Data API testi | Bekliyor |
+| Authenticated non-staff RLS testi | Test hesabı olmadığı için bekliyor |
+| Gerçek izinli maç videosu ile CV prototipi | Sonraki aşama |
 
-Bu doküman ve yol haritası güncellemesi dışında canlı Supabase şeması, admin paneli ve Davinson pilot kayıtlarında değişiklik yapılmadı.
+Bu aşamada Davinson Sánchez pilotu, scouting oturumu, gözlem ve kriter puanları değiştirilmedi.
