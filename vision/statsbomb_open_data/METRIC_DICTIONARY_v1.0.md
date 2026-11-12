@@ -54,7 +54,7 @@ The importer selects players whose observed lineup/event position labels contain
 - A player must have a centre-back position label to enter `role_profiles.CB`.
 - `matches_with_appearance_evidence` is based on position records or attributed
   player events. It is not a minutes-played calculation.
-- Minutes are calculated from the event state machine using period-local timestamps; half-time breaks and penalty shootouts are excluded. Missing or contradictory clock/state evidence leaves minutes null.
+- Minutes are calculated from the event state machine using StatsBomb minute/second match-clock fields; each period is anchored to its first clock value, so half-time breaks and extra-time intervals are excluded. Penalty shootouts are excluded. Missing or contradictory clock/state evidence leaves minutes null.
 - Per-90 normalization remains disabled until the real three-match sample has passed the new minutes validation.
 - No composite CB score, defensive rating, percentile or ranking is produced.
 - No aerial-duel success metric is included until event labels/outcomes are
