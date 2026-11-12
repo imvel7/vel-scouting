@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import analyse_match, build_cb_profile, fetch_json, run_import, ImportErrorWithContext
+from import_open_data import analyse_match, build_cb_profile, calculate_minutes_played, fetch_json, run_import, ImportErrorWithContext
 
 
 MATCH = {
@@ -77,6 +77,128 @@ EVENTS = [
 
 
 class StatsBombImportTests(unittest.TestCase):
+    @staticmethod
+    def _clock_event(index, period, timestamp, event_type, **extra):
+        return {
+            "index": index,
+            "period": period,
+            "timestamp": timestamp,
+            "minute": 0,
+            "second": 0,
+            "type": {"name": event_type},
+            **extra,
+        }
+
+    @classmethod
+    def _starting_xi(cls, index, team_id, player_ids):
+        return cls._clock_event(
+            index,
+            1,
+            "00:00:00.000",
+            "Starting XI",
+            team={"id": team_id, "name": f"Team {team_id}"},
+            tactics={
+                "lineup": [
+                    {"player": {"id": player_id, "name": f"Player {player_id}"}}
+                    for player_id in player_ids
+                ]
+            },
+        )
+
+    def test_minutes_follow_starting_xi_substitutions_and_period_local_clocks(self):
+        events = [
+            self._starting_xi(1, 1, [10, 11]),
+            self._starting_xi(2, 2, [20]),
+            self._clock_event(3, 1, "00:00:00.000", "Half Start"),
+            self._clock_event(
+                4, 1, "00:30:00.000", "Substitution",
+                player={"id": 10, "name": "Player 10"},
+                substitution={"replacement": {"id": 12, "name": "Player 12"}},
+            ),
+            self._clock_event(
+                5, 1, "00:45:00.000", "Half End"
+            ),
+            self._clock_event(6, 2, "00:00:00.000", "Half Start"),
+            self._clock_event(7, 2, "00:45:00.000", "Half End"),
+        ]
+        result = calculate_minutes_played(events)
+        self.assertTrue(result["valid"], result["errors"])
+        self.assertEqual(result["periods"], [1, 2])
+        self.assertEqual(result["seconds_by_player"]["10"], 30 * 60)
+        self.assertEqual(result["seconds_by_player"]["12"], 60 * 60)
+        self.assertEqual(result["seconds_by_player"]["11"], 90 * 60)
+        self.assertEqual(result["seconds_by_player"]["20"], 90 * 60)
+
+    def test_minutes_exclude_temporary_player_off_interval(self):
+        events = [
+            self._starting_xi(1, 1, [10]),
+            self._clock_event(2, 1, "00:00:00.000", "Half Start"),
+            self._clock_event(
+                3, 1, "00:30:00.000", "Player Off",
+                player={"id": 10, "name": "Player 10"},
+                player_off={"permanent": False},
+            ),
+            self._clock_event(
+                4, 1, "00:31:00.000", "Player On",
+                player={"id": 10, "name": "Player 10"},
+            ),
+            self._clock_event(5, 1, "00:45:00.000", "Half End"),
+        ]
+        result = calculate_minutes_played(events)
+        self.assertTrue(result["valid"], result["errors"])
+        self.assertEqual(result["seconds_by_player"]["10"], 44 * 60)
+
+    def test_minutes_stop_at_permanent_player_off_or_red_card(self):
+        events = [
+            self._starting_xi(1, 1, [10, 11]),
+            self._clock_event(2, 1, "00:00:00.000", "Half Start"),
+            self._clock_event(
+                3, 1, "00:10:00.000", "Player Off",
+                player={"id": 10, "name": "Player 10"},
+                player_off={"permanent": True},
+            ),
+            self._clock_event(
+                4, 1, "00:20:00.000", "Bad Behaviour",
+                player={"id": 11, "name": "Player 11"},
+                bad_behaviour={"card": {"name": "Second Yellow"}},
+            ),
+            self._clock_event(5, 1, "00:45:00.000", "Half End"),
+        ]
+        result = calculate_minutes_played(events)
+        self.assertTrue(result["valid"], result["errors"])
+        self.assertEqual(result["seconds_by_player"]["10"], 10 * 60)
+        self.assertEqual(result["seconds_by_player"]["11"], 20 * 60)
+
+    def test_minutes_include_extra_time_but_exclude_penalty_shootout(self):
+        events = [
+            self._starting_xi(1, 1, [10]),
+            self._clock_event(2, 1, "00:00:00.000", "Half Start"),
+            self._clock_event(3, 1, "00:45:00.000", "Half End"),
+            self._clock_event(4, 2, "00:00:00.000", "Half Start"),
+            self._clock_event(5, 2, "00:45:00.000", "Half End"),
+            self._clock_event(6, 3, "00:00:00.000", "Half Start"),
+            self._clock_event(7, 3, "00:15:00.000", "Half End"),
+            self._clock_event(8, 4, "00:00:00.000", "Half Start"),
+            self._clock_event(9, 4, "00:15:00.000", "Half End"),
+            self._clock_event(10, 5, "00:00:00.000", "Half Start"),
+            self._clock_event(11, 5, "00:05:00.000", "Half End"),
+        ]
+        result = calculate_minutes_played(events)
+        self.assertTrue(result["valid"], result["errors"])
+        self.assertEqual(result["periods"], [1, 2, 3, 4])
+        self.assertEqual(result["seconds_by_player"]["10"], 120 * 60)
+
+    def test_minutes_are_unavailable_when_a_period_end_is_missing(self):
+        events = [
+            self._starting_xi(1, 1, [10]),
+            self._clock_event(2, 1, "00:00:00.000", "Half Start"),
+            self._clock_event(3, 1, "00:20:00.000", "Pass"),
+        ]
+        result = calculate_minutes_played(events)
+        self.assertFalse(result["valid"])
+        self.assertEqual(result["seconds_by_player"], {})
+        self.assertTrue(any("Half End" in error for error in result["errors"]))
+
     def test_counts_events_and_pass_success_using_statsbomb_rule(self):
         report = analyse_match(MATCH, LINEUPS, EVENTS)
         player = report["player_metrics"][0]
