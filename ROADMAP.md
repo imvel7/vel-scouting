@@ -658,3 +658,42 @@ admin.html güncellendi:
 - Ayrı bir authenticated non-staff test hesabıyla gerçek istemci/API RLS testi henüz yapılmadı; SQL rol/claim simülasyonu 0 satır döndürdü.
 - Kaynakların koşulları ve maç bazında kullanım izinleri yetkili incelemeden geçmedi.
 - Davinson pilotunda gözlem/puan oluşturulmadı; iki videonun tüm kullanım hakları unknown kaldı.
+
+---
+
+## 18. İlk kaynak koşulları incelemesi ve video hak geçmişi (12 Kasım 2026)
+
+Kaynak kataloğunda beş sağlayıcı için resmî koşul sayfası incelendi ve kaynak kaydına işlendi:
+- UEFA.tv — https://www.uefa.com/uefatvtermsconditions/
+- Premier League — https://www.premierleague.com/en/terms-and-conditions
+- TRT Spor — https://www.trtspor.com.tr/kullanim-sartlari
+- Hudl Wyscout — https://www.wyscout.hudl.com/terms
+- SoccerNet — https://www.soccer-net.org/faq
+
+Bu beş kaynağın review_status değeri reviewed ve terms_last_checked_at alanı kaydedildi. Bu, yalnızca kaynak/koşul sayfasının incelendiği anlamına gelir; Vel Scout'a kullanım lisansı verilmiş anlamına gelmez.
+
+### Pilot videolarına işlenen kısıtlar
+
+UEFA.tv ve TRT Spor kaynaklarına bağlı iki pilot video için, ilgili sağlayıcı koşullarında açıkça kısıtlanan kullanım türlerine kanıtlı kayıt eklendi:
+- commercial_use: prohibited
+- download_storage: prohibited
+- clip_extraction: prohibited
+- redistribution: prohibited
+
+Her kayıt provider_terms dayanağı ve ilgili resmî koşul URL'siyle eklendi. Mevcut eski unknown kayıtlar silinmedi veya güncellenmedi; yeni değerlendirmeler append-only geçmişe eklendi. Böylece toplam 20 kayıt var: 8 açık kısıt kaydı ve 12 önceki unknown kaydı. En güncel değerlendirme esas alındığında her pilot video için dört kullanım türü prohibited, manual_scouting ve automated_analysis ise unknown durumunda.
+
+**Önemli sınır:** UEFA.tv koşulları özel/ev içi ve ticari olmayan görüntülemeyle sınırlı; kopyalama/çıkarma/dağıtma ve ticari kullanımı yasaklıyor. TRT Spor koşulları içerik haklarını TRT'de tutuyor ve izinsiz kopyalama, taşıma, yeniden yayımlama, arşivleme ve ticari kullanımı kısıtlıyor. Bu nedenle otomatik analiz veya Vel Scout içinde ticari değerlendirme izni varsayılmadı. Nihai hukuki yorum ve özel lisans gereksinimi hak sahibiyle yazılı olarak doğrulanmalı.
+
+Premier League koşulları kişisel/özel kullanım için sınırlı indirme imkânı tanırken ticari kullanım, yeniden kullanım/dağıtım ve içerikten veri tabanı oluşturmayı önceden yazılı onaya bağlıyor. SoccerNet FAQ araştırma kullanımına izin verirken veri setinin ticari amaçlı olmadığını ve videoların liglere ait telif içerikleri olduğunu açıkça belirtiyor. Hudl Wyscout koşulları ve ürün açıklaması profesyonel amaçlı lisanslı içerik modelini anlatıyor; Vel Scout'un dış sistemde otomatik işleme hakkı ayrıca sözleşmeyle doğrulanmalı.
+
+### Kaynaklar
+
+- UEFA.tv General Terms of Use: https://www.uefa.com/uefatvtermsconditions/
+- Premier League Terms of Use: https://www.premierleague.com/en/terms-and-conditions
+- TRT Spor Kullanım Şartları: https://www.trtspor.com.tr/kullanim-sartlari
+- Hudl User Terms: https://www.wyscout.hudl.com/terms
+- SoccerNet FAQ: https://www.soccer-net.org/faq
+
+### Sıradaki adım
+
+Kaynakların kalan dört adayı için koşul/lisans incelemesi tamamlanmalı; ardından yalnızca yazılı izin veya açıkça uygun lisans bulunan bir örnek video/data setiyle bilgisayarlı görü prototipi seçilmeli. UEFA.tv ve TRT Spor pilot videoları, otomatik analiz izni yazılı olarak netleşene kadar AI video işleme kaynağı olarak kullanılmayacak.
