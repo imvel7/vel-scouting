@@ -18,6 +18,10 @@ SUB_FIELDS = (
     "away_substitutions",
     "substitutions",
 )
+SIDE_FIELDS = {
+    "home": ("home_team_line_up", "home_team_subs", "home_substitutions"),
+    "away": ("away_team_line_up", "away_team_subs", "away_substitutions"),
+}
 
 
 def collect_player_ids(value) -> set[str]:
@@ -34,20 +38,31 @@ def collect_player_ids(value) -> set[str]:
     return {value for value in found if value}
 
 
+def collect_player_numbers(value) -> set[str]:
+    found: set[str] = set()
+    if isinstance(value, dict):
+        has_player_identity = any(
+            key in value and value[key] is not None
+            for key in ("player_id", "playerId", "id", "_id")
+        )
+        if has_player_identity:
+            for key in ("number", "player_number", "jersey_number", "shirt_number"):
+                number = value.get(key)
+                if number is not None and str(number).strip():
+                    found.add(str(number).strip())
+        for child in value.values():
+            found.update(collect_player_numbers(child))
+    elif isinstance(value, list):
+        for child in value:
+            found.update(collect_player_numbers(child))
+    return found
+
+
 def actor_id(event) -> str | None:
     value = event.get("player_id")
     if value is None or not str(value).strip():
         return None
     return str(value).strip()
-
-
-def add_value(counter: Counter, value) -> None:
-    if value is None:
-        counter["<missing>"] += 1
-    elif isinstance(value, (str, int, float, bool)):
-        counter[str(value)] += 1
-    else:
-        counter[f"<{type(value).__name__}>"] += 1
 
 
 def main() -> int:
@@ -82,22 +97,19 @@ def main() -> int:
                             if value is not None and str(value).strip():
                                 lineup_ids.add(str(value).strip())
                                 break
-            substitution_ids: set[str] = set()
+            sub_ids: set[str] = set()
             for key in SUB_FIELDS:
-                substitution_ids.update(collect_player_ids(match.get(key)))
-            per_match.append((mid, match, event_path, lineup_ids, substitution_ids))
+                sub_ids.update(collect_player_ids(match.get(key)))
+
+            side_numbers = {
+                side: set().union(*(collect_player_numbers(match.get(key)) for key in keys))
+                for side, keys in SIDE_FIELDS.items()
+            }
+            per_match.append((mid, match, event_path, lineup_ids, sub_ids, side_numbers))
 
         global_known_ids = {
-            pid for _, _, _, lineup, subs in per_match for pid in (lineup | subs)
+            pid for _, _, _, lineup, subs, _ in per_match for pid in (lineup | subs)
         }
-        global_events_ids: set[str] = set()
-        for _, _, event_path, _, _ in per_match:
-            with archive.open(event_path) as stream:
-                for raw in stream:
-                    if raw.strip():
-                        pid = actor_id(json.loads(raw))
-                        if pid:
-                            global_events_ids.add(pid)
 
         residual_event_rows = 0
         residual_ids: set[str] = set()
@@ -108,9 +120,14 @@ def main() -> int:
         residual_by_team_relation = Counter()
         residual_by_match = Counter()
         residual_with_id_found_elsewhere_in_lineup_or_subs = 0
+        residual_rows_with_number = 0
+        residual_rows_number_matches_same_team_roster = 0
+        residual_rows_number_not_in_same_team_roster = 0
+        residual_rows_without_number = 0
+        residual_rows_without_known_team = 0
         total_rows = 0
 
-        for mid, match, event_path, lineup_ids, sub_ids in per_match:
+        for mid, match, event_path, lineup_ids, sub_ids, side_numbers in per_match:
             home_team = str(match.get("home_team")) if match.get("home_team") is not None else None
             away_team = str(match.get("away_team")) if match.get("away_team") is not None else None
             with archive.open(event_path) as stream:
@@ -126,20 +143,41 @@ def main() -> int:
                     residual_event_rows += 1
                     residual_ids.add(pid)
                     residual_by_match[mid] += 1
-                    add_value(residual_by_event_name, event.get("event_name"))
-                    add_value(residual_by_event_type, event.get("event_type"))
-                    add_value(residual_by_role, event.get("player_role") or event.get("player_position"))
-                    add_value(residual_by_side, event.get("isHome"))
+                    for counter, value in (
+                        (residual_by_event_name, event.get("event_name")),
+                        (residual_by_event_type, event.get("event_type")),
+                        (residual_by_role, event.get("player_role") or event.get("player_position")),
+                        (residual_by_side, event.get("isHome")),
+                    ):
+                        counter["<missing>" if value is None else str(value)] += 1
+
                     event_team = str(event.get("team_id")) if event.get("team_id") is not None else None
-                    relation = (
-                        "home_team" if event_team is not None and event_team == home_team else
-                        "away_team" if event_team is not None and event_team == away_team else
-                        "missing_team_id" if event_team is None else
-                        "team_id_not_equal_to_match_teams"
-                    )
+                    if event_team is not None and event_team == home_team:
+                        relation = "home_team"
+                        team_roster_numbers = side_numbers["home"]
+                    elif event_team is not None and event_team == away_team:
+                        relation = "away_team"
+                        team_roster_numbers = side_numbers["away"]
+                    else:
+                        relation = "missing_or_unrecognized_team_id"
+                        team_roster_numbers = set()
+                        residual_rows_without_known_team += 1
                     residual_by_team_relation[relation] += 1
+
                     if pid in global_known_ids:
                         residual_with_id_found_elsewhere_in_lineup_or_subs += 1
+
+                    number = event.get("player_number")
+                    if number is None or not str(number).strip():
+                        residual_rows_without_number += 1
+                    elif not team_roster_numbers:
+                        pass
+                    else:
+                        residual_rows_with_number += 1
+                        if str(number).strip() in team_roster_numbers:
+                            residual_rows_number_matches_same_team_roster += 1
+                        else:
+                            residual_rows_number_not_in_same_team_roster += 1
 
     print(json.dumps({
         "dataset": "Afriskaut Dynasty Scouting League 2024 Open Data",
@@ -153,6 +191,11 @@ def main() -> int:
         "residual_rows_by_position_role": dict(residual_by_role.most_common()),
         "residual_rows_by_isHome": dict(residual_by_side.most_common()),
         "residual_rows_by_team_relation": dict(residual_by_team_relation.most_common()),
+        "residual_rows_with_player_number": residual_rows_with_number,
+        "residual_rows_player_number_matches_same_team_roster": residual_rows_number_matches_same_team_roster,
+        "residual_rows_player_number_not_in_same_team_roster": residual_rows_number_not_in_same_team_roster,
+        "residual_rows_without_player_number": residual_rows_without_number,
+        "residual_rows_without_known_team": residual_rows_without_known_team,
         "matches_with_residual_rows": len(residual_by_match),
         "max_residual_rows_in_one_match": max(residual_by_match.values(), default=0),
         "player_names_exported": False,
