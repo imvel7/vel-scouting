@@ -653,7 +653,8 @@ async function loadVideoSources(){
   $('sources-body').innerHTML=videoSources.map(s=>{
    const href=safeVideoUrl(s.canonical_url),terms=safeVideoUrl(s.terms_url);
    const catalogLink=href?'<a href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">Kataloğu aç ↗</a>':'—';
-   const termsLink=terms?'<a href="'+esc(terms)+'" target="_blank" rel="noopener noreferrer">Koşullar ↗</a>':'Henüz eklenmedi';
+   const termsChecked=s.terms_last_checked_at?new Date(s.terms_last_checked_at).toLocaleDateString('tr-TR'):'Kontrol edilmedi';
+   const termsLink=terms?'<a href="'+esc(terms)+'" target="_blank" rel="noopener noreferrer">Koşullar ↗</a><br><small>Kontrol: '+esc(termsChecked)+'</small>':'Henüz eklenmedi';
    return '<tr><td><strong>'+esc(s.display_name)+'</strong><br><small>'+esc(s.source_key)+'</small><br><small>'+esc(s.operator_name||'İşleten belirtilmedi')+'</small></td><td>'+esc(s.source_type)+'</td><td>'+esc(s.officiality_status)+'</td><td>'+esc(s.review_status)+'</td><td>'+catalogLink+'</td><td>'+termsLink+'</td></tr>';
   }).join('')||'<tr><td colspan="6" class="muted">Kaynak kataloğu boş.</td></tr>';
   message($('sources-message'),videoSources.length+' kaynak sağlayıcı / keşif indeksi yüklendi.',videoSources.length?'ok':'');
@@ -1143,7 +1144,7 @@ $('video-form').addEventListener('submit',async e=>{
   if(!matchId||!source||!url)throw new Error('Maç, kaynak ve geçerli HTTP(S) bağlantısı zorunludur.');
   if(sourceId&&!selectedSource)throw new Error('Seçilen kaynak kataloğu kaydı bulunamadı. Kataloğu yenile.');
   const payload={
-   match_id:matchId,video_source_id:sourceId,source_name:source,video_url:url,video_type:$('video-type').value,
+   match_id:matchId,video_source_id:sourceId,source_name:selectedSource?.display_name||source,video_url:url,video_type:$('video-type').value,
    duration_minutes:$('video-duration').value?Number($('video-duration').value):null,
    access_status:'unknown',rights_status:$('video-rights').value,
    notes:$('video-notes').value.trim()||null
