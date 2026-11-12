@@ -17,6 +17,7 @@
 | Interceptions / recoveries / clearances / blocks | Counts of respective event types | Opportunity and team context are not yet modelled |
 | Tackles | Duel events with `duel.type.name = Tackle` | Not a complete defensive quality assessment |
 | Dribbles | Count of Dribble events | Does not measure success until outcome handling is separately validated |
+| Minutes played | Sum of period-local elapsed seconds while the player is active, based on Starting XI, substitutions, Player Off/On and dismissal events | Requires complete ordered timestamps and a Half End per period; unavailable rather than guessed when state/clock evidence is incomplete |
 
 ## Rules
 
@@ -53,7 +54,8 @@ The importer selects players whose observed lineup/event position labels contain
 - A player must have a centre-back position label to enter `role_profiles.CB`.
 - `matches_with_appearance_evidence` is based on position records or attributed
   player events. It is not a minutes-played calculation.
-- Minutes are currently null, so no per-90 normalization is produced.
+- Minutes are calculated from the event state machine using period-local timestamps; half-time breaks and penalty shootouts are excluded. Missing or contradictory clock/state evidence leaves minutes null.
+- Per-90 normalization remains disabled until the real three-match sample has passed the new minutes validation.
 - No composite CB score, defensive rating, percentile or ranking is produced.
 - No aerial-duel success metric is included until event labels/outcomes are
   separately validated against the source specification and real samples.
