@@ -203,31 +203,27 @@ def _lineup_players(lineups: Any) -> tuple[dict[str, dict[str, Any]], list[str]]
 
 
 
-def _timestamp_seconds(value: Any) -> float | None:
-    """Parse a StatsBomb period-local HH:MM:SS[.mmm] timestamp."""
-    if not isinstance(value, str):
-        return None
-    parts = value.split(":")
-    if len(parts) != 3:
-        return None
+def _match_clock_seconds(event: dict[str, Any]) -> int | None:
+    """Read the StatsBomb match clock from its integer minute/second fields."""
     try:
-        hours = int(parts[0])
-        minutes = int(parts[1])
-        seconds = float(parts[2])
+        minute = int(event.get("minute"))
+        second = int(event.get("second"))
     except (TypeError, ValueError):
         return None
-    if hours < 0 or minutes < 0 or not math.isfinite(seconds) or seconds < 0 or seconds >= 60:
+    if minute < 0 or second < 0 or second >= 60:
         return None
-    return hours * 3600 + minutes * 60 + seconds
+    return minute * 60 + second
 
 
 def calculate_minutes_played(events: Any) -> dict[str, Any]:
-    """Calculate on-pitch time from ordered StatsBomb events.
+    """Calculate on-pitch time from ordered StatsBomb event match-clock fields.
 
-    Time is accumulated within each period from its local timestamp. Half-time
-    and the interval between extra-time periods are not counted. Period 5
-    (penalty shootout) is excluded. Missing or contradictory clock/state
-    evidence makes the whole match result unavailable rather than guessed.
+    StatsBomb's minute/second clock is used because the video timestamp can
+    have different offsets across regulation and extra-time periods. Each
+    period starts from its first recorded clock value, so breaks are excluded.
+    Period 5 (penalty shootout) is excluded. Missing or contradictory
+    clock/state evidence makes the whole match result unavailable rather than
+    guessed.
     """
     result = {
         "valid": False,
@@ -282,9 +278,11 @@ def calculate_minutes_played(events: Any) -> dict[str, Any]:
             continue
 
         event_type = _name(event.get("type")) or "Unknown"
-        event_time = _timestamp_seconds(event.get("timestamp"))
+        event_time = _match_clock_seconds(event)
         if event_time is None:
-            errors.append(f"Geçersiz event timestamp: period {period}, index {event.get('index')}.")
+            errors.append(
+                f"Geçersiz minute/second maç saati: period {period}, index {event.get('index')}."
+            )
             continue
 
         periods_seen.add(period)
@@ -292,7 +290,7 @@ def calculate_minutes_played(events: Any) -> dict[str, Any]:
             if period != 1:
                 errors.append("Maç period 1 ile başlamıyor.")
             current_period = period
-            last_time = 0.0
+            last_time = event_time
         elif period != current_period:
             if period != current_period + 1:
                 errors.append(
@@ -301,21 +299,23 @@ def calculate_minutes_played(events: Any) -> dict[str, Any]:
             if current_period not in periods_closed:
                 errors.append(f"Period {current_period} için Half End olayı eksik.")
             current_period = period
-            last_time = 0.0
+            # Anchor to the first clock value in the new period; do not count
+            # half-time or the interval between extra-time periods.
+            last_time = event_time
 
         if period in periods_closed and event_type != "Half End":
             errors.append(f"Period {period}, Half End sonrasında yeni event içeriyor.")
-        if event_time < last_time - 0.001:
+        if event_time < last_time:
             errors.append(
-                f"Period {period} timestamp geriye gidiyor: {event_time:.3f} < {last_time:.3f}."
+                f"Period {period} maç saati geriye gidiyor: {event_time} < {last_time}."
             )
             continue
 
-        delta = max(0.0, event_time - last_time)
+        delta = event_time - last_time
         if delta:
             for player_id in active:
                 seconds_by_player[player_id] += delta
-        last_time = max(last_time, event_time)
+        last_time = event_time
 
         if event_type == "Starting XI":
             tactics = event.get("tactics") or {}
