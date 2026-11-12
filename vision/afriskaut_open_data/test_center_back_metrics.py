@@ -17,9 +17,9 @@ class CenterBackMetricsTests(unittest.TestCase):
 
     def test_counts_only_linked_events_for_explicit_center_backs(self):
         events = [
-            {"player_id": "cb-1", "event_name": "CLEARANCE"},
-            {"player_id": "cb-1", "event_name": "PASS"},
-            {"player_id": "cb-2", "event_name": "INTERCEPTION"},
+            {"player_id": "cb-1", "event_name": "CLEARANCE", "event_type": "DEFENSIVE_ACTION"},
+            {"player_id": "cb-1", "event_name": "PASS", "event_type": "PASS"},
+            {"player_id": "cb-2", "event_name": "INTERCEPTION", "event_type": "INTERCEPTION"},
             {"player_id": "fb-1", "event_name": "TACKLE"},
             {"player_id": "unknown", "event_name": "CLEARANCE"},
             {"player_id": "cb-1", "event_type": "TEAM_OWN_GOAL", "event_name": "OWN_GOAL"},
@@ -31,6 +31,10 @@ class CenterBackMetricsTests(unittest.TestCase):
         self.assertEqual(
             result["event_name_counts"],
             {"CLEARANCE": 1, "INTERCEPTION": 1, "PASS": 1},
+        )
+        self.assertEqual(
+            result["event_type_counts"],
+            {"DEFENSIVE_ACTION": 1, "INTERCEPTION": 1, "PASS": 1},
         )
 
     def test_multirole_center_back_is_included(self):
