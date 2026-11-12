@@ -1,6 +1,6 @@
 import unittest
 
-from validate_dataset import validate_bas_payload
+from validate_dataset import compare_video_gsr_metadata, validate_bas_payload
 
 
 class BasValidationTests(unittest.TestCase):
@@ -46,6 +46,28 @@ class BasValidationTests(unittest.TestCase):
         result = validate_bas_payload(payload)
         self.assertFalse(result["ok"])
         self.assertTrue(any("position" in error for error in result["errors"]))
+
+
+    def test_detects_video_dimension_mismatch(self):
+        video = {"width": 4096, "height": 1504, "fps": 25.0}
+        gsr = {
+            "image_dimensions": {"3840x1504": 67650},
+            "declared_frame_rate": 25,
+        }
+        result = compare_video_gsr_metadata(video, gsr)
+        self.assertFalse(result["metadata_matches"])
+        self.assertEqual(result["declared_geometry"], "3840x1504")
+        self.assertEqual(result["actual_geometry"], "4096x1504")
+
+    def test_accepts_matching_video_metadata(self):
+        video = {"width": 3840, "height": 1504, "fps": 25.0}
+        gsr = {
+            "image_dimensions": {"3840x1504": 67650},
+            "declared_frame_rate": 25,
+        }
+        result = compare_video_gsr_metadata(video, gsr)
+        self.assertTrue(result["metadata_matches"])
+        self.assertEqual(result["warnings"], [])
 
 
 if __name__ == "__main__":
