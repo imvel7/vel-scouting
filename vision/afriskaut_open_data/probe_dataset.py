@@ -122,7 +122,8 @@ def main() -> int:
         "position_role_counts": dict(positions.most_common(30)),
         "sample_matches": sample_matches,
         "player_names_exported": False,
-        "player_ids_exported": False,\n        "duplicate_archive_copies_deduplicated": True,
+        "player_ids_exported": False,
+        "duplicate_archive_copies_deduplicated": True,
     }
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
