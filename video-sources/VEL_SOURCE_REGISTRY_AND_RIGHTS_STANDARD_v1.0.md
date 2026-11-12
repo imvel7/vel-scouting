@@ -121,6 +121,23 @@ Aşağıdaki kayıtlar sağlayıcı/keşif adayıdır; bir maça ait video bulun
 
 Araştırma veri setleri, güncel futbolcu için ücretsiz ve lisanslı tam maç video arşivi olarak gösterilmemelidir. Veri setinin araştırmaya açık olması da ticari kullanım izni verdiği anlamına gelmez.
 
+## 3.1. Resmî kullanım koşulları kontrolü — 12 Kasım 2026
+
+Bu bölüm, sağlayıcıların yayımladığı genel koşulların ilk taramasıdır; hukuki görüş veya belirli bir videoya özel lisans kararı değildir. Her video ve kullanım türü için ayrıca izin/dayanak kontrolü gerekir.
+
+| Kaynak | Resmî koşullar sayfası | Bu ilk taramada görülen sınır | Katalog işlemi |
+|---|---|---|---|
+| FIFA+ | [FIFA+ Terms of Service](https://inside.fifa.com/terms-of-service-fifaplus) | Platform/içerik kullanımı kişisel ve ticari olmayan amaçlarla sınırlandırılmış. Hesap kaydı 18+ veya ebeveyn/yasal vasi açık izni ve gözetimi gerektiriyor. | URL kaydedildi; aday statüsü korundu. Yaş koşulu atlatılmaz; reşit olmayanların hesap erişimi ebeveyn iznine bağlıdır. |
+| UEFA.tv | [UEFA.tv General Terms of Use](https://www.uefa.com/uefatvtermsconditions/) | Sınırlı, geri alınabilir, özel ve ticari olmayan izleme lisansı; transfer, çıkarma, yeniden iletme, kopyalama ve dağıtım kısıtları; hesap ve ülke koşulları. | URL kaydedildi; video işleme/ticari kullanım izni varsayılmadı. |
+| Premier League Archive | [Premier League Terms of Use](https://www.premierleague.com/en/terms-and-conditions) | Makul kişisel kullanım dışındaki ticari kullanım, yeniden kullanım/dağıtım ve içerikten veritabanı oluşturma için önceden yazılı onay gerekiyor; deep-link koşulları da sınırlı. | URL kaydedildi; yazılı onay olmadan içerik kopyalama, veri tabanı oluşturma veya ticari kullanım planlanmaz. |
+| TFF Official YouTube | [YouTube Terms of Service](https://www.youtube.com/t/terms) | Kişisel/ticari olmayan izleme ve YouTube'un gömülü oynatıcısı; indirme/kopyalama ve otomatik erişim yalnızca hizmetin açıkça izin verdiği, yazılı izin veya uygulanabilir hukuk istisnaları kapsamında. 18 yaş altı kullanıcı için ebeveyn/yasal vasi izni şartı var. | URL kaydedildi; indirme/scraping yapılmaz, reşit olmayanların erişiminde ebeveyn izni koşulu gözetilir. |
+| Hudl Wyscout | [Hudl User Terms of Service](https://www.wyscout.hudl.com/terms) | Koşullar, açıkça izin verilmediği veya yazılı izin alınmadığı sürece otomatik yöntemler (AI araçları dâhil) ile hizmetten veri erişimi/toplama/çıkarma ve Hudl içeriğini ML/AI modeli geliştirmede kullanmayı kısıtlıyor. Müşteri anlaşması da önemlidir. | URL kaydedildi; otomatik video analizi/AI geliştirme izni varsayılmadı; lisans/yazılı izin olmadan sistem girdisi sayılmaz. |
+| SoccerNet | [SoccerNet FAQ](https://www.soccer-net.org/faq) | Korumalı video için NDA gerekir; videoların telif hakları yayıncı/liglerdedir. SoccerNet, veri setini araştırma amaçlı ve ticari olmayan kullanım için tanımlar; araştırma amaçlı model eğitimi mümkündür. | URL kaydedildi; yalnızca ilgili araştırma koşulları içinde prototip/benchmark adayı; ticari Vel Scout kullanımına uygun sayılmaz. |
+| Metrica Sports Sample Data | [Sample Data repository](https://github.com/metrica-sports/sample-data) | README küçük, anonimleştirilmiş ve senkronize örnek maç/veri dosyalarını anlatıyor; “Legal stuff” notunda sorumlu kullanım ve kaynak gösterimi isteniyor ancak açık bir lisans metni belirtilmiyor. | Açık lisans bulunamadı; terms URL boş, tüm haklar unknown kalır. Ticari/üretim kullanımı için sağlayıcıdan açıklık alınmalı. |
+| Football Archive | [Full Matches index](https://footballarchive.org/stats/full-matches/) | Bu incelemede doğrulanmış bir kullanım koşulu sayfası bulunamadı; site yalnızca üçüncü taraf maç video sayfalarına yönlendiren keşif indeksi olarak ele alınır. | Terms URL boş; her video asıl yayıncıda ayrı kontrol edilir. |
+
+**Önemli yorum:** Bu genel sayfalar bazı kullanımları açıkça sınırlandırsa da, bunlar otomatik olarak her bir maç videosu için ayrı hak kaydı oluşturmaz. Kaynak URL'sini kaydetmek, içeriği işleme izni vermez. Bu nedenle `video_rights_assessments` satırları, maç videosu bazında kanıt toplanana kadar `unknown` kalır.
+
 ## 4. Kaynak değerlendirme sırası
 
 Her yeni kaynak için şu kontrol sırası uygulanır:
