@@ -240,6 +240,7 @@ class StatsBombImportTests(unittest.TestCase):
         selected = profile["players"][0]
         self.assertEqual(selected["player_id"], 20572)
         self.assertEqual(selected["matches_with_appearance_evidence"], 3)
+        self.assertEqual(selected["metrics"]["events"], 0)
         self.assertIsNone(selected["minutes_played"])
         self.assertNotIn("rating", selected)
         self.assertIn("defensive rating or ranking", profile["interpretation_limits"][0])
