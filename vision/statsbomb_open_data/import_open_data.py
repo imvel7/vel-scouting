@@ -12,7 +12,6 @@ import csv
 import hashlib
 import json
 import math
-import time
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -130,7 +129,12 @@ def fetch_json(relative_path: str, cache_root: Path, force: bool = False,
 
 
 def _name(value: Any) -> str | None:
-    return value.get("name") if isinstance(value, dict) else None
+    if not isinstance(value, dict):
+        return None
+    for key in ("name", "competition_name", "season_name", "team_name", "player_name"):
+        if value.get(key):
+            return str(value[key])
+    return None
 
 
 def _id(value: Any) -> Any:
@@ -192,6 +196,7 @@ def _lineup_players(lineups: Any) -> tuple[dict[str, dict[str, Any]], list[str]]
                 "team_id": team_id,
                 "team_name": team_name,
                 "positions": sorted(set(position_names)),
+                "appearance_evidence": bool(position_names),
                 "minutes_played": None,
             }
     return players, warnings
@@ -210,6 +215,7 @@ def analyse_match(match: dict[str, Any], lineups: Any,
     event_types: Counter[str] = Counter()
     unattributed_events = 0
     unknown_team_events = 0
+    event_players_missing_from_lineup: set[str] = set()
 
     for event in events:
         if not isinstance(event, dict):
@@ -231,13 +237,21 @@ def analyse_match(match: dict[str, Any], lineups: Any,
                 "nickname": None,
                 "jersey_number": None,
                 "positions": [],
+                "appearance_evidence": True,
                 "minutes_played": None,
             }
+            event_players_missing_from_lineup.add(player_key)
             warnings.append(
                 f"Event oyuncusu lineup dosyasında yok: {player['player_name']} ({player_key})"
             )
-        elif not players[player_key].get("team_name") and player.get("team_name"):
-            players[player_key]["team_name"] = player["team_name"]
+        else:
+            players[player_key]["appearance_evidence"] = True
+            if not players[player_key].get("team_name") and player.get("team_name"):
+                players[player_key]["team_name"] = player["team_name"]
+            event_position = player.get("event_position")
+            if event_position and event_position not in players[player_key]["positions"]:
+                players[player_key]["positions"].append(event_position)
+                players[player_key]["positions"].sort()
 
         if not player.get("team_id"):
             unknown_team_events += 1
@@ -333,6 +347,7 @@ def analyse_match(match: dict[str, Any], lineups: Any,
             "lineup_player_count": len(players),
             "players_with_attributed_events": sum(1 for key in players if counters[key]),
             "lineup_only_player_count": lineup_only_count,
+            "event_player_not_in_lineup_count": len(event_players_missing_from_lineup),
             "unattributed_non_structural_events": unattributed_events,
             "events_without_team_id": unknown_team_events,
             "event_types": dict(sorted(event_types.items())),
@@ -407,12 +422,15 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 "player_name": player["player_name"],
                 "team_names": set(),
                 "positions": set(),
-                "matches": 0,
+                "squad_listings": 0,
+                "matches_with_appearance_evidence": 0,
                 "metrics": Counter(),
                 "pass_lengths": [],
                 "xg_values": [],
             })
-            aggregate["matches"] += 1
+            aggregate["squad_listings"] += 1
+            if player.get("appearance_evidence"):
+                aggregate["matches_with_appearance_evidence"] += 1
             if player.get("team_name"):
                 aggregate["team_names"].add(player["team_name"])
             aggregate["positions"].update(player.get("positions") or [])
@@ -443,7 +461,8 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "player_name": player["player_name"],
             "team_names": sorted(player["team_names"]),
             "positions_seen": sorted(player["positions"]),
-            "matches_in_sample": player["matches"],
+            "matches_listed_in_squads": player["squad_listings"],
+            "matches_with_appearance_evidence": player["matches_with_appearance_evidence"],
             "minutes_played": None,
             "per90_metrics": None,
             "metrics": counts,
@@ -477,9 +496,9 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "selected_match_count": len(analysed_matches),
             "selected_match_ids": [row["match"]["match_id"] for row in analysed_matches],
             "event_count": sum(row["quality"]["event_count"] for row in analysed_matches),
-            "unique_players_in_selected_lineups": len(all_players),
-            "lineup_player_events_not_matched": sum(
-                len(row["quality"]["warnings"]) for row in analysed_matches
+            "unique_players_listed_or_seen": len(all_players),
+            "event_players_missing_from_lineups": sum(
+                row["quality"]["event_player_not_in_lineup_count"] for row in analysed_matches
             ),
         },
         "metric_definitions": METRIC_DEFINITIONS,
@@ -504,7 +523,8 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
     with csv_path.open("w", encoding="utf-8-sig", newline="") as stream:
         fields = [
             "player_id", "player_name", "team_names", "positions_seen",
-            "matches_in_sample", *COUNTER_FIELDS, "pass_completion_pct",
+            "matches_listed_in_squads", "matches_with_appearance_evidence",
+            *COUNTER_FIELDS, "pass_completion_pct",
             "pass_length_mean_across_match_means", "xg",
         ]
         writer = csv.DictWriter(stream, fieldnames=fields)
@@ -515,7 +535,8 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 "player_name": row["player_name"],
                 "team_names": " | ".join(row["team_names"]),
                 "positions_seen": " | ".join(row["positions_seen"]),
-                "matches_in_sample": row["matches_in_sample"],
+                "matches_listed_in_squads": row["matches_listed_in_squads"],
+                "matches_with_appearance_evidence": row["matches_with_appearance_evidence"],
                 **row["metrics"],
             }
             writer.writerow(output)
@@ -566,7 +587,7 @@ def main() -> int:
           f"{report['competition_season']['season_name']}")
     print(f"Maç: {report['sample']['selected_match_count']}")
     print(f"Olay: {report['sample']['event_count']}")
-    print(f"Oyuncu: {report['sample']['unique_players_in_selected_lineups']}")
+    print(f"Oyuncu: {report['sample']['unique_players_listed_or_seen']}")
     print(f"Rapor: {report['output_files']['json']}")
     print(f"Oyuncu CSV: {report['output_files']['players_csv']}")
     return 0
