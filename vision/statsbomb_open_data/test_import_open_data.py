@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import analyse_match, fetch_json, run_import, ImportErrorWithContext
+from import_open_data import analyse_match, build_cb_profile, fetch_json, run_import, ImportErrorWithContext
 
 
 MATCH = {
@@ -199,6 +199,50 @@ class StatsBombImportTests(unittest.TestCase):
             self.assertEqual(rows[0]["player_name"], "Example Player")
             self.assertEqual(rows[0]["passes_attempted"], "2")
             self.assertEqual(rows[0]["pass_completion_pct"], "50.0")
+
+
+    def test_cb_profile_selects_centre_backs_without_creating_a_rating(self):
+        players = [
+            {
+                "player_id": 20572,
+                "player_name": "Example Centre Back",
+                "team_names": ["Argentina"],
+                "positions_seen": ["Right Center Back"],
+                "matches_listed_in_squads": 3,
+                "matches_with_appearance_evidence": 3,
+                "metrics": {
+                    "passes_attempted": 30,
+                    "passes_completed": 27,
+                    "pass_completion_pct": 90.0,
+                    "pass_length_mean": 22.4,
+                    "carries": 6,
+                    "pressures": 9,
+                    "interceptions": 4,
+                    "ball_recoveries": 5,
+                    "clearances": 7,
+                    "blocks": 2,
+                    "tackles": 3,
+                },
+            },
+            {
+                "player_id": 5503,
+                "player_name": "Example Forward",
+                "team_names": ["Argentina"],
+                "positions_seen": ["Right Center Forward"],
+                "matches_listed_in_squads": 3,
+                "matches_with_appearance_evidence": 3,
+                "metrics": {"passes_attempted": 20},
+            },
+        ]
+        profile = build_cb_profile(players)
+        self.assertEqual(profile["role_code"], "CB")
+        self.assertEqual(profile["player_count"], 1)
+        selected = profile["players"][0]
+        self.assertEqual(selected["player_id"], 20572)
+        self.assertEqual(selected["matches_with_appearance_evidence"], 3)
+        self.assertIsNone(selected["minutes_played"])
+        self.assertNotIn("rating", selected)
+        self.assertIn("defensive rating or ranking", profile["interpretation_limits"][0])
 
     def test_cache_json_records_content_hash(self):
         with tempfile.TemporaryDirectory() as directory:
