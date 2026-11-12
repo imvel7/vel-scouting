@@ -128,6 +128,7 @@ def main() -> int:
         number_match_by_event_type = Counter()
         number_mismatch_by_event_type = Counter()
         number_roster_relation_by_event_name = Counter()
+        event_name_type_cross_tab = Counter()
         total_rows = 0
 
         for mid, match, event_path, lineup_ids, sub_ids, side_numbers in per_match:
@@ -146,6 +147,9 @@ def main() -> int:
                     residual_event_rows += 1
                     residual_ids.add(pid)
                     residual_by_match[mid] += 1
+                    event_name = str(event.get("event_name") or "<missing>")
+                    event_type = str(event.get("event_type") or "<missing>")
+                    event_name_type_cross_tab[f"{event_name}:{event_type}"] += 1
                     for counter, value in (
                         (residual_by_event_name, event.get("event_name")),
                         (residual_by_event_type, event.get("event_type")),
@@ -189,7 +193,6 @@ def main() -> int:
                             residual_rows_number_not_in_same_team_roster += 1
                             number_mismatch_by_event_type[event_type] += 1
 
-                        event_name = str(event.get("event_name") or "<missing>")
                         if number_text in team_roster_numbers and number_text in opponent_roster_numbers:
                             roster_relation = "both_rosters"
                         elif number_text in team_roster_numbers:
@@ -220,6 +223,7 @@ def main() -> int:
         "residual_rows_number_matches_by_event_type": dict(number_match_by_event_type.most_common()),
         "residual_rows_number_mismatches_by_event_type": dict(number_mismatch_by_event_type.most_common()),
         "residual_player_number_roster_relation_by_event_name": dict(number_roster_relation_by_event_name.most_common()),
+        "residual_event_name_type_cross_tab": dict(event_name_type_cross_tab.most_common()),
         "residual_rows_without_player_number": residual_rows_without_number,
         "residual_rows_without_known_team": residual_rows_without_known_team,
         "matches_with_residual_rows": len(residual_by_match),
