@@ -741,6 +741,7 @@ SoccerTrack v2, Vel Scout'un bilgisayarlı görü veri hattını doğrulamak iç
 Veri deposunun LICENSE-DATA dosyası CC BY 4.0 lisansı belirtiyor; atıf ve lisans bağlantısı korunarak ticari kullanıma izin veriliyor. Upstream depo, maçların üniversite etik kurulu onayı ve bilgilendirilmiş katılımla toplandığını, yayımlanan veride oyuncu isimlerinin bulunmadığını belirtiyor. Kaynak ve erişim notu Supabase video_sources kataloğuna soccertrack-v2 anahtarıyla eklendi:
 - Supabase source id: 398e0038-a6d9-4944-863f-589220d2056e
 - review_status: reviewed
+- Güncel katalog: 10 kaynak; 8 reviewed, 1 candidate, 1 inactive
 - terms_last_checked_at: 12 Kasım 2026
 - Erişim: Hugging Face gated; veri sahibinin onayladığı erişim gerekir. CC BY 4.0, erişim kapısını ortadan kaldırmaz.
 - Ham veri indirilmedi ve işlenmedi.
@@ -756,6 +757,7 @@ Upstream dosyalarının gerçek şeması dokümantasyondan ayrılıyor. GSR, inf
 - vision/soccertrack_v2/test_validate_dataset.py — küçük sentetik BAS verileri için testler.
 - vision/soccertrack_v2/README.md — erişim, kurulum ve çalıştırma notları.
 - requirements-vision.txt — ijson bağımlılığı.
+- supabase/seeds/010_soccertrack_v2_source.sql — kaynak katalog kaydını idempotent biçimde tekrar oluşturmak için referans seed.
 
 ### Sonraki karar kapısı
 
