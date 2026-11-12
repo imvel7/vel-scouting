@@ -539,6 +539,20 @@ Canlı katalogda sekiz aday var:
 
 Hepsi `candidate` durumunda. Henüz hiçbir kaynak genel olarak AI veya ticari kullanım için onaylanmadı. StatsBomb Open Data video sağlayıcısı olmadığı, seçili maçlar için olay verisi sunduğu için video kaynakları listesine eklenmedi.
 
+### Resmî kullanım koşulları taraması — 12 Kasım 2026
+
+Altı kaynak için resmî kullanım koşulu URL'si ve son kontrol tarihi Supabase kataloğuna yazıldı: FIFA+, UEFA.tv, Premier League Archive, YouTube (TFF kanalı), Hudl Wyscout ve SoccerNet. Metrica örnek veri deposunda ve Football Archive indeksinde doğrulanmış bir lisans/koşul sayfası bulunmadığı için ilgili alanlar boş bırakıldı.
+
+Öne çıkan sınırlamalar:
+- FIFA+ ve UEFA.tv koşulları özel/ticari olmayan izleme ile sınırlı; UEFA ayrıca video içeriğinin çıkarılması, kopyalanması ve dağıtılmasına kısıt koyuyor.
+- Premier League koşulları, içerikten veritabanı oluşturma ve ticari yeniden kullanım için önceden yazılı onay istiyor.
+- YouTube koşulları indirme/kopyalama ve otomatik erişimi açıkça izin verilen veya yazılı izin/lawful exception kapsamı dışında kısıtlıyor. 18 yaş altındaki hesap kullanımı için ebeveyn/yasal vasi izni şartı bulunuyor.
+- Hudl Wyscout koşulları, otomatik/AI araçlarıyla hizmetten veri toplama/çıkarma ve Hudl içeriğiyle AI modeli geliştirmeyi açıkça izin veya yazılı onay olmadan kısıtlıyor.
+- SoccerNet, korumalı videolar için NDA istiyor ve veri setini ticari olmayan araştırma amaçlı tanımlıyor; bu nedenle ticari Vel Scout video kaynağı sayılmıyor.
+- Metrica örnek deposu anonim ve senkronize örnek veri sunuyor; README'de açık bir lisans metni belirtilmediğinden kullanım hakkı unknown kalıyor.
+
+Kaynak bazında ayrıntı: [Resmî kullanım koşulları kontrolü](video-sources/VEL_SOURCE_REGISTRY_AND_RIGHTS_STANDARD_v1.0.md#31-resmî-kullanım-koşulları-kontrolü--12-kasım-2026).
+
 ### Canlı uygulama ve doğrulama
 
 Migration: `20261112092105_create_video_source_registry_and_rights_assessments`.
