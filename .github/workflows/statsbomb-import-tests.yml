@@ -61,7 +61,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Test Afriskaut position normalizer
+      - name: Test Afriskaut position normalizer and match linkage
         run: python -m unittest discover -s vision/afriskaut_open_data -p "test_*.py" -v
       - name: Inspect public Afriskaut youth event dataset
         run: python vision/afriskaut_open_data/probe_dataset.py
+      - name: Diagnose unmatched actors against substitution metadata
+        run: python vision/afriskaut_open_data/diagnose_substitution_metadata.py
