@@ -1,0 +1,10 @@
+# Local gated datasets and caches — never commit raw match files or auth state
+/data/
+/datasets/
+/vision-data/
+.cache/
+.hf_home/
+.env
+.env.*
+!.env.example
+*.hf_token
