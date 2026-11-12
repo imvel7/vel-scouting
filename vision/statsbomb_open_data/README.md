@@ -52,6 +52,8 @@ count, SHA-256 and cache/download status are recorded in the output report.
 
 ## Tests
 
+The StatsBomb importer unit tests run in GitHub Actions on relevant pushes and pull requests.
+
     python -m unittest discover -s vision/statsbomb_open_data -p 'test_*.py'
 
 Tests use small synthetic event/lineup fixtures and do not claim the live
