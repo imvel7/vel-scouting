@@ -815,3 +815,38 @@ Yeni migration veya admin ekranı yazmak değil. İlk olarak StatsBomb deposunda
 **Kapsam dışı:** İlk MVP'de tam maç videosu izleme, otomatik oyuncu takibi, event verisinde bulunmayan topsuz davranışlara ilişkin kesin hükümler, tüm dünya ligleri, potansiyel puanı ve transfer tavsiyesi yoktur.
 
 **Başarı tanımı:** Admin paneline yeni sekmeler eklemek değil; oyuncu seçimi ile kanıtlı veri raporu üretimi arasındaki hattın uçtan uca çalışmasıdır.
+
+
+---
+
+## 22. StatsBomb importer v0.1 — sentetik ve gerçek tek maç doğrulaması (12 Kasım 2026)
+
+### Kod
+
+- `vision/statsbomb_open_data/import_open_data.py`: resmi StatsBomb Open Data JSON dosyalarını indirir/cache'ler, kaynak dosya SHA-256 ve boyutlarını kaydeder, kadro/olayları işler, oyuncu olay metrikleri için JSON rapor ve CSV üretir.
+- `vision/statsbomb_open_data/METRIC_DICTIONARY_v1.0.md`: ilk olay bazlı metriklerin tanımı ve sınırlamaları.
+- `vision/statsbomb_open_data/README.md`: kullanım ve kaynak hakları sınırları.
+- `vision/statsbomb_open_data/test_import_open_data.py`: küçük sentetik fixture'larla metrik, kadro/appearance ayrımı, eksik oyuncu, cache hash ve JSON/CSV entegrasyon testleri.
+- `.github/workflows/statsbomb-import-tests.yml`: CI syntax/unit testleri ve PR üzerinde tek maç gerçek veri smoke testi.
+
+### Doğrulama
+
+- GitHub Actions Python 3.11 ile importer derlemesini başarıyla tamamladı.
+- 9 sentetik/entegrasyon testi geçti.
+- StatsBomb 2022 FIFA World Cup final maçı (`match_id=3869685`) için competition/matches/lineups/events JSON dosyaları gerçek kaynaktan çekildi.
+- Importer gerçek maçtan dolu bir oyuncu/olay raporu üretti; CI yalnızca başarılı smoke test sonucunu sakladı. Rapor/artifact yayımlanmadı, geçici runner dışında tutulmadı.
+- Hiçbir Supabase migration veya veri yazımı yapılmadı.
+- Per-90 metrikler üretilmedi; dakika alanı `null`. Kullanılmayan yedekler ile appearance kanıtı ayrı tutuluyor.
+
+### Veri kapsamı uyarısı
+
+12 Kasım 2026 tarihli StatsBomb `competitions.json` snapshot'ında 80 yarışma/sezon kaydı ve yalnızca bir `competition_youth=true` kaydı bulundu: FIFA U20 World Cup 1979. 2022 FIFA World Cup örneği yetişkin turnuvasıdır ve sadece teknik importer testi içindir. StatsBomb Open Data, mevcut hâliyle güncel genç oyuncu scouting kapsamı sağlamaz.
+
+### Sonraki kapı
+
+1. Üç maçlık sample ile aynı oyuncunun çoklu maç event aggregation'ını gerçek veri üzerinde test et.
+2. İlk rolü seç ve yalnızca kaynakta gerçekten bulunan olaylardan ölçülebilir metrikleri tanımla.
+3. Güncel genç oyuncu kapsamı ve Vel Scout'un hedef kullanımına izin veren veri kaynağı araştırmasını ayrı yürüt.
+4. Kaynak hakları ve canlı veri modeli netleşmeden Supabase'e ham event import'u veya kamuya açık oyuncu raporu ekleme.
+
+**Durum:** Tek maç gerçek veri smoke testi tamamlandı; çok maç gerçek veri smoke testi ve ilk rol metriği kalibrasyonu bekliyor.
