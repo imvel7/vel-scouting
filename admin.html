@@ -654,7 +654,8 @@ async function loadVideoSources(){
    const href=safeVideoUrl(s.canonical_url),terms=safeVideoUrl(s.terms_url);
    const catalogLink=href?'<a href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">Kataloğu aç ↗</a>':'—';
    const termsChecked=s.terms_last_checked_at?new Date(s.terms_last_checked_at).toLocaleDateString('tr-TR'):'Kontrol edilmedi';
-   const termsLink=terms?'<a href="'+esc(terms)+'" target="_blank" rel="noopener noreferrer">Koşullar ↗</a><br><small>Kontrol: '+esc(termsChecked)+'</small>':'Henüz eklenmedi';
+   const termsLabel=terms?'Koşullar ↗':(s.terms_last_checked_at?'Koşul sayfası bulunamadı':'Henüz kontrol edilmedi');
+   const termsLink=(terms?'<a href="'+esc(terms)+'" target="_blank" rel="noopener noreferrer">'+termsLabel+'</a>':termsLabel)+(s.terms_last_checked_at?'<br><small>Kontrol: '+esc(termsChecked)+'</small>':'');
    return '<tr><td><strong>'+esc(s.display_name)+'</strong><br><small>'+esc(s.source_key)+'</small><br><small>'+esc(s.operator_name||'İşleten belirtilmedi')+'</small></td><td>'+esc(s.source_type)+'</td><td>'+esc(s.officiality_status)+'</td><td>'+esc(s.review_status)+'</td><td>'+catalogLink+'</td><td>'+termsLink+'</td></tr>';
   }).join('')||'<tr><td colspan="6" class="muted">Kaynak kataloğu boş.</td></tr>';
   message($('sources-message'),videoSources.length+' kaynak sağlayıcı / keşif indeksi yüklendi.',videoSources.length?'ok':'');
