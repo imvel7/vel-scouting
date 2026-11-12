@@ -79,12 +79,16 @@ EVENTS = [
 class StatsBombImportTests(unittest.TestCase):
     @staticmethod
     def _clock_event(index, period, timestamp, event_type, **extra):
+        parts = timestamp.split(":")
+        local_seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+        period_base_minutes = {1: 0, 2: 45, 3: 90, 4: 105, 5: 120}
+        match_seconds = period_base_minutes[period] * 60 + int(local_seconds)
         return {
             "index": index,
             "period": period,
             "timestamp": timestamp,
-            "minute": 0,
-            "second": 0,
+            "minute": match_seconds // 60,
+            "second": match_seconds % 60,
             "type": {"name": event_type},
             **extra,
         }
