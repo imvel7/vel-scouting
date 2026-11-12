@@ -69,3 +69,5 @@ jobs:
         run: python vision/afriskaut_open_data/diagnose_substitution_metadata.py
       - name: Classify residual event actor links
         run: python vision/afriskaut_open_data/diagnose_residual_actor_links.py
+      - name: Audit event eligibility for player metrics
+        run: python vision/afriskaut_open_data/audit_player_metric_eligibility.py
