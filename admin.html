@@ -683,7 +683,7 @@ async function loadVideos(){
  renderVideoRows();populateVideoSelects();
 }
 async function loadVideoRightsAssessments(){
- const {data,error}=await supabase.from('video_rights_assessments').select('id,video_id,right_type,status,basis_type,territory_scope,country_code,evidence_url,evidence_note,checked_by,checked_at,valid_from,valid_until').order('checked_at',{ascending:false}).limit(500);
+ const {data,error}=await supabase.from('video_rights_assessments').select('id,video_id,right_type,status,basis_type,territory_scope,country_code,evidence_url,evidence_note,checked_by,checked_at,valid_from,valid_until').order('checked_at',{ascending:false}).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(500);
  if(error){videoRightsAssessments=[];message($('rights-message'),'Kullanım hakkı geçmişi alınamadı: '+error.message,'error');renderVideoRows();return}
  videoRightsAssessments=data||[];
  $('rights-body').innerHTML=videoRightsAssessments.map(x=>{
@@ -713,7 +713,7 @@ async function loadSessionVideos(){
  populateObservationTargets();
 }
 async function loadVideoAccessChecks(){
- const {data,error}=await supabase.from('video_access_checks').select('id,video_id,country_code,checked_by,checked_at,access_result,account_requirement,price_status,coverage_status,notes').order('checked_at',{ascending:false}).limit(100);
+ const {data,error}=await supabase.from('video_access_checks').select('id,video_id,country_code,checked_by,checked_at,access_result,account_requirement,price_status,coverage_status,notes').order('checked_at',{ascending:false}).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(100);
  if(error){videoAccessChecks=[];message($('access-message'),'Erişim geçmişi alınamadı: '+error.message,'error');return}
  videoAccessChecks=data||[];
  $('access-body').innerHTML=videoAccessChecks.map(x=>{
