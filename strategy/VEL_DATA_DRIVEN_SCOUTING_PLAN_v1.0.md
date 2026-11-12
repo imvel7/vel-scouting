@@ -2,7 +2,7 @@
 
 **Decision date:** 12 November 2026  
 **Product direction:** Data-driven player performance scouting  
-**Status:** Plan approved for implementation; no data-ingestion code or new database schema is claimed by this document.
+**Status:** Importer v0.1 is in `main`; 9 synthetic/integration tests pass and a real single-match StatsBomb smoke test passed in GitHub Actions. No Supabase ingestion schema or commercial data licence is claimed.
 
 ## 1. Product decision
 
@@ -44,6 +44,14 @@ Use:
 Before public or commercial deployment, obtain a clear rights basis from the data provider or use an appropriately licensed dataset.
 
 Official repository: https://github.com/hudl/open-data
+
+### Dataset suitability warning — youth coverage
+
+A live inspection of the StatsBomb `competitions.json` snapshot on 12 November 2026 found 80 competition/season records. Only one record is flagged as a youth competition: the men's FIFA U20 World Cup 1979 (competition_id 1470, season_id 274). This is not a usable contemporary youth-scouting sample.
+
+The 2022 FIFA World Cup (competition_id 43, season_id 106) contains 64 match records and is being used only as a technical import/parser test. It is adult international football and must not be presented as evidence of current youth-player coverage.
+
+**Decision:** StatsBomb Open Data is an engineering prototype source, not Vel Scout's youth-scouting data backbone. A separate source-selection gate must identify data with contemporary youth coverage and explicit rights for the intended Vel Scout use. Do not publish or commercialise profiles generated from the research dataset without a clear rights basis.
 
 ### Secondary technical sample — Metrica Sports Sample Data
 
@@ -91,7 +99,7 @@ Rules:
 
 ### Phase 1 — Data ingestion and normalization
 
-**Deliverable:** a repeatable importer for the first StatsBomb Open Data sample.
+**Deliverable:** a repeatable importer for the first StatsBomb Open Data sample. The initial importer is implemented at `vision/statsbomb_open_data/import_open_data.py`.
 
 Canonical entities to map into the existing Vel Scout data model:
 - provider/dataset and source licence/attribution record;
@@ -110,6 +118,8 @@ Requirements:
 - keep missing values as missing, not zero;
 - record the source and import timestamp for every derived result;
 - validate counts, event references, player/team links and match consistency.
+
+**Current verification:** 9 fixture-backed tests pass in GitHub Actions. A real 2022 World Cup Final sample (match_id 3869685) was fetched and parsed successfully in an ephemeral GitHub Actions runner; it produced a non-empty report and player list. The report was not uploaded or retained, and no Supabase writes occurred. Multi-match ingestion and re-import idempotence remain to be verified.
 
 **Exit gate:** the same dataset can be re-imported without duplicate rows and with an import validation summary.
 
@@ -229,14 +239,13 @@ Before adding tables, map the actual live schema to the canonical entities in Ph
 
 ## 7. Immediate next task
 
-**Build the StatsBomb ingestion proof, not another planning document.**
+**Complete the multi-match proof and define the first role metrics.**
 
-The next implementation task is:
-1. inspect the actual competitions and seasons available in the StatsBomb repository;
-2. choose one competition/season with enough matches and player appearances;
-3. import one small match sample into a staging/isolated data path;
-4. produce an import-quality report (matches, players, appearances, events, missing fields);
-5. calculate a first small set of role-relevant metrics.
+The one-match importer now runs against a real public StatsBomb match. Next:
+1. verify a small three-match sample and aggregate the same player's events across matches;
+2. choose one position group only after checking the event coverage in that sample;
+3. add a tested metric dictionary for that role, retaining raw counts where minutes are not verified;
+4. keep outputs in a private/ephemeral prototype path until dataset rights and youth coverage are settled.
 
 Do not apply a database migration until the existing live schema and required fields are compared. The first proof can run in a reproducible local/scripted pipeline and then be integrated into Supabase once the normalized model is confirmed.
 
