@@ -2,7 +2,7 @@
 
 **Decision date:** 12 November 2026  
 **Product direction:** Data-driven player performance scouting  
-**Status:** Importer v0.1 is in `main`; 9 synthetic/integration tests pass and a real single-match StatsBomb smoke test passed in GitHub Actions. No Supabase ingestion schema or commercial data licence is claimed.
+**Status:** Importer v0.1 and CB event profile v0.1 are in `main`; 10 synthetic/integration tests pass and real three-match player/CB aggregation passed in GitHub Actions. No Supabase ingestion schema or commercial data licence is claimed.
 
 ## 1. Product decision
 
@@ -127,6 +127,8 @@ Requirements:
 
 **Deliverable:** a versioned metric calculator for one role, selected after inspecting which role and players have sufficient match coverage in the chosen data.
 
+**Current implementation:** CB event profile v0.1 selects players with a centre-back position label and exposes separate raw counts for attributed events, passes, completion percentage, average pass length, carries, pressures, interceptions, ball recoveries, clearances, blocks and tackles. It does not produce a defensive rating, per-90 statistic, percentile or rank.
+
 Candidate event-derived metrics (only where the source actually provides the fields):
 - passing volume and completion;
 - forward/progressive passing and progression;
@@ -239,13 +241,19 @@ Before adding tables, map the actual live schema to the canonical entities in Ph
 
 ## 7. Immediate next task
 
-**Complete the multi-match proof and define the first role metrics.**
+**Find an appropriate current youth-data source and validate minutes/coverage.**
 
-The one-match importer now runs against a real public StatsBomb match. Next:
-1. verify a small three-match sample and aggregate the same player's events across matches;
-2. choose one position group only after checking the event coverage in that sample;
-3. add a tested metric dictionary for that role, retaining raw counts where minutes are not verified;
-4. keep outputs in a private/ephemeral prototype path until dataset rights and youth coverage are settled.
+Completed in the technical prototype:
+1. one real StatsBomb match import;
+2. three-match aggregation for the same player;
+3. CB profile selection and event summary for a defender across those three matches;
+4. 10 fixture-backed tests plus the real-data smoke test in GitHub Actions.
+
+Next:
+1. inspect lineup position segments and substitution events to define a reliable minutes-played calculation; keep per-90 values null until this passes tests;
+2. identify a contemporary youth-player dataset/provider with a documented licence that covers Vel Scout's intended use;
+3. create a coverage matrix for target leagues, seasons, players, appearances, minutes and event/stat fields;
+4. only then map the normalized records into the live Vel Scout data model. Keep StatsBomb research data isolated from commercial/public profiles until rights are settled.
 
 Do not apply a database migration until the existing live schema and required fields are compared. The first proof can run in a reproducible local/scripted pipeline and then be integrated into Supabase once the normalized model is confirmed.
 
