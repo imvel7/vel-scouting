@@ -98,4 +98,4 @@ Veri kullanıldığında en azından şu bilgiler görünür olmalı:
 
 > SoccerTrack v2 by Atom Scott et al. Dataset licensed under CC BY 4.0. Source: https://github.com/AtomScott/SoccerTrack-v2 . Changes, if any, must be indicated. Academic work should also cite https://arxiv.org/abs/2508.01802 .
 
-**Durum:** Kaynak kataloğuna soccertrack-v2 olarak eklendi. Ham veri indirilmedi; erişim onayı ve yerel doğrulama bekliyor.
+**Durum:** Kaynak kataloğuna soccertrack-v2 olarak eklendi. İdempotent referans kaydı supabase/seeds/010_soccertrack_v2_source.sql dosyasında izlenir. Ham veri indirilmedi; erişim onayı ve yerel doğrulama bekliyor.
