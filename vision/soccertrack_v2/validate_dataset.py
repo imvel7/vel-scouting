@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 from collections import Counter
+from fractions import Fraction
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -90,6 +91,8 @@ def validate_gsr_file(path: Path, expected_half: int) -> dict[str, Any]:
         "player_like_annotations": 0,
         "missing_image_references": 0,
         "coordinate_errors": 0,
+        "image_dimensions": {},
+        "declared_frame_rate": None,
         "warnings": [],
         "errors": [],
     }
@@ -97,6 +100,7 @@ def validate_gsr_file(path: Path, expected_half: int) -> dict[str, Any]:
     referenced_image_ids: set[str] = set()
     annotation_types: Counter[str] = Counter()
     roles: Counter[str] = Counter()
+    image_dimensions: Counter[str] = Counter()
     info: dict[str, Any] = {}
 
     try:
@@ -113,6 +117,9 @@ def validate_gsr_file(path: Path, expected_half: int) -> dict[str, Any]:
                         )
                     image_ids.add(key)
                     result["images"] += 1
+                    width, height = obj.get("width"), obj.get("height")
+                    if width is not None and height is not None:
+                        image_dimensions[f"{width}x{height}"] += 1
             elif prefix == "annotations.item":
                 result["annotations"] += 1
                 image_id = obj.get("image_id")
@@ -186,6 +193,8 @@ def validate_gsr_file(path: Path, expected_half: int) -> dict[str, Any]:
 
         result["annotation_types"] = dict(annotation_types)
         result["roles"] = dict(roles)
+        result["image_dimensions"] = dict(image_dimensions)
+        result["declared_frame_rate"] = info.get("frame_rate")
     except Exception as exc:
         result["errors"].append(f"GSR okunamadı: {type(exc).__name__}: {exc}")
 
@@ -311,12 +320,18 @@ def inspect_video(path: Path) -> dict[str, Any]:
             raise ValueError("Video stream bulunamadı.")
         stream = streams[0]
         duration = stream.get("duration") or (payload.get("format") or {}).get("duration")
+        rate_text = stream.get("avg_frame_rate") or stream.get("r_frame_rate")
+        try:
+            actual_fps = float(Fraction(str(rate_text))) if rate_text and rate_text != "0/0" else None
+        except (ValueError, ZeroDivisionError):
+            actual_fps = None
         result.update({
             "width": stream.get("width"),
             "height": stream.get("height"),
             "avg_frame_rate": stream.get("avg_frame_rate"),
             "r_frame_rate": stream.get("r_frame_rate"),
             "duration_seconds": duration,
+            "fps": actual_fps,
         })
         result["ok"] = True
     except Exception as exc:
@@ -325,6 +340,43 @@ def inspect_video(path: Path) -> dict[str, Any]:
         )
     return result
 
+
+
+def compare_video_gsr_metadata(video: dict[str, Any], gsr: dict[str, Any]) -> dict[str, Any]:
+    """Compare actual ffprobe geometry/FPS with the dominant GSR image metadata."""
+    result: dict[str, Any] = {
+        "metadata_matches": True,
+        "declared_geometry": None,
+        "actual_geometry": None,
+        "warnings": [],
+    }
+    dimensions = gsr.get("image_dimensions") or {}
+    if dimensions:
+        declared_geometry = max(dimensions.items(), key=lambda item: item[1])[0]
+        result["declared_geometry"] = declared_geometry
+        actual_width, actual_height = video.get("width"), video.get("height")
+        if actual_width is not None and actual_height is not None:
+            actual_geometry = f"{actual_width}x{actual_height}"
+            result["actual_geometry"] = actual_geometry
+            if actual_geometry != declared_geometry:
+                result["metadata_matches"] = False
+                result["warnings"].append(
+                    f"GSR images geometrisi {declared_geometry}, ffprobe video geometrisi "
+                    f"{actual_geometry}; görüntü koordinat dönüşümü bu metadata ile yapılmamalı."
+                )
+
+    declared_fps = gsr.get("declared_frame_rate")
+    actual_fps = video.get("fps")
+    if declared_fps is not None and actual_fps is not None:
+        try:
+            if abs(float(declared_fps) - float(actual_fps)) > 0.01:
+                result["metadata_matches"] = False
+                result["warnings"].append(
+                    f"GSR frame_rate {declared_fps}, ffprobe FPS {actual_fps}."
+                )
+        except (TypeError, ValueError):
+            result["warnings"].append("GSR frame_rate sayısal karşılaştırılamadı.")
+    return result
 
 def main() -> int:
     parser = argparse.ArgumentParser(
@@ -369,6 +421,14 @@ def main() -> int:
     for path in (args.video_first_half, args.video_second_half):
         if path is not None:
             report["videos"].append(inspect_video(path.expanduser().resolve()))
+
+    gsr_by_half = {item["half"]: item for item in report["gsr"]}
+    for video_index, video in enumerate(report["videos"], start=1):
+        half_gsr = gsr_by_half.get(video_index)
+        if video.get("ok") and half_gsr:
+            comparison = compare_video_gsr_metadata(video, half_gsr)
+            video["gsr_comparison"] = comparison
+            video["warnings"].extend(comparison["warnings"])
 
     nested_errors = []
     for item in report["gsr"]:
