@@ -362,6 +362,7 @@ def analyse_match(match: dict[str, Any], lineups: Any,
 
 
 CB_PROFILE_METRICS = (
+    "events",
     "passes_attempted",
     "passes_completed",
     "pass_completion_pct",

@@ -211,6 +211,7 @@ class StatsBombImportTests(unittest.TestCase):
                 "matches_listed_in_squads": 3,
                 "matches_with_appearance_evidence": 3,
                 "metrics": {
+                    "events": 40,
                     "passes_attempted": 30,
                     "passes_completed": 27,
                     "pass_completion_pct": 90.0,
@@ -240,6 +241,7 @@ class StatsBombImportTests(unittest.TestCase):
         selected = profile["players"][0]
         self.assertEqual(selected["player_id"], 20572)
         self.assertEqual(selected["matches_with_appearance_evidence"], 3)
+        self.assertEqual(selected["metrics"]["events"], 40)
         self.assertIsNone(selected["minutes_played"])
         self.assertNotIn("rating", selected)
         self.assertIn("defensive rating or ranking", profile["interpretation_limits"][0])
