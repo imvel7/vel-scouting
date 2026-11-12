@@ -127,6 +127,7 @@ def main() -> int:
         residual_rows_without_known_team = 0
         number_match_by_event_type = Counter()
         number_mismatch_by_event_type = Counter()
+        number_roster_relation_by_event_name = Counter()
         total_rows = 0
 
         for mid, match, event_path, lineup_ids, sub_ids, side_numbers in per_match:
@@ -157,12 +158,15 @@ def main() -> int:
                     if event_team is not None and event_team == home_team:
                         relation = "home_team"
                         team_roster_numbers = side_numbers["home"]
+                        opponent_roster_numbers = side_numbers["away"]
                     elif event_team is not None and event_team == away_team:
                         relation = "away_team"
                         team_roster_numbers = side_numbers["away"]
+                        opponent_roster_numbers = side_numbers["home"]
                     else:
                         relation = "missing_or_unrecognized_team_id"
                         team_roster_numbers = set()
+                        opponent_roster_numbers = set()
                         residual_rows_without_known_team += 1
                     residual_by_team_relation[relation] += 1
 
@@ -177,12 +181,26 @@ def main() -> int:
                     else:
                         residual_rows_with_number += 1
                         event_type = str(event.get("event_type") or "<missing>")
-                        if str(number).strip() in team_roster_numbers:
+                        number_text = str(number).strip()
+                        if number_text in team_roster_numbers:
                             residual_rows_number_matches_same_team_roster += 1
                             number_match_by_event_type[event_type] += 1
                         else:
                             residual_rows_number_not_in_same_team_roster += 1
                             number_mismatch_by_event_type[event_type] += 1
+
+                        event_name = str(event.get("event_name") or "<missing>")
+                        if number_text in team_roster_numbers and number_text in opponent_roster_numbers:
+                            roster_relation = "both_rosters"
+                        elif number_text in team_roster_numbers:
+                            roster_relation = "event_team_roster"
+                        elif number_text in opponent_roster_numbers:
+                            roster_relation = "opponent_roster"
+                        elif team_roster_numbers or opponent_roster_numbers:
+                            roster_relation = "neither_roster"
+                        else:
+                            roster_relation = "no_roster_numbers"
+                        number_roster_relation_by_event_name[f"{event_name}:{roster_relation}"] += 1
 
     print(json.dumps({
         "dataset": "Afriskaut Dynasty Scouting League 2024 Open Data",
@@ -201,6 +219,7 @@ def main() -> int:
         "residual_rows_player_number_not_in_same_team_roster": residual_rows_number_not_in_same_team_roster,
         "residual_rows_number_matches_by_event_type": dict(number_match_by_event_type.most_common()),
         "residual_rows_number_mismatches_by_event_type": dict(number_mismatch_by_event_type.most_common()),
+        "residual_player_number_roster_relation_by_event_name": dict(number_roster_relation_by_event_name.most_common()),
         "residual_rows_without_player_number": residual_rows_without_number,
         "residual_rows_without_known_team": residual_rows_without_known_team,
         "matches_with_residual_rows": len(residual_by_match),
