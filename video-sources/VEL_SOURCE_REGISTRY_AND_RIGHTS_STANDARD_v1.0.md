@@ -166,30 +166,57 @@ Canlı Supabase denetiminde:
 
 Bu bulgulara göre mevcut erişim geçmişi yeniden yazılmayacak. Yeni kaynak kataloğu ve video kullanım hakkı değerlendirmesi eklemeli biçimde tasarlanacak.
 
-## 7. Migration güvenlik kapısı
+## 7. Migration geçmişi kurtarma ve uygulama durumu
 
-Canlı migration defterinde sekiz uygulama kaydı bulunuyor. Mevcut `main` dalında yalnızca ilk iki migration dosyası izleniyor; aşağıdaki altı migration sürümünün kaynak SQL dosyası repo ağacında eksik:
+### Tarihsel migration kaynakları geri yüklendi
 
-- `20261111085851_create_atomic_scout_report_bundle`
-- `20261111104333_create_multi_match_scout_report_rpc`
-- `20261111105655_use_existing_secure_scout_report_bundle`
-- `20261111105858_fix_report_bundle_uuid_aggregate`
-- `20261111110233_add_multi_match_report_guard`
-- `20261111110636_enforce_multi_match_rubric_methodology`
+12 Kasım 2026 öncesinde canlı migration defterinde sekiz kayıt bulunmasına rağmen `main` dalında yalnızca ilk iki SQL dosyası izleniyordu. Eksik altı dosya artık asıl uygulanma sürüm ve adlarıyla `supabase/migrations/` altına geri kondu:
 
-Bu nedenle bu doküman tek başına DDL çalıştırma izni değildir. Yeni şema migration'ı uygulanmadan önce:
-1. Eksik tarihsel migration kaynakları geri kazanılmalı; **veya**
-2. Canlı şemadan, mevcut sekiz migration geçmişini yanlış temsil etmeyen, açıkça “recovery baseline” olarak etiketlenmiş ve gözden geçirilmiş bir başlangıç noktası hazırlanmalıdır.
+- `20261111085851_create_atomic_scout_report_bundle.sql`
+- `20261111104333_create_multi_match_scout_report_rpc.sql`
+- `20261111105655_use_existing_secure_scout_report_bundle.sql`
+- `20261111105858_fix_report_bundle_uuid_aggregate.sql`
+- `20261111110233_add_multi_match_report_guard.sql`
+- `20261111110636_enforce_multi_match_rubric_methodology.sql`
 
-Ardından yeni tablolar ve `videos.video_source_id` alanı eklemeli biçimde uygulanmalı; her yeni tablo aynı migration içinde RLS, grants ve staff-only politikalarına sahip olmalı; anon ve staff olmayan authenticated erişimi test edilmelidir. Supabase'in güncel rehberi grants ile RLS'nin birlikte kontrol edilmesini ve CRUD izinlerinin test edilmesini önerir: https://supabase.com/docs/guides/database/postgres/row-level-security
+İlk iki dosya, Supabase veritabanında saklanan gerçek uygulama SQL ifadelerinden (`pg_stat_statements`) geri kuruldu. Son dört dosya, projedeki `feat/multi-match-report-synthesis` geliştirme dalındaki karşılık gelen migration dosyalarıyla eşleştirildi. Son canlı fonksiyon tanımları yeniden okundu ve kritik noktalar doğrulandı:
+- `create_scout_report_bundle()` SECURITY INVOKER, boş `search_path` ve UUID agregasyon düzeltmesine sahip.
+- `create_multi_match_scout_report_bundle()` SECURITY INVOKER, boş `search_path` ve rubrik/metodoloji eşleşme kontrolüne sahip.
+- Emekliye ayrılmış geçici `create_multi_match_scout_report()` fonksiyonu artık mevcut değil.
+
+Bu kurtarma, geçmiş migration SQL'ini tahmin ederek yeniden yazmak yerine uygulama geçmişine dayandırır. Bununla birlikte bu ortamda Supabase CLI bulunmadığı için temiz bir yerel veritabanında baştan sona `db reset` / replay çalıştırılmadı. Canlı veritabanındaki remote migration geçmişi ve şema/fonksiyon durumu doğrulandı; temiz yerel replay ayrı bir yeniden üretilebilirlik kontrolü olarak açık kalır.
+
+### Kaynak kataloğu ve hak değerlendirme migration'ı
+
+Yeni eklemeli migration canlı Supabase üzerinde başarıyla uygulandı:
+- `20261112092105_create_video_source_registry_and_rights_assessments.sql`
+
+Migration, `video_sources` ve `video_rights_assessments` tablolarını ekler, `videos.video_source_id` alanını oluşturur, her yeni video için altı kullanım hakkını `unknown` başlatan tetikleyiciyi kurar ve mevcut video satırlarını altı bilinmeyen hak kaydıyla geriye dönük tamamlar. Aynı SQL dosyası `main` dalında da izlenmektedir.
+
+Uygulama sonrasında canlı migration defteri dokuz kayıt gösterir; ilk sekiz tarihsel sürüm ve yeni dokuzuncu migration depo dosyalarıyla eşleşir.
+
+### Güvenlik ve test durumu
+
+- `video_sources` ve `video_rights_assessments` RLS etkin özel tablolardır.
+- Anonim SELECT ayrıcalığı yoktur; personel olmayan authenticated hesabın gerçek Data API testi henüz yapılmamıştır.
+- `video_rights_assessments` personel için SELECT + INSERT ile sınırlıdır; UPDATE/DELETE izni yoktur. Kararlar geçmişe eklenir.
+- Yeni video eklenmesiyle altı `unknown` hakkın otomatik oluşması, gerçek authenticated staff rolü altında transaction içinde test edildi; test transaction'ı rollback ile kapatıldı ve kalıcı deneme videosu bırakılmadı.
+- İki mevcut video korunmuştur; her biri için altı kullanım hakkı `unknown` olarak kaydedilmiştir. Eski kaynak adları doğrulanmış sağlayıcı eşlemesi olmadığı için otomatik olarak `video_source_id` alanına bağlanmamıştır.
+- Admin paneline kaynak kataloğu ve hak geçmişi ekranları eklendi. GitHub Pages dağıtımı ve canlı tarayıcı/Data API testi bu kayıttan bağımsız olarak doğrulanmalıdır.
+
+Her yeni tablo RLS, grants ve gerçek API görünürlüğü birlikte doğrulanmadan tamamlanmış sayılmaz. Supabase'in güncel rehberi grants ile RLS'nin birlikte kontrol edilmesini önerir: https://supabase.com/docs/guides/database/postgres/row-level-security
 
 ## 8. Bu aşamanın tamamlanma ölçütü
 
 - Kaynak sağlayıcılar ile tekil maç videoları birbirinden ayrılmıştır.
-- İzleme erişimi ile her kullanım türüne ait haklar ayrılmıştır.
-- Kaynak adayları işlevlerine göre sınıflandırılmıştır.
-- Yetkisiz video kopyalama/indirme veya otomatik tarama planlanmamıştır.
-- Migration geçmişi uzlaştırılmadan canlı veritabanına DDL uygulanmamıştır.
-- Admin UI, şema ve RLS testleri tamamlanmadan hazır kabul edilmez.
+- İzleme erişimi ile altı farklı kullanım hakkı birbirinden ayrılmıştır.
+- Sekiz başlangıç kaynağı yalnızca `candidate` durumunda kataloglanmıştır; hiçbiri otomatik olarak analiz veya ticari kullanım için onaylanmamıştır.
+- Canlı veritabanındaki iki mevcut video için toplam 12 kullanım hakkı kaydı `unknown` olarak oluşturulmuştur.
+- Yeni videolara altı `unknown` hakkı otomatik ekleyen tetikleyici personel rolüyle test edilmiştir.
+- Kaynak ve hak tabloları staff-only RLS ile korunur; hak geçmişi append-only tasarlanmıştır.
+- Dokuz remote migration kaydı ile dokuz SQL dosyası `main` dalında bulunmaktadır.
+- Admin paneline katalog ekleme, katalogdan video kaynağı seçme ve hak değerlendirmesi geçmişine yeni karar ekleme işlevleri eklenmiştir.
+- Anonim HTTP/Data API tarayıcı testi, non-staff authenticated testi ve GitHub Pages dağıtım sonrası panel kontrolü beklemektedir.
+- Video dosyası kopyalama, indirme, saklama veya otomatik tarama için izinsiz bir mekanizma oluşturulmamıştır.
 
-**Sonraki teknik adım:** Migration geçmişi için recovery yaklaşımını tamamlamak; ardından kaynak kataloğu ve hak değerlendirme tablolarını oluşturup özel admin ekranına bağlamak.
+**Sonraki teknik adım:** Kaynak kataloğunun aday kayıtlarını maç ve video bazında manuel olarak doğrulamak; ardından admin panelinin canlı dağıtımda Data API testlerini tamamlamak ve yalnızca izinli video akışlarıyla bilgisayarlı görü prototipine geçmek.
