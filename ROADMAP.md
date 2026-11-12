@@ -594,3 +594,37 @@ Admin JS modülünün sözdizimi kontrolü geçti. **GitHub Pages dağıtımı v
 | Gerçek izinli maç videosu ile CV prototipi | Sonraki aşama |
 
 Bu aşamada Davinson Sánchez pilotu, scouting oturumu, gözlem ve kriter puanları değiştirilmedi.
+
+
+---
+
+## 16. Kaynak kataloğu — ilk canlı veri bağlantısı ve kanıt kuralı (12 Kasım 2026)
+
+Migration `20261112110547_link_existing_match_videos_and_require_rights_evidence` canlı Supabase'e uygulandı ve aynı SQL dosyası bu sürüm numarasıyla `main` dalına eklendi.
+
+### Yapılanlar
+
+- Kaynak kataloğuna mevcut pilotta kullanılan resmî TRT Spor maç sayfası aday kaynak olarak eklendi. Sayfanın gerçek oynatımı, tamlığı ve süresi doğrulanmış kabul edilmiyor.
+- Mevcut UEFA.tv Re-Runs video kaydı, yalnızca kaynak adı ve URL birebir eşleştiği için `uefa-tv-reruns` sağlayıcısına bağlandı.
+- TRT Spor video kaydı, birebir kaynak adı ve URL eşleşmesiyle `trt-spor` kaynağına bağlandı.
+- Hiçbir video dosyası indirilmedi veya taşınmadı; yalnızca kaynak kataloğu ilişkisi kuruldu.
+- `video_rights_assessments` tablosuna veritabanı seviyesinde kontrol eklendi: `granted` kararı için bilinen dayanak ve kanıt URL'si veya açıklaması zorunlu.
+- Önceden kaydedilmiş hak geçmişi değiştirilmedi; iki pilot video için altı kullanım türünün tamamı `unknown` olarak kaldı.
+
+### Güvenlik doğrulaması
+
+- `anon` rolünün `video_sources` ve `video_rights_assessments` tablolarında SELECT yetkisi yok.
+- `authenticated` rolü kaynak kataloğunu okuyup yönetebilir.
+- Hak değerlendirmelerinde `authenticated` yalnızca SELECT/INSERT yetkisine sahip; UPDATE/DELETE kapalı.
+- Yeni `granted` kanıt kısıtı canlı katalogda doğrulanmış.
+- Security Advisor'da bu değişiklikten kaynaklanan yeni bulgu görünmedi. Mevcut tek güvenlik uyarısı, projedeki sızdırılmış parola korumasının kapalı olmasıdır; bu, Free plan sınırlaması olarak daha önce not edilmiştir.
+- Performance Advisor'daki 23 indeks uyarısı mevcut diğer ilişkilerle ilgilidir; bu migration yeni bir foreign-key indeks uyarısı eklemedi.
+
+### Hâlâ bekleyenler
+
+- Yönetim panelinin GitHub Pages üzerinde yayınlanmış sürümünde gerçek personel hesabıyla Data API testi.
+- Ayrı personel olmayan Auth hesabıyla RLS sınırının uçtan uca testi.
+- Kaynakların her maç için Türkiye erişimi, tamlık ve kullanım haklarının ayrı doğrulanması.
+- Kullanım hakları ve kaynak adayları için yetkili personel inceleme süreci.
+
+Bu aşamada Davinson Sánchez pilotunda hiçbir gözlem veya puan oluşturulmadı. Mevcut iki video kaydının kullanım hakları altı kategoride de `unknown` durumundadır.
