@@ -583,7 +583,7 @@ Admin JS modülünün sözdizimi kontrolü geçti. **GitHub Pages dağıtımı v
 | İş | Durum |
 |---|---|
 | Kaynak katalog ve video hakkı standardı | Tamamlandı |
-| 8 kaynak adayının kataloglanması | Tamamlandı — hepsi candidate |
+| 9 kaynak adayının kataloglanması | Tamamlandı — hepsi candidate |
 | Kullanım hakları tablosu, trigger ve backfill | Tamamlandı — 12 mevcut hak satırı |
 | RLS / grants / rollback trigger testi | SQL düzeyinde tamamlandı |
 | Eksik 6 tarihsel migration'ın geri yüklenmesi | Tamamlandı — main dalında |
@@ -604,12 +604,12 @@ Migration `20261112110547_link_existing_match_videos_and_require_rights_evidence
 
 ### Yapılanlar
 
-- Kaynak kataloğuna mevcut pilotta kullanılan resmî TRT Spor maç sayfası aday kaynak olarak eklendi. Sayfanın gerçek oynatımı, tamlığı ve süresi doğrulanmış kabul edilmiyor.
+- Kaynak kataloğu 9 adaya ulaştı (ilk 8 sağlayıcı/indeks + TRT Spor). Pilotun TRT Spor maç sayfası aday olarak eklendi; gerçek oynatım, tamlık ve süre doğrulanmış kabul edilmiyor.
 - Mevcut UEFA.tv Re-Runs video kaydı, yalnızca kaynak adı ve URL birebir eşleştiği için `uefa-tv-reruns` sağlayıcısına bağlandı.
 - TRT Spor video kaydı, birebir kaynak adı ve URL eşleşmesiyle `trt-spor` kaynağına bağlandı.
 - Hiçbir video dosyası indirilmedi veya taşınmadı; yalnızca kaynak kataloğu ilişkisi kuruldu.
 - `video_rights_assessments` tablosuna veritabanı seviyesinde kontrol eklendi: `granted` kararı için bilinen dayanak ve kanıt URL'si veya açıklaması zorunlu.
-- Önceden kaydedilmiş hak geçmişi değiştirilmedi; iki pilot video için altı kullanım türünün tamamı `unknown` olarak kaldı.
+- Önceden kaydedilmiş hak geçmişi değiştirilmedi; iki pilot video için altı kullanım türünün tamamı `unknown` olarak kaldı (12 hak kaydı). Her iki pilot video da artık katalogdaki sağlayıcısına bağlı; kaynaksız video sayısı 0.
 
 ### Güvenlik doğrulaması
 
