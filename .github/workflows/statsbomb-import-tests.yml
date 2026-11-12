@@ -29,3 +29,21 @@ jobs:
         run: python -m py_compile vision/statsbomb_open_data/import_open_data.py
       - name: Run unit tests
         run: python -m unittest discover -s vision/statsbomb_open_data -p "test_*.py" -v
+
+  statsbomb-live-data-smoke:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Import one public match without publishing its report
+        run: |
+          python vision/statsbomb_open_data/import_open_data.py \
+            --competition-id 43 --season-id 106 --match-id 3869685 \
+            --data-root .cache/statsbomb-open-data/smoke/raw \
+            --report .cache/statsbomb-open-data/smoke/import-report.json > /dev/null
+          python -c "import json; p=json.load(open('.cache/statsbomb-open-data/smoke/import-report.json', encoding='utf-8')); assert p['sample']['selected_match_count'] == 1; assert p['sample']['event_count'] > 0; assert len(p['player_sample_totals']) > 0; print('Real StatsBomb sample smoke test passed; report remained on the ephemeral runner.')"
