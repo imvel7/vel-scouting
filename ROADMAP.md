@@ -768,3 +768,50 @@ Upstream dosyalarının gerçek şeması dokümantasyondan ayrılıyor. GSR, inf
 5. Teknik doğrulama tamamlanınca gerçek maç videoları için ayrı hak/erişim çalışmasına geçilir.
 
 **Durum:** Veri seti seçimi ve doğrulama aracı repoya eklendi; ham veri erişimi, gerçek veri üzerinde GSR/BAS testi ve CV model baseline'ı bekliyor. Sentetik BAS testleri repoya eklendi ancak bu oturumda gerçek gated veriyle çalıştırılmadı.
+
+
+---
+
+## 21. Ürün yönü değişikliği — Data-Driven Scouting MVP (12 Kasım 2026)
+
+### Ürün kararı
+
+Vel Scout'un ilk çalışan ürünü, kendi başına tam maç videosu izleyen bir yapay zekâya bağlı olmayacak. Video/CV çalışması ayrı ve sonraki bir araştırma hattına alındı. Ana ürün; erişim ve kullanım koşulları uygun yapılandırılmış futbol verilerini içeri aktaran, normalize eden, oyuncunun mevcut performansını mevki/rol bağlamında analiz eden ve her sonucu kaynağına bağlayan data-driven scouting platformu olacak.
+
+Bu karar video analizini kalıcı olarak iptal etmez; ancak video erişimi, işleme ve lisans belirsizlikleri ilk MVP'nin ön koşulu olmaktan çıkar.
+
+### İlk MVP'nin tek hedefi
+
+Bir oyuncuyu seç → gerçek yapılandırılmış maç verisini içeri aktar → mevkiye uygun metrikleri hesapla → doğru akran grubuyla karşılaştır → kaynak, örneklem ve sınırlamaları gösteren yeniden üretilebilir taslak rapor oluştur.
+
+İlk rapor güncel performans veri profili olacak; tek başına kesin scouting kararı, potansiyel puanı veya transfer tavsiyesi olmayacak.
+
+### Veri kaynakları kararı
+
+- StatsBomb Open Data: ilk olay-verisi prototipi için seçildi. Seçilmiş turnuva/sezonlara ait competition, match, lineup, event ve bazı maçlarda 360 JSON verisi sağlar. Araştırma/futbol analitiği amacı ve kaynak atfı şartı bulunur; ticari Vel Scout kullanımı lisanslı kabul edilmeyecek.
+- Metrica Sports Sample Data: anonim tracking + event örneği olarak yalnızca teknik parser/koordinat/senkronizasyon testi için ayrıldı; isimli oyuncu scouting kaynağı değil, açık lisans net değil.
+- API-Football Free: ileride hedef ligler için coverage probe adayı. Yayımlanan plan 100 istek/gün, mevcut endpoint listesinde oyuncu/event/lineup/statistics var; ücretsiz sezon ve gerçek veri kapsamı kısıtlı/değişken. İlk veri motorunun dayanağı yapılmayacak.
+- football-data.org Free: fikstür, gecikmeli skor ve tablo için yardımcı metadata kaynağı olabilir; yayımlanan ücretsiz katman derin oyuncu istatistikleri sunmaya yetmiyor.
+
+Kaynak ve kullanım sınırları: [Data-Driven Scouting Plan v1.0](strategy/VEL_DATA_DRIVEN_SCOUTING_PLAN_v1.0.md).
+
+### Aşamalar ve çıkış ölçütleri
+
+| Aşama | Çıktı | Tamamlanma ölçütü |
+|---|---|---|
+| 0. Kapsam/metric sözlüğü | İlk rol için tanımlı metrikler | Her metrik kaynak alanına ve formüle bağlı |
+| 1. Veri alımı | StatsBomb örnek import hattı | Yeniden importta mükerrer yok; kalite özeti var |
+| 2. Metrik motoru | Tek rol için testli metrikler | Bilinen input/output testleri geçiyor |
+| 3. Akran karşılaştırma | Aynı rol/lig/sezon kıyasları | Grup büyüklüğü, dakika ve örneklem görünür |
+| 4. Rapor | Kaynak bağlantılı oyuncu raporu | Her iddia metrik ve örnekleme kadar izlenebilir |
+| 5. Pilot doğrulama | Baştan sona yeniden üretim | Örnek event'ler elle kontrol, hesaplar tekrar üretilebilir |
+| 6. Kapsam genişletme | İkinci veri sağlayıcı/lig | Hedef lig ve sezon için gerçek coverage kanıtlı |
+| 7. Sonraki video hattı | Tracking/CV | Ayrı izin ve veri kalitesi kapısı geçilmiş |
+
+### İlk somut iş
+
+Yeni migration veya admin ekranı yazmak değil. İlk olarak StatsBomb deposundaki gerçek competition/season kapsamı incelenecek; yeterli maç ve oyuncu katılımı bulunan tek bir örnek seçilecek; küçük bir veri örneği staging/yerel işleme hattına aktarılacak; match/player/appearance/event sayıları ve eksik alanlar raporlanacak. Bu kalite kontrolü geçtikten sonra ilk metrikler kodlanacak.
+
+**Kapsam dışı:** İlk MVP'de tam maç videosu izleme, otomatik oyuncu takibi, event verisinde bulunmayan topsuz davranışlara ilişkin kesin hükümler, tüm dünya ligleri, potansiyel puanı ve transfer tavsiyesi yoktur.
+
+**Başarı tanımı:** Admin paneline yeni sekmeler eklemek değil; oyuncu seçimi ile kanıtlı veri raporu üretimi arasındaki hattın uçtan uca çalışmasıdır.
