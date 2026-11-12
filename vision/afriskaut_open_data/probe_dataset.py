@@ -33,11 +33,17 @@ def main() -> int:
 
     with zipfile.ZipFile(BytesIO(archive_bytes)) as archive:
         names = archive.namelist()
-        match_json_paths = sorted(
-            name for name in names
-            if PurePosixPath(name).name == "match.json"
-        )
-        for match_path in match_json_paths:
+        match_paths_by_id: dict[str, str] = {}
+        for name in sorted(names):
+            if PurePosixPath(name).name != "match.json":
+                continue
+            match_id = PurePosixPath(name).parent.name
+            current = match_paths_by_id.get(match_id)
+            # Prefer the canonical Datasets/ copy if the ZIP contains a mirror.
+            if current is None or ("/Datasets/" in name and "/Datasets/" not in current):
+                match_paths_by_id[match_id] = name
+
+        for match_id, match_path in sorted(match_paths_by_id.items()):
             parent = str(PurePosixPath(match_path).parent)
             event_path = parent + "/events.jsonl"
             if event_path not in names:
@@ -50,7 +56,7 @@ def main() -> int:
                 if match.get(key) is not None:
                     team_ids.add(str(match[key]))
 
-            for key in ("lineups", "home_lineup", "away_lineup", "players"):
+            for key in ("home_team_line_up", "away_team_line_up"):
                 value = match.get(key)
                 if isinstance(value, list):
                     for item in value:
@@ -92,11 +98,12 @@ def main() -> int:
 
             if len(sample_matches) < 3:
                 sample_matches.append({
-                    "match_id": PurePosixPath(parent).name,
+                    "match_id": match_id,
                     "date": match.get("date"),
                     "events": match_events,
-                    "has_lineup_fields": any(
-                        key in match for key in ("lineups", "home_lineup", "away_lineup", "players")
+                    "lineup_rows": sum(
+                        len(match.get(key) or []) if isinstance(match.get(key), list) else 0
+                        for key in ("home_team_line_up", "away_team_line_up")
                     ),
                 })
 
@@ -115,7 +122,7 @@ def main() -> int:
         "position_role_counts": dict(positions.most_common(30)),
         "sample_matches": sample_matches,
         "player_names_exported": False,
-        "player_ids_exported": False,
+        "player_ids_exported": False,\n        "duplicate_archive_copies_deduplicated": True,
     }
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
