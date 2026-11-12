@@ -61,12 +61,25 @@ remote download was executed by the test suite.
 
 ## Metrics currently produced
 
+The general player summary includes:
 - passes attempted/completed and completion percentage;
 - mean pass length where supplied;
 - crosses, through balls, assists and shot assists;
 - carries;
 - shots, goals and sum of StatsBomb xG where supplied;
 - pressures, interceptions, recoveries, clearances, blocks, tackles and dribbles.
+
+The JSON report also contains `role_profiles.CB`, a centre-back event profile
+for players whose lineup/event position labels contain "Center Back". It
+exposes separate sample totals for:
+- attributed events;
+- pass attempts, completions, completion percentage and mean pass length;
+- carries;
+- pressures, interceptions and ball recoveries;
+- clearances, blocks and tackles.
+
+This CB profile is a descriptive event summary only. It does not calculate a
+defensive rating, weighted score, percentile, ranking or per-90 value.
 
 Completed passes are represented by the absence of `pass.outcome` in the
 StatsBomb event schema.
