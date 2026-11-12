@@ -628,3 +628,33 @@ Migration `20261112110547_link_existing_match_videos_and_require_rights_evidence
 - Kullanım hakları ve kaynak adayları için yetkili personel inceleme süreci.
 
 Bu aşamada Davinson Sánchez pilotunda hiçbir gözlem veya puan oluşturulmadı. Mevcut iki video kaydının kullanım hakları altı kategoride de `unknown` durumundadır.
+
+---
+
+## 17. Kaynak inceleme iş akışı ve legacy hak alanı düzeltmesi (12 Kasım 2026)
+
+admin.html güncellendi:
+- Mevcut kaynak kataloğu kaydı seçilip kullanım koşulları URL'si, resmîlik durumu, keşif yöntemi, kapsam notları ve inceleme durumu güncellenebiliyor.
+- Bir kaynağı reviewed yapmak için kullanım koşullarının gerçekten incelendiğini işaretlemek zorunlu.
+- Bu işaretleme yapıldığında terms_last_checked_at otomatik kaydediliyor.
+- İnceleme formu, kaynak kaydını değiştirse de tek başına video kullanım hakkı tanımlamıyor.
+- Yeni video kayıtlarında eski genel rights_status alanı salt okunur link_only olarak tutuluyor. Böylece altı ayrı kullanım hakkı unknown iken yanlışlıkla genel permission_granted seçilmesi engelleniyor.
+
+### Canlı doğrulama
+
+- Migration defterinde 10 kayıt var; ilk sekiz tarihsel migration dosyasının tamamı artık main dalında mevcut.
+- Kaynak kataloğunda 9 aday kayıt var; hiçbiri otomatik olarak reviewed sayılmıyor.
+- İki mevcut pilot videosunun ikisi de doğru kaynağa bağlanmış; kaynaksız video sayısı 0.
+- 12 hak geçmişi satırı var: iki video için altı kullanım hakkının tamamı unknown.
+- RLS testinde sahte personel olmayan authenticated kimliğiyle hem video_sources hem video_rights_assessments görünürlüğü 0 satır döndürdü.
+- anon rolünün iki tabloda da SELECT yetkisi yok.
+- authenticated rolünde hak geçmişi için SELECT/INSERT var; UPDATE/DELETE yok. Kaynak kataloğu yönetimi personel RLS politikasıyla sınırlandırılmış.
+- Security Advisor'da bu iki tablo/migration kaynaklı yeni güvenlik uyarısı yok. Projedeki tek security uyarısı leaked-password protection ayarının kapalı olması.
+- Performance Advisor'da 23 unindexed FK, 6 unused index ve mevcut diğer tablolarda 4 multiple-permissive-policy bildirimi var. Bunlar kaynak kataloğu tablolarından kaynaklanan yeni güvenlik açığı değil; genel performans/şema bakım backlog'udur.
+
+### Bekleyen doğrulamalar
+
+- admin.html güncellemesinin GitHub Pages'e dağıtıldığını ve gerçek personel tarayıcısında çalıştığını bu ortamda doğrulayamadık.
+- Ayrı bir authenticated non-staff test hesabıyla gerçek istemci/API RLS testi henüz yapılmadı; SQL rol/claim simülasyonu 0 satır döndürdü.
+- Kaynakların koşulları ve maç bazında kullanım izinleri yetkili incelemeden geçmedi.
+- Davinson pilotunda gözlem/puan oluşturulmadı; iki videonun tüm kullanım hakları unknown kaldı.
