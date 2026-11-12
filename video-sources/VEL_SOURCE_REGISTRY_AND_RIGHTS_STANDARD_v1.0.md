@@ -3,7 +3,7 @@
 **Doküman:** VEL-SOURCES-RIGHTS-01  
 **Sürüm:** 1.0  
 **Tarih:** 12 Kasım 2026  
-**Durum:** Veri modeli ve operasyon standardı; veritabanı/UI uygulaması migration geçmişi uzlaştırılana kadar beklemede.
+**Durum:** Veri modeli, migration'lar ve admin UI canlı sisteme uygulandı. Güncel operasyon durumu bu belgenin 9. bölümünde ve ROADMAP.md 17–20. bölümlerde izlenir.
 
 ## 1. Amaç
 
@@ -237,3 +237,39 @@ Her yeni tablo RLS, grants ve gerçek API görünürlüğü birlikte doğrulanma
 - Video dosyası kopyalama, indirme, saklama veya otomatik tarama için izinsiz bir mekanizma oluşturulmamıştır.
 
 **Sonraki teknik adım:** Kaynak kataloğunun aday kayıtlarını maç ve video bazında manuel olarak doğrulamak; ardından admin panelinin canlı dağıtımda Data API testlerini tamamlamak ve yalnızca izinli video akışlarıyla bilgisayarlı görü prototipine geçmek.
+
+
+## 9. Canlı uygulama ve güncel kaynak kataloğu durumu (12 Kasım 2026)
+
+Önceki bölümlerdeki başlangıç sayıları, bu standardın ilk tasarım/uygulama aşamasını gösterir. Güncel canlı durum:
+
+- video_sources: 10 sağlayıcı/kaynak kaydı.
+  - 8 reviewed
+  - 1 candidate (Football Archive keşif indeksi)
+  - 1 inactive (Metrica Sports Sample Data; video kataloğu yerine yapılandırılmış tracking/event örneği)
+- videos: iki mevcut pilot videosu; ikisi de birebir doğrulanmış kaynak anahtarına bağlı.
+- video_rights_assessments: 20 geçmiş kaydı. Her iki pilot video için altı kullanım türünün eski unknown kaydı korunmuş; ticari kullanım, indirme/depolama, klip çıkarma ve dağıtım için yeni prohibited kayıtları eklenmiştir. Manuel scouting ve otomatik analiz en güncel durumda hâlâ unknown durumundadır.
+- anon rolü kaynak ve hak tablolarını okuyamaz. Staff RLS politikaları yürürlüktedir.
+- İkinci migration 20261112110547_link_existing_match_videos_and_require_rights_evidence.sql, iki mevcut video satırını kaynak kataloğuna bağladı ve granted kararı için dayanak/kanıt şartını veritabanı seviyesinde zorunlu kıldı.
+- 20261112092105_create_video_source_registry_and_rights_assessments.sql kaynak ve hak tablolarını, RLS'yi, indeksleri ve yeni videolara altı unknown hak kaydı ekleyen tetikleyiciyi oluşturdu.
+
+### SoccerTrack v2 — CV doğrulama kaynağı
+
+SoccerTrack v2, gerçek futbolcu scouting kaynağı olarak değil, CV/annotation pipeline doğrulaması için ayrı bir araştırma veri seti olarak kataloglandı:
+- Kaynak anahtarı: soccertrack-v2
+- Tür: research_dataset
+- Durum: reviewed
+- Lisans: depo LICENSE-DATA dosyasında CC BY 4.0; atıf ve lisans bağlantısı gerekli.
+- Erişim: Hugging Face gated; veri sahibinin erişim isteği onayı gerekiyor. Lisans bilgisi bu erişim kapısını geçersiz kılmaz.
+- Ham veri indirilmedi veya Supabase'e yüklenmedi.
+- Kullanım sınırı ve teknik prototip kapsamı: CV Prototip Veri Seti Seçimi v1.0.
+
+### Açık test kapıları
+
+- admin.html kaynağı main dalında bulunuyor; GitHub Pages dağıtımının güncel sürümü ve personel tarayıcısında gerçek Data API işleyişi ayrıca doğrulanmalı.
+- Ayrı bir personel olmayan authenticated hesapla gerçek istemci testi bekliyor.
+- SoccerTrack v2 veri seti erişimi onaylanmadı; doğrulayıcı script henüz gerçek GSR/BAS dosyalarında çalıştırılmadı.
+- Sentetik BAS testleri repoya eklendi; çalışma ortamında test yürütmesi yapılmadı.
+- SoccerTrack v2 için gerçek CV modeli eğitilmedi veya değerlendirilmedi.
+
+**Güvenlik değişmezi:** Kaynak kaydı, resmî kanal, ücretsiz izleme veya CC BY lisansı tek başına bir maç videosu üzerinde otomatik analiz izni vermez. Belirli video ve kullanım amacı için hak dayanağı ayrı doğrulanmalıdır.
