@@ -697,3 +697,34 @@ Premier League koşulları kişisel/özel kullanım için sınırlı indirme imk
 ### Sıradaki adım
 
 Kaynakların kalan dört adayı için koşul/lisans incelemesi tamamlanmalı; ardından yalnızca yazılı izin veya açıkça uygun lisans bulunan bir örnek video/data setiyle bilgisayarlı görü prototipi seçilmeli. UEFA.tv ve TRT Spor pilot videoları, otomatik analiz izni yazılı olarak netleşene kadar AI video işleme kaynağı olarak kullanılmayacak.
+
+---
+
+## 19. FIFA+ / YouTube koşulları ve video-veri kaynağı ayrımı (12 Kasım 2026)
+
+### Ek koşul incelemeleri
+
+FIFA+ ve TFF'nin YouTube kanalı için platform koşulları incelendi ve kaynak kayıtları reviewed olarak güncellendi:
+- FIFA+: https://inside.fifa.com/terms-of-service-fifaplus
+- YouTube: https://www.youtube.com/t/terms
+
+FIFA+ koşulları platform ve içeriği kişisel, ticari olmayan kullanım için sınırlıyor; içerik çoğaltma/kopyalama/dağıtma ve ticari kullanım ayrı izin olmadan kapsam dışı. YouTube koşulları kişisel, ticari olmayan görüntülemeye ve gömülü oynatıcıya izin verirken içerik indirme/çoğaltma ve otomatik erişimi hizmet izni, yazılı izin veya uygulanabilir hukuk istisnası olmadıkça kısıtlıyor. TFF kanalındaki içeriklerin hak sahipliği ayrıca değerlendirilmelidir; kanalın resmî olması video işleme lisansı vermez.
+
+### Video kaynağı ile yapılandırılmış veri kaynağı ayrımı
+
+Metrica Sports Sample Data kaydı video kataloğunda inactive yapıldı. Resmî repo anonim tracking/event örnekleri sunuyor; isimli maç videosu arşivi değil ve README'de açık bir standart lisans metni bulunmuyor. Bu veri, ileride ayrı yapılandırılmış futbol verisi prototipi için değerlendirilebilir; video kaynağı gibi listelenmemeli.
+
+StatsBomb Open Data da tam maç videosu değildir. Seçilmiş organizasyonlar için JSON competition/season, match, event, lineup ve bazı maçlarda 360 verisi sağlar. Resmî repo bu paylaşımı araştırma ve futbol analitiğine gerçek ilgi bağlamında tanımlıyor; yayımlanan analizlerde kaynak atfı istiyor. Bu nedenle Vel Scout'un video kataloğuna eklenmedi ve ticari ürün kullanım izni varsayılmadı.
+
+Kaynaklar:
+- FIFA+ Terms of Service: https://inside.fifa.com/terms-of-service-fifaplus
+- YouTube Terms of Service: https://www.youtube.com/t/terms
+- Metrica Sports Sample Data: https://github.com/metrica-sports/sample-data
+- StatsBomb Open Data: https://github.com/hudl/open-data
+
+### Son kaynak kataloğu durumu
+
+- 7 kaynak: koşul/işlev incelemesi tamamlandı (reviewed).
+- 1 kaynak: üçüncü taraf keşif indeksi olarak candidate; asıl yayıncı ve şartlar maç bazında doğrulanmalı.
+- 1 kaynak: Metrica yapılandırılmış tracking/event örneği olduğu için video kataloğunda inactive.
+- Mevcut UEFA.tv ve TRT Spor pilot videolarında otomatik analiz ve manuel scouting hakları unknown; açıkça kısıtlanan ticari kullanım, indirme/depolama, klip çıkarma ve dağıtım hakları prohibited olarak kaydedildi.
