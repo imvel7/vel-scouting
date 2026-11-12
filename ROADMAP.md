@@ -850,3 +850,47 @@ Yeni migration veya admin ekranı yazmak değil. İlk olarak StatsBomb deposunda
 4. Kaynak hakları ve canlı veri modeli netleşmeden Supabase'e ham event import'u veya kamuya açık oyuncu raporu ekleme.
 
 **Durum:** Tek maç gerçek veri smoke testi tamamlandı; çok maç gerçek veri smoke testi ve ilk rol metriği kalibrasyonu bekliyor.
+
+
+---
+
+## 23. Üç maçlık gerçek veri doğrulaması ve ilk CB event profili v0.1 (12 Kasım 2026)
+
+### Üç maçlık gerçek veri testi
+
+GitHub Actions, StatsBomb 2022 Dünya Kupası deposundan şu üç Arjantin maçının lineups/events JSON dosyalarını gerçek kaynaktan çekti:
+- Arjantin 3–0 Hırvatistan — 13 Aralık 2022 — `3869519`
+- Arjantin 3–3 Fransa — 18 Aralık 2022 — `3869685`
+- Arjantin 2–1 Avustralya — 3 Aralık 2022 — `3869151`
+
+Test, Lionel Messi (StatsBomb ID `5503`) için üç maçta appearance evidence ve aynı oyuncu ID'si altında birleşik olay profilini doğruladı. Ayrıca Cristian Romero (StatsBomb ID `20572`) üç maçta da centre-back etiketi ve oyuncuya bağlı event verisiyle `role_profiles.CB` alanına girdi.
+
+Rapor sadece geçici GitHub Actions runner'ında üretildi. Artifact yüklenmedi, Supabase'e veri yazılmadı ve rapor herkese açık olarak yayımlanmadı.
+
+### CB event profile v0.1
+
+Importer `role_profiles.CB` nesnesi üretir. CB profili şu alanları ayrı ayrı gösterir:
+- oyuncuya bağlanmış olay sayısı;
+- pas denemeleri, tamamlanan paslar, pas tamamlama yüzdesi ve ortalama pas uzunluğu;
+- top taşıma;
+- baskı, top kapma, top kazanma, uzaklaştırma, blok ve tackle sayıları;
+- kadro listelenme sayısı ve appearance evidence bulunan maç sayısı.
+
+**Önemli sınırlar:** Bu profil savunma puanı, bileşik skor, sıralama, percentile veya 90 dakika başına değer üretmez. Defansif aksiyon sayıları dakika, takım topa sahip olma oranı, savunma fırsatı, maç durumu ve rakip kalitesiyle normalize edilmemiştir. Topsuz konumlanma, savunma hattı yüksekliği, tarama, vücut yönelimi ve iletişim bu veriden çıkarılmaz. Dakika hesaplaması henüz doğrulanmadığı için per-90 alanları null kalır.
+
+### Test durumu
+
+- GitHub Actions derleme kontrolü başarılı.
+- **10 sentetik/entegrasyon testi başarılı.**
+- Üç maçlık gerçek veri smoke testi başarılı.
+- CB profili için gerçek veri smoke testi başarılı.
+- Yeni Supabase migration veya canlı veritabanı yazımı yapılmadı.
+
+### Sonraki kapı
+
+1. Lineup position segmentleri ve substitution olaylarından dakika hesaplamasını doğrula; per-90 değerlerini bundan sonra aç.
+2. Güncel genç oyuncu kapsamı ve Vel Scout'un hedef kullanımına izin veren lisanslı/açık veri sağlayıcısı bul.
+3. Hedef lig/sezon için coverage matrisi hazırla.
+4. Kaynak hakları ve normalize edilmiş veri eşlemesi netleşmeden Supabase'e ham olay verisi aktarma veya kamuya açık oyuncu raporu yayımlama.
+
+**Durum:** Teknik StatsBomb import ve üç maçlık CB event profile doğrulandı. Ürün için güncel genç oyuncu veri kaynağı ve kullanım hakları hâlâ çözülmedi.
