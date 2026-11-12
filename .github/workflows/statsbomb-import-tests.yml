@@ -67,3 +67,5 @@ jobs:
         run: python vision/afriskaut_open_data/probe_dataset.py
       - name: Diagnose unmatched actors against substitution metadata
         run: python vision/afriskaut_open_data/diagnose_substitution_metadata.py
+      - name: Classify residual event actor links
+        run: python vision/afriskaut_open_data/diagnose_residual_actor_links.py
