@@ -728,3 +728,41 @@ Kaynaklar:
 - 1 kaynak: üçüncü taraf keşif indeksi olarak candidate; asıl yayıncı ve şartlar maç bazında doğrulanmalı.
 - 1 kaynak: Metrica yapılandırılmış tracking/event örneği olduğu için video kataloğunda inactive.
 - Mevcut UEFA.tv ve TRT Spor pilot videolarında otomatik analiz ve manuel scouting hakları unknown; açıkça kısıtlanan ticari kullanım, indirme/depolama, klip çıkarma ve dağıtım hakları prohibited olarak kaydedildi.
+
+
+---
+
+## 20. SoccerTrack v2 ile CV prototipine hazırlık (12 Kasım 2026)
+
+### Veri seti kararı
+
+SoccerTrack v2, Vel Scout'un bilgisayarlı görü veri hattını doğrulamak için birincil teknik prototip adayı olarak seçildi. 10 tam uzunlukta panoramik 4K üniversite düzeyi amatör maç, kare bazlı GSR saha/track anotasyonları ve 12 sınıflı BAS aksiyon etiketleri sunuyor. Bu veri, takip ve aksiyon algılama araçlarının teknik doğrulaması içindir; profesyonel/genç futbolcu arşivi veya oyuncu scouting kanıtı değildir.
+
+Veri deposunun LICENSE-DATA dosyası CC BY 4.0 lisansı belirtiyor; atıf ve lisans bağlantısı korunarak ticari kullanıma izin veriliyor. Upstream depo, maçların üniversite etik kurulu onayı ve bilgilendirilmiş katılımla toplandığını, yayımlanan veride oyuncu isimlerinin bulunmadığını belirtiyor. Kaynak ve erişim notu Supabase video_sources kataloğuna soccertrack-v2 anahtarıyla eklendi:
+- Supabase source id: 398e0038-a6d9-4944-863f-589220d2056e
+- review_status: reviewed
+- terms_last_checked_at: 12 Kasım 2026
+- Erişim: Hugging Face gated; veri sahibinin onayladığı erişim gerekir. CC BY 4.0, erişim kapısını ortadan kaldırmaz.
+- Ham veri indirilmedi ve işlenmedi.
+
+### Teknik sınırlamalar
+
+Upstream dosyalarının gerçek şeması dokümantasyondan ayrılıyor. GSR, info/images/annotations/categories içeren büyük JSON nesneleri halinde yayımlanıyor; bazı yarı dosyaları yaklaşık 2,7 GB. Bu nedenle akışlı parser kullanılmalı. Upstream dokümanı ayrıca görüntü boyutu metadata'sında 10 maçın 9'u için uyuşmazlık, BAS olay anahtarı/etiket biçimi farkları ve ikinci yarı zaman eşlemesinde belirsizlik bildiriyor. Ham dönem/kare metadata'sı doğrulanmadan sabit 45 dakika çıkarımıyla kare eşlemesi yapılmayacak.
+
+### Repoya eklenen dosyalar
+
+- video-sources/VEL_CV_PROTOTYPE_DATASET_SELECTION_v1.0.md — kapsam, lisans, erişim kapısı ve kullanım sınırları.
+- vision/soccertrack_v2/validate_dataset.py — büyük GSR dosyaları için ijson tabanlı akışlı kontrol; BAS actions/annotations uyumluluğu; isteğe bağlı ffprobe metadata kontrolü.
+- vision/soccertrack_v2/test_validate_dataset.py — küçük sentetik BAS verileri için testler.
+- vision/soccertrack_v2/README.md — erişim, kurulum ve çalıştırma notları.
+- requirements-vision.txt — ijson bağımlılığı.
+
+### Sonraki karar kapısı
+
+1. Veri sahibi erişim talebini onaylamadan indirme yapılmaz.
+2. Onay sonrası tek maçlık örnek yerel ortamda doğrulanır; 10 maçın tamamı ilk adımda indirilmez.
+3. GSR/BAS yapısı, video FPS/çözünürlük/süre ve gerçek zaman hizalaması doğrulanır.
+4. Yalnızca veri kalitesi ve CV baseline değerlendirmesi yapılır. Hiçbir scouting puanı/raporu veya gerçek kişi kimlik eşlemesi oluşturulmaz.
+5. Teknik doğrulama tamamlanınca gerçek maç videoları için ayrı hak/erişim çalışmasına geçilir.
+
+**Durum:** Veri seti seçimi ve doğrulama aracı repoya eklendi; ham veri erişimi, gerçek veri üzerinde GSR/BAS testi ve CV model baseline'ı bekliyor. Sentetik BAS testleri repoya eklendi ancak bu oturumda gerçek gated veriyle çalıştırılmadı.
