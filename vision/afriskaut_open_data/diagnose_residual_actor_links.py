@@ -125,6 +125,8 @@ def main() -> int:
         residual_rows_number_not_in_same_team_roster = 0
         residual_rows_without_number = 0
         residual_rows_without_known_team = 0
+        number_match_by_event_type = Counter()
+        number_mismatch_by_event_type = Counter()
         total_rows = 0
 
         for mid, match, event_path, lineup_ids, sub_ids, side_numbers in per_match:
@@ -174,10 +176,13 @@ def main() -> int:
                         pass
                     else:
                         residual_rows_with_number += 1
+                        event_type = str(event.get("event_type") or "<missing>")
                         if str(number).strip() in team_roster_numbers:
                             residual_rows_number_matches_same_team_roster += 1
+                            number_match_by_event_type[event_type] += 1
                         else:
                             residual_rows_number_not_in_same_team_roster += 1
+                            number_mismatch_by_event_type[event_type] += 1
 
     print(json.dumps({
         "dataset": "Afriskaut Dynasty Scouting League 2024 Open Data",
@@ -194,6 +199,8 @@ def main() -> int:
         "residual_rows_with_player_number": residual_rows_with_number,
         "residual_rows_player_number_matches_same_team_roster": residual_rows_number_matches_same_team_roster,
         "residual_rows_player_number_not_in_same_team_roster": residual_rows_number_not_in_same_team_roster,
+        "residual_rows_number_matches_by_event_type": dict(number_match_by_event_type.most_common()),
+        "residual_rows_number_mismatches_by_event_type": dict(number_mismatch_by_event_type.most_common()),
         "residual_rows_without_player_number": residual_rows_without_number,
         "residual_rows_without_known_team": residual_rows_without_known_team,
         "matches_with_residual_rows": len(residual_by_match),
