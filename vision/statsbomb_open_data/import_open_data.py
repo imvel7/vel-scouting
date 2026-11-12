@@ -361,6 +361,61 @@ def analyse_match(match: dict[str, Any], lineups: Any,
     }
 
 
+CB_PROFILE_METRICS = (
+    "passes_attempted",
+    "passes_completed",
+    "pass_completion_pct",
+    "pass_length_mean",
+    "carries",
+    "pressures",
+    "interceptions",
+    "ball_recoveries",
+    "clearances",
+    "blocks",
+    "tackles",
+)
+
+
+def build_cb_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Select event profiles with an explicit centre-back position label.
+
+    This is a metric summary, not a defensive rating. Raw counts are retained
+    because minutes, team possession, defensive opportunities and opponent
+    context have not yet been validated for normalization.
+    """
+    centre_backs = []
+    for player in player_rows:
+        positions = player.get("positions_seen") or []
+        if not any("center back" in str(position).casefold() for position in positions):
+            continue
+        metrics = player.get("metrics") or {}
+        centre_backs.append({
+            "player_id": player.get("player_id"),
+            "player_name": player.get("player_name"),
+            "team_names": player.get("team_names") or [],
+            "positions_seen": positions,
+            "matches_listed_in_squads": player.get("matches_listed_in_squads", 0),
+            "matches_with_appearance_evidence": player.get("matches_with_appearance_evidence", 0),
+            "minutes_played": None,
+            "metrics": {key: metrics.get(key) for key in CB_PROFILE_METRICS},
+        })
+
+    centre_backs.sort(key=lambda row: row["player_name"].casefold())
+    return {
+        "role_code": "CB",
+        "role_name": "Centre-back",
+        "metric_mode": "raw_event_counts_and_source_percentages",
+        "player_count": len(centre_backs),
+        "players": centre_backs,
+        "interpretation_limits": [
+            "No defensive rating or ranking is calculated.",
+            "Raw defensive-action counts are not adjusted for minutes, team possession, defensive opportunities, match state or opponent quality.",
+            "Event data does not establish defensive line height, spacing, scanning, body orientation, aerial timing or communication.",
+            "Pass completion and pass length describe recorded distribution only; they do not independently measure decision quality.",
+        ],
+    }
+
+
 def run_import(args: argparse.Namespace) -> dict[str, Any]:
     cache_root = Path(args.data_root).expanduser().resolve()
     report_path = Path(args.report).expanduser().resolve()
@@ -518,6 +573,9 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
         "source_files": provenance,
         "matches": analysed_matches,
         "player_sample_totals": aggregate_rows,
+        "role_profiles": {
+            "CB": build_cb_profile(aggregate_rows),
+        },
     }
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
