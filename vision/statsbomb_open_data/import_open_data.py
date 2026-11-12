@@ -315,12 +315,16 @@ def analyse_match(match: dict[str, Any], lineups: Any,
         metrics.update({
             "pass_completion_pct": round(completed / attempted * 100, 2) if attempted else None,
             "pass_length_mean": round(sum(lengths) / len(lengths), 2) if lengths else None,
+            "pass_length_sum": round(sum(lengths), 3),
+            "pass_length_observations": len(lengths),
             "xg": round(sum(xg), 3) if xg else None,
             "xg_shots_with_value": len(xg),
         })
         player_rows.append({
             **player,
             "metrics": metrics,
+            "pass_length_sum": round(sum(lengths), 3),
+            "pass_length_observations": len(lengths),
             "minutes_played": None,
             "per90_metrics": None,
         })
@@ -344,7 +348,7 @@ def analyse_match(match: dict[str, Any], lineups: Any,
         },
         "quality": {
             "event_count": len(events),
-            "lineup_player_count": len(players),
+            "players_listed_or_seen_count": len(players),
             "players_with_attributed_events": sum(1 for key in players if counters[key]),
             "lineup_only_player_count": lineup_only_count,
             "event_player_not_in_lineup_count": len(event_players_missing_from_lineup),
@@ -425,7 +429,8 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 "squad_listings": 0,
                 "matches_with_appearance_evidence": 0,
                 "metrics": Counter(),
-                "pass_lengths": [],
+                "pass_length_sum": 0.0,
+                "pass_length_observations": 0,
                 "xg_values": [],
             })
             aggregate["squad_listings"] += 1
@@ -436,8 +441,8 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             aggregate["positions"].update(player.get("positions") or [])
             for field in COUNTER_FIELDS:
                 aggregate["metrics"][field] += player["metrics"].get(field, 0)
-            if player["metrics"].get("pass_length_mean") is not None:
-                aggregate["pass_lengths"].append(player["metrics"]["pass_length_mean"])
+            aggregate["pass_length_sum"] += player.get("pass_length_sum", 0.0)
+            aggregate["pass_length_observations"] += player.get("pass_length_observations", 0)
             if player["metrics"].get("xg") is not None:
                 aggregate["xg_values"].append(player["metrics"]["xg"])
 
@@ -450,9 +455,9 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 round(counts["passes_completed"] / attempts * 100, 2)
                 if attempts else None
             ),
-            "pass_length_mean_across_match_means": (
-                round(sum(player["pass_lengths"]) / len(player["pass_lengths"]), 2)
-                if player["pass_lengths"] else None
+            "pass_length_mean": (
+                round(player["pass_length_sum"] / player["pass_length_observations"], 2)
+                if player["pass_length_observations"] else None
             ),
             "xg": round(sum(player["xg_values"]), 3) if player["xg_values"] else None,
         })
@@ -504,7 +509,7 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
         "metric_definitions": METRIC_DEFINITIONS,
         "limitations": [
             "Minutes played are not calculated in this first importer; per-90 metrics are deliberately null.",
-            "Aggregated pass_length_mean_across_match_means is an unweighted mean of match means, not a pooled event-weighted mean.",
+            "Lineup/squad listings can include unused substitutes; matches_with_appearance_evidence uses position records or attributed player events and is not a minutes calculation.",
             "Percentiles and peer rankings are not produced by this single-source ingestion proof.",
             "Event data cannot establish off-ball positioning, scanning, body orientation, communication or visual tactical behaviour.",
             "This is a selected research dataset, not complete coverage of all leagues, seasons or youth players.",
@@ -524,8 +529,7 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
         fields = [
             "player_id", "player_name", "team_names", "positions_seen",
             "matches_listed_in_squads", "matches_with_appearance_evidence",
-            *COUNTER_FIELDS, "pass_completion_pct",
-            "pass_length_mean_across_match_means", "xg",
+            *COUNTER_FIELDS, "pass_completion_pct", "pass_length_mean", "xg",
         ]
         writer = csv.DictWriter(stream, fieldnames=fields)
         writer.writeheader()
