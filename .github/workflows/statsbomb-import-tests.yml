@@ -71,3 +71,5 @@ jobs:
         run: python vision/afriskaut_open_data/diagnose_residual_actor_links.py
       - name: Audit event eligibility for player metrics
         run: python vision/afriskaut_open_data/audit_player_metric_eligibility.py
+      - name: Build center-back raw metric profile
+        run: python vision/afriskaut_open_data/center_back_metrics.py
