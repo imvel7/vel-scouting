@@ -503,3 +503,46 @@ Research record: [Davinson Sánchez Video Source Research 02](pilot/VEL_DAVINSON
 ### Next action — source access, not user observation
 
 The Vel Scout analysis assistant must continue seeking a lawful source whose video stream it can actually inspect. The user is not asked to watch, timestamp, or evaluate the match. If no such video access exists in the current environment, keep the session draft and report the technical limitation rather than fabricating observations.
+
+
+---
+
+## 15. Maç Keşif Ağı — kaynak kataloğu ve kullanım hakları standardı (12 Kasım 2026)
+
+İlk uygulama aşamasının veri modeli ve operasyon standardı hazırlandı:
+- [Kaynak Kataloğu ve Video Kullanım Hakları Standardı v1.0](video-sources/VEL_SOURCE_REGISTRY_AND_RIGHTS_STANDARD_v1.0.md)
+
+### Alınan teknik karar
+
+Kaynak sağlayıcı, tekil maç videosu, ülkeye göre izleme erişimi ve kullanım hakları ayrı katmanlar olarak ele alınacak:
+
+1. `video_sources`: FIFA+, UEFA.tv, lig/kulüp/federasyon kanalları, keşif indeksleri ve lisanslı sağlayıcılar için yeniden kullanılabilir kaynak kataloğu.
+2. `videos`: belirli maçın belirli yayıncıdaki video kaydı; mevcut `videos` tablosu korunacak ve yeni sağlayıcı bağlantısı eklemeli olacak.
+3. `video_access_checks`: mevcut ülke/hesap/ücret/tamlık geçmişi korunacak; bu kayıt yalnızca izleme erişimini gösterir.
+4. `video_rights_assessments`: manuel scouting, otomatik analiz, ticari kullanım, indirme/depolama, klip çıkarma ve dağıtım haklarını ayrı ayrı, kanıt ve geçerlilik bilgisiyle kaydedecek.
+
+**Kural:** Her kullanım hakkının varsayılanı `unknown`. Kaynağın ücretsiz izlenmesi veya bağlantısının kayıtlı olması otomatik analiz ya da ticari kullanım izni sayılmaz.
+
+### 12 Kasım canlı şema kontrolü
+
+- `videos` ve `video_access_checks` tabloları mevcut, RLS etkin ve `private.is_vel_staff()` ile yalnızca personel erişimine açık.
+- `video_access_checks` ülke, erişim, hesap, fiyat ve kapsam alanlarını zaten taşıyor.
+- `videos.rights_status` mevcut haliyle kullanım amacına göre izinleri ayıramıyor; yeni hak değerlendirme katmanı gerekiyor.
+
+### Migration güvenlik engeli
+
+Canlı migration defterinde sekiz kayıt var; `main` dalında yalnızca ilk iki SQL dosyası bulunuyor. Altı tarihsel migration kaynağı eksik. Bu nedenle bu aşamada canlı veritabanına DDL uygulanmadı. Önce eksik kaynaklar geri kazanılacak veya gözden geçirilmiş ve açıkça recovery baseline olarak etiketlenmiş bir başlangıç noktası hazırlanacak.
+
+### Durum
+
+| İş | Durum |
+|---|---|
+| Kaynak sağlayıcı / maç videosu ayrımı | Tasarım tamamlandı |
+| İzleme erişimi / kullanım hakları ayrımı | Tasarım tamamlandı |
+| İlk kaynak türleri ve adayları | Sınıflandırıldı |
+| Supabase kaynak geçmişi uzlaştırması | Bekliyor |
+| Yeni tablolar ve RLS migration'ı | Bekliyor |
+| Kaynak kataloğu admin ekranı | Bekliyor |
+| Staff / anon / non-staff API testleri | Bekliyor |
+
+Bu doküman ve yol haritası güncellemesi dışında canlı Supabase şeması, admin paneli ve Davinson pilot kayıtlarında değişiklik yapılmadı.
