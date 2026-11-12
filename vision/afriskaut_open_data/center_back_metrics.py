@@ -89,7 +89,8 @@ def aggregate_center_back_match(match: dict, events: Iterable[dict]) -> dict:
         substitution_ids.update(_nested_player_ids(match.get(field)))
 
     cb_ids = _center_back_ids(match)
-    counts: Counter[str] = Counter()
+    name_counts: Counter[str] = Counter()
+    type_counts: Counter[str] = Counter()
     eligible_rows = 0
     cb_players_with_events: set[str] = set()
     for event in events:
@@ -101,10 +102,10 @@ def aggregate_center_back_match(match: dict, events: Iterable[dict]) -> dict:
         pid = str(event.get("player_id") or "").strip()
         if pid not in cb_ids:
             continue
-        event_name = str(event.get("event_name") or "").strip().upper()
-        if not event_name:
-            event_name = "<MISSING>"
-        counts[event_name] += 1
+        event_name = str(event.get("event_name") or "").strip().upper() or "<MISSING>"
+        event_type = str(event.get("event_type") or "").strip().upper() or "<MISSING>"
+        name_counts[event_name] += 1
+        type_counts[event_type] += 1
         eligible_rows += 1
         cb_players_with_events.add(pid)
 
@@ -112,7 +113,8 @@ def aggregate_center_back_match(match: dict, events: Iterable[dict]) -> dict:
         "center_back_lineup_players": len(cb_ids),
         "center_back_players_with_eligible_events": len(cb_players_with_events),
         "center_back_eligible_event_rows": eligible_rows,
-        "event_name_counts": dict(counts),
+        "event_name_counts": dict(name_counts),
+        "event_type_counts": dict(type_counts),
     }
 
 
@@ -128,6 +130,7 @@ def build_dataset_report() -> dict:
     cb_players_with_events = 0
     cb_event_rows = 0
     event_name_counts: Counter[str] = Counter()
+    event_type_counts: Counter[str] = Counter()
 
     with zipfile.ZipFile(BytesIO(archive_bytes)) as archive:
         names = set(archive.namelist())
@@ -158,6 +161,7 @@ def build_dataset_report() -> dict:
             cb_players_with_events += result["center_back_players_with_eligible_events"]
             cb_event_rows += result["center_back_eligible_event_rows"]
             event_name_counts.update(result["event_name_counts"])
+            event_type_counts.update(result["event_type_counts"])
 
     return {
         "dataset": "Afriskaut Dynasty Scouting League 2024 Open Data",
@@ -166,6 +170,7 @@ def build_dataset_report() -> dict:
         "center_back_player_match_entries_with_eligible_events": cb_players_with_events,
         "center_back_player_attributed_event_rows": cb_event_rows,
         "center_back_event_name_counts": dict(sorted(event_name_counts.items())),
+        "center_back_event_type_counts": dict(sorted(event_type_counts.items())),
         "position_source": "same-match lineup role explicitly includes Center Back",
         "event_source": "same-match lineup/substitution-linked player events only",
         "normalization": "raw event counts; no per-90 rates or composite score",
