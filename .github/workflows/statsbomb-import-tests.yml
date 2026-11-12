@@ -48,3 +48,35 @@ jobs:
             --data-root .cache/statsbomb-open-data/smoke/raw \
             --report .cache/statsbomb-open-data/smoke/import-report.json > /dev/null
           python -c "import json; p=json.load(open('.cache/statsbomb-open-data/smoke/import-report.json', encoding='utf-8')); assert p['sample']['selected_match_count'] == 3; assert p['sample']['event_count'] > 0; assert len(p['player_sample_totals']) > 0; m=next(x for x in p['player_sample_totals'] if str(x['player_id']) == '5503'); assert m['matches_with_appearance_evidence'] == 3; cb=next(x for x in p['role_profiles']['CB']['players'] if str(x['player_id']) == '20572'); assert cb['matches_with_appearance_evidence'] == 3; assert any('Center Back' in role for role in cb['positions_seen']); assert cb['metrics']['events'] > 0; assert cb['metrics']['passes_attempted'] > 0; assert 'rating' not in cb; print('Real StatsBomb 3-match CB event profile smoke test passed; report remained on the ephemeral runner.')"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, "vision/statsbomb_open_data")
+          from import_open_data import fetch_json
+
+          root = Path(".cache/statsbomb-open-data/smoke/raw")
+          ids = [3869519, 3869685, 3869151]
+          for match_id in ids:
+              events, _ = fetch_json(f"events/{match_id}.json", root)
+              ends = [{
+                  "period": e.get("period"),
+                  "minute": e.get("minute"),
+                  "second": e.get("second"),
+                  "timestamp": e.get("timestamp"),
+              } for e in events if (e.get("type") or {}).get("name") == "Half End"]
+              max_by_period = {}
+              for e in events:
+                  period = e.get("period")
+                  if not isinstance(period, int) or period > 4:
+                      continue
+                  minute, second = e.get("minute"), e.get("second", 0)
+                  if isinstance(minute, int) and isinstance(second, int):
+                      clock = minute * 60 + second
+                      max_by_period[period] = max(max_by_period.get(period, 0), clock)
+              print(json.dumps({
+                  "match_id": match_id,
+                  "half_end_events": ends,
+                  "max_event_clock_by_period": max_by_period,
+              }, ensure_ascii=False))
+          PY
