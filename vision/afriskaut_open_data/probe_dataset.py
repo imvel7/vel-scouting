@@ -11,6 +11,8 @@ from collections import Counter
 from io import BytesIO
 from pathlib import PurePosixPath
 
+from position_normalizer import normalize_position_labels
+
 DATASET_URL = "https://github.com/Afriskaut/dynasty-scouting-league-2024-open-data/raw/refs/heads/main/Datasets.zip"
 
 
@@ -24,12 +26,20 @@ def main() -> int:
     player_ids: set[str] = set()
     team_ids: set[str] = set()
     event_types: Counter[str] = Counter()
-    positions: Counter[str] = Counter()
+    raw_positions: Counter[str] = Counter()
+    normalized_positions: Counter[str] = Counter()
+    unknown_positions: Counter[str] = Counter()
     match_schema: set[str] = set()
     event_schema: set[str] = set()
     lineup_count = 0
     missing_player_id_events = 0
     sample_matches = []
+
+    def record_position(value: object) -> None:
+        raw_positions[str(value)] += 1
+        recognized, unknown = normalize_position_labels(value)
+        normalized_positions.update(recognized)
+        unknown_positions.update(unknown)
 
     with zipfile.ZipFile(BytesIO(archive_bytes)) as archive:
         names = archive.namelist()
@@ -69,9 +79,7 @@ def main() -> int:
                         for pkey in ("player_position", "position", "player_role", "role"):
                             role = item.get(pkey)
                             if role:
-                                positions.update(
-                                    part.strip() for part in str(role).split(",") if part.strip()
-                                )
+                                record_position(role)
 
             match_events = 0
             with archive.open(event_path) as stream:
@@ -92,9 +100,7 @@ def main() -> int:
                             event_types[str(event[key])] += 1
                     role = event.get("player_role") or event.get("player_position")
                     if role:
-                        positions.update(
-                            part.strip() for part in str(role).split(",") if part.strip()
-                        )
+                        record_position(role)
 
             if len(sample_matches) < 3:
                 sample_matches.append({
@@ -119,7 +125,9 @@ def main() -> int:
         "match_json_fields": sorted(match_schema),
         "event_jsonl_fields": sorted(event_schema),
         "event_name_counts": dict(event_types.most_common(20)),
-        "position_role_counts": dict(positions.most_common(30)),
+        "position_role_counts_raw": dict(raw_positions.most_common(30)),
+        "position_role_counts_normalized": dict(normalized_positions.most_common(30)),
+        "unrecognized_position_labels": dict(unknown_positions.most_common(30)),
         "sample_matches": sample_matches,
         "player_names_exported": False,
         "player_ids_exported": False,
