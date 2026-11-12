@@ -97,6 +97,29 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertIsNone(player["minutes_played"])
         self.assertIsNone(player["per90_metrics"])
 
+
+    def test_unused_squad_member_is_not_assumed_to_have_appeared(self):
+        lineups = [{
+            "team_id": 1,
+            "team_name": "Argentina",
+            "lineup": [
+                {
+                    "player_id": 10,
+                    "player_name": "Example Player",
+                    "positions": [{"position": "Center Attacking Midfield"}],
+                },
+                {
+                    "player_id": 11,
+                    "player_name": "Unused Substitute",
+                    "positions": [],
+                },
+            ],
+        }]
+        report = analyse_match(MATCH, lineups, EVENTS)
+        player = next(row for row in report["player_metrics"] if row["player_id"] == 11)
+        self.assertFalse(player["appearance_evidence"])
+        self.assertIsNone(player["minutes_played"])
+
     def test_structural_events_without_player_are_not_counted_as_unattributed(self):
         report = analyse_match(MATCH, LINEUPS, EVENTS)
         self.assertEqual(report["quality"]["unattributed_non_structural_events"], 0)
