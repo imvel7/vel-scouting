@@ -147,6 +147,15 @@
 </div><div class="actions"><button class="btn" type="submit" id="save-source">Kaynak sağlayıcıyı kaydet</button></div></form>
 <div id="sources-message" class="notice">Kaynak kataloğu yükleniyor.</div>
 <div class="tablewrap"><table><thead><tr><th>Kaynak</th><th>Tür</th><th>Resmîlik</th><th>Durum</th><th>Katalog</th><th>Koşullar</th></tr></thead><tbody id="sources-body"><tr><td colspan="6" class="muted">Kaynaklar yükleniyor.</td></tr></tbody></table></div>
+<form id="source-review-form" style="margin-top:18px"><h3>Mevcut kaynağı güncelle / incele</h3><div class="grid">
+<div class="field"><label for="source-review-id">Kaynak *</label><select id="source-review-id" required><option value="">Kaynak seç</option></select></div>
+<div class="field"><label for="source-review-status">İnceleme durumu</label><select id="source-review-status"><option value="candidate">Aday</option><option value="reviewed">İncelendi</option><option value="inactive">Pasif</option></select></div>
+<div class="field" style="grid-column:1/-1"><label for="source-review-terms-url">Kullanım koşulları / lisans URL'si</label><input id="source-review-terms-url" type="url" inputmode="url" maxlength="2000" placeholder="https://..."></div>
+<div class="field"><label for="source-review-officiality">Resmîlik durumu</label><select id="source-review-officiality"><option value="unknown">Bilinmiyor</option><option value="official">Resmî kaynak</option><option value="third_party_index">Üçüncü taraf keşif indeksi</option></select></div>
+<div class="field"><label for="source-review-method">Keşif yöntemi</label><select id="source-review-method"><option value="manual">Manuel / yardımlı</option><option value="permitted_api">İzinli API</option><option value="partner_feed">Partner veri akışı</option><option value="other">Diğer</option></select></div>
+<div class="field" style="grid-column:1/-1"><label for="source-review-notes">Kapsam / inceleme notu</label><textarea id="source-review-notes" rows="2" maxlength="1200" placeholder="İncelenen koşul maddeleri, lig/sezon kapsamı ve sınırlamalar"></textarea></div>
+<div class="field" style="grid-column:1/-1"><label><input id="source-terms-reviewed" type="checkbox"> Kullanım koşullarını bugün gerçekten inceledim; kontrol tarihini kaydet.</label></div>
+</div><div class="actions"><button class="btn" type="submit" id="save-source-review">Kaynak incelemesini güncelle</button></div></form>
 </div>
 
 <div class="panel">
@@ -160,7 +169,7 @@
 <div class="field" style="grid-column:1/-1"><label for="video-url">Kaynak bağlantısı *</label><input id="video-url" type="url" inputmode="url" required maxlength="2000" placeholder="https://..."><small class="muted">Yalnızca güvenilir, doğrudan kaynak sayfasının bağlantısını gir. Gizli oturum çerezleri veya kişisel erişim belirteçleri ekleme.</small></div>
 <div class="field"><label for="video-type">Video türü</label><select id="video-type"><option value="full_match">Tam maç</option><option value="extended_highlights">Geniş özet</option><option value="highlights">Özet</option><option value="other">Diğer</option></select></div>
 <div class="field"><label for="video-duration">Süre (dakika)</label><input id="video-duration" type="number" min="1" max="300" inputmode="numeric" placeholder="Örn. 105"></div>
-<div class="field"><label for="video-rights">Hak durumu</label><select id="video-rights"><option value="link_only">Yalnızca bağlantı</option><option value="unknown">Bilinmiyor</option><option value="permission_granted">Yazılı izin mevcut</option></select><small class="muted">“Yalnızca bağlantı” video yayımlama veya yeniden barındırma izni vermez.</small></div>
+<div class="field"><label for="video-rights">Eski genel hak alanı</label><input id="video-rights" value="link_only" readonly><small class="muted">Yeni videolarda bu eski alan daima “yalnızca bağlantı” kalır. Ayrıntılı izinler aşağıdaki altı ayrı kullanım hakkı kaydında tutulur.</small></div>
 <div class="field"><label for="video-notes">Özel kaynak notu</label><input id="video-notes" maxlength="1000" placeholder="Erişim koşulu, yayın bölgesi vb."></div>
 </div>
 <div class="actions"><button class="btn" type="submit" id="save-video">Özel video kaydını oluştur</button></div>
@@ -663,6 +672,9 @@ async function loadVideoSources(){
  const select=$('video-source-catalog'),previous=select.value;
  select.innerHTML='<option value="">Katalogdan seç (isteğe bağlı)</option>'+videoSources.map(s=>'<option value="'+esc(s.id)+'">'+esc(s.display_name)+' · '+esc(s.source_type)+'</option>').join('');
  if(videoSources.some(s=>String(s.id)===previous))select.value=previous;
+ const reviewSelect=$('source-review-id'),reviewPrevious=reviewSelect.value;
+ reviewSelect.innerHTML='<option value="">Kaynak seç</option>'+videoSources.map(s=>'<option value="'+esc(s.id)+'">'+esc(s.display_name)+'</option>').join('');
+ if(videoSources.some(s=>String(s.id)===reviewPrevious))reviewSelect.value=reviewPrevious;
 }
 async function loadVideos(){
  const {data,error}=await supabase.from('videos').select('id,match_id,video_source_id,source_name,video_url,video_type,duration_minutes,access_status,rights_status,last_checked_at,notes').order('created_at',{ascending:false}).limit(300);
@@ -1110,6 +1122,43 @@ $('session-form').addEventListener('submit',async e=>{
  finally{btn.disabled=false;btn.textContent='Taslak scouting oturumu oluştur'}
 });
 
+$('source-review-id').addEventListener('change',()=>{
+ const s=videoSources.find(x=>String(x.id)===$('source-review-id').value);
+ if(!s)return;
+ $('source-review-status').value=s.review_status||'candidate';
+ $('source-review-terms-url').value=s.terms_url||'';
+ $('source-review-officiality').value=s.officiality_status||'unknown';
+ $('source-review-method').value=s.discovery_method||'manual';
+ $('source-review-notes').value=s.coverage_notes||'';
+ $('source-terms-reviewed').checked=false;
+});
+$('source-review-form').addEventListener('submit',async e=>{
+ e.preventDefault();const btn=$('save-source-review');btn.disabled=true;btn.textContent='Kaydediliyor...';
+ try{
+  const id=$('source-review-id').value;
+  const selected=videoSources.find(x=>String(x.id)===String(id));
+  if(!selected)throw new Error('Güncellenecek kaynak seçilmelidir.');
+  const termsRaw=$('source-review-terms-url').value.trim(),terms=termsRaw?safeVideoUrl(termsRaw):null;
+  const notes=$('source-review-notes').value.trim();
+  const checkedToday=$('source-terms-reviewed').checked;
+  const status=$('source-review-status').value;
+  if(termsRaw&&!terms)throw new Error('Kullanım koşulu bağlantısı geçerli HTTP(S) URL olmalıdır.');
+  if(status==='reviewed'&&!checkedToday)throw new Error('Kaynağı “incelendi” yapmak için kullanım koşullarını gerçekten kontrol ettiğini işaretlemelisin.');
+  if(checkedToday&&!terms&&!notes)throw new Error('Koşul URL\'si yoksa incelemenin nerede yapıldığını not etmelisin.');
+  const payload={
+   terms_url:terms,officiality_status:$('source-review-officiality').value,
+   discovery_method:$('source-review-method').value,coverage_notes:notes||null,
+   review_status:status
+  };
+  if(checkedToday)payload.terms_last_checked_at=new Date().toISOString();
+  const {error}=await supabase.from('video_sources').update(payload).eq('id',id);
+  if(error)throw error;
+  message($('sources-message'),'Kaynak kaydı güncellendi. Bu işlem tek başına video kullanım hakkı vermez.','ok');
+  $('source-terms-reviewed').checked=false;
+  await loadVideoSources();
+ }catch(err){message($('sources-message'),'Kaynak güncellenemedi: '+(err.message||'Bilinmeyen hata'),'error')}
+ finally{btn.disabled=false;btn.textContent='Kaynak incelemesini güncelle'}
+});
 $('source-form').addEventListener('submit',async e=>{
  e.preventDefault();const btn=$('save-source');btn.disabled=true;btn.textContent='Kaydediliyor...';
  try{
