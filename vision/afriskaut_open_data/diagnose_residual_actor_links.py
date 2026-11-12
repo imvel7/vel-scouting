@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Classify the tiny residual set of event actors not linked to match lineups/substitutions."""
+"""Classify event actors not linked to the same match's lineup or substitution metadata."""
 
 from __future__ import annotations
 
@@ -11,7 +11,13 @@ from io import BytesIO
 from pathlib import PurePosixPath
 
 DATASET_URL = "https://github.com/Afriskaut/dynasty-scouting-league-2024-open-data/raw/refs/heads/main/Datasets.zip"
-SUB_FIELDS = ("home_substitutions", "away_substitutions", "substitutions")
+SUB_FIELDS = (
+    "home_team_subs",
+    "away_team_subs",
+    "home_substitutions",
+    "away_substitutions",
+    "substitutions",
+)
 
 
 def collect_player_ids(value) -> set[str]:
@@ -60,7 +66,6 @@ def main() -> int:
             if old is None or ("/Datasets/" in name and "/Datasets/" not in old):
                 match_paths[mid] = name
 
-        global_known_ids: set[str] = set()
         per_match = []
         for mid, match_path in sorted(match_paths.items()):
             parent = str(PurePosixPath(match_path).parent)
@@ -77,12 +82,14 @@ def main() -> int:
                             if value is not None and str(value).strip():
                                 lineup_ids.add(str(value).strip())
                                 break
-            sub_ids = set()
+            substitution_ids: set[str] = set()
             for key in SUB_FIELDS:
-                sub_ids.update(collect_player_ids(match.get(key)))
-            global_known_ids.update(lineup_ids | sub_ids)
-            per_match.append((mid, match, event_path, lineup_ids, sub_ids))
+                substitution_ids.update(collect_player_ids(match.get(key)))
+            per_match.append((mid, match, event_path, lineup_ids, substitution_ids))
 
+        global_known_ids = {
+            pid for _, _, _, lineup, subs in per_match for pid in (lineup | subs)
+        }
         global_events_ids: set[str] = set()
         for _, _, event_path, _, _ in per_match:
             with archive.open(event_path) as stream:
@@ -101,8 +108,6 @@ def main() -> int:
         residual_by_team_relation = Counter()
         residual_by_match = Counter()
         residual_with_id_found_elsewhere_in_lineup_or_subs = 0
-        residual_with_id_seen_in_events_elsewhere = 0
-        residual_id_context = Counter()
         total_rows = 0
 
         for mid, match, event_path, lineup_ids, sub_ids in per_match:
@@ -135,17 +140,14 @@ def main() -> int:
                     residual_by_team_relation[relation] += 1
                     if pid in global_known_ids:
                         residual_with_id_found_elsewhere_in_lineup_or_subs += 1
-                    if pid in global_events_ids:
-                        residual_with_id_seen_in_events_elsewhere += 1
-                    residual_id_context[pid] += 1
 
     print(json.dumps({
         "dataset": "Afriskaut Dynasty Scouting League 2024 Open Data",
+        "substitution_fields_checked": list(SUB_FIELDS),
         "events_examined": total_rows,
         "residual_event_rows": residual_event_rows,
         "residual_unique_player_ids": len(residual_ids),
-        "residual_ids_also_found_in_any_match_lineup_or_substitution": residual_with_id_found_elsewhere_in_lineup_or_subs,
-        "residual_ids_seen_in_events_somewhere_in_dataset": residual_with_id_seen_in_events_elsewhere,
+        "residual_rows_with_id_found_in_another_match_lineup_or_subs": residual_with_id_found_elsewhere_in_lineup_or_subs,
         "residual_rows_by_event_name": dict(residual_by_event_name.most_common()),
         "residual_rows_by_event_type": dict(residual_by_event_type.most_common()),
         "residual_rows_by_position_role": dict(residual_by_role.most_common()),
