@@ -1,11 +1,14 @@
+import csv
 import json
 import sys
 import tempfile
 import unittest
+from argparse import Namespace
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import analyse_match, fetch_json, ImportErrorWithContext
+from import_open_data import analyse_match, fetch_json, run_import, ImportErrorWithContext
 
 
 MATCH = {
@@ -139,6 +142,63 @@ class StatsBombImportTests(unittest.TestCase):
     def test_invalid_events_root_is_rejected(self):
         with self.assertRaises(ImportErrorWithContext):
             analyse_match(MATCH, LINEUPS, {"not": "a list"})
+
+
+    def test_run_import_writes_json_report_and_player_csv(self):
+        def fake_fetch_json(relative_path, cache_root, force=False):
+            metadata = {
+                "path": relative_path,
+                "cache": "fixture",
+                "bytes": 100,
+                "sha256": "a" * 64,
+                "url": "https://example.invalid/" + relative_path,
+            }
+            if relative_path == "competitions.json":
+                return [{
+                    "competition_id": 43,
+                    "season_id": 106,
+                    "competition_name": "FIFA World Cup",
+                    "season_name": "2022",
+                    "competition_gender": "male",
+                    "competition_youth": False,
+                }], metadata
+            if relative_path == "matches/43/106.json":
+                return [MATCH], metadata
+            if relative_path == "lineups/123.json":
+                return LINEUPS, metadata
+            if relative_path == "events/123.json":
+                return EVENTS, metadata
+            raise AssertionError("Unexpected source path: " + relative_path)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            args = Namespace(
+                competition_id=43,
+                season_id=106,
+                match_id=None,
+                limit=1,
+                data_root=str(root / "raw"),
+                report=str(root / "reports" / "report.json"),
+                force=False,
+            )
+            with patch("import_open_data.fetch_json", side_effect=fake_fetch_json):
+                report = run_import(args)
+
+            json_path = Path(report["output_files"]["json"])
+            csv_path = Path(report["output_files"]["players_csv"])
+            self.assertTrue(json_path.exists())
+            self.assertTrue(csv_path.exists())
+            self.assertEqual(report["competition_season"]["competition_name"], "FIFA World Cup")
+            self.assertEqual(report["competition_season"]["season_name"], "2022")
+            self.assertEqual(report["sample"]["event_count"], len(EVENTS))
+            self.assertEqual(report["sample"]["selected_match_count"], 1)
+
+            with csv_path.open(encoding="utf-8-sig", newline="") as stream:
+                rows = list(csv.DictReader(stream))
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["player_name"], "Example Player")
+            self.assertEqual(rows[0]["passes_attempted"], "2")
+            self.assertEqual(rows[0]["pass_completion_pct"], "50.0")
 
     def test_cache_json_records_content_hash(self):
         with tempfile.TemporaryDirectory() as directory:
