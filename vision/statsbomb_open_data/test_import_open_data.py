@@ -1339,6 +1339,20 @@ class StatsBombImportTests(unittest.TestCase):
             self.assertEqual(rows[0]["player_identity_status"], "consistent")
             self.assertEqual(rows[0]["player_identity_reasons"], "")
             self.assertEqual(rows[0]["player_identity_name_variants"], "Example Player")
+            self.assertEqual(rows[0]["score_state_analysis_status"], "unavailable")
+            self.assertEqual(rows[0]["score_state_matches_unavailable"], "1")
+            self.assertEqual(rows[0]["score_state_classified_player_events"], "0")
+            self.assertEqual(rows[0]["score_state_unclassified_player_events"], "5")
+            self.assertEqual(rows[0]["score_state_leading_metrics_json"], "")
+            self.assertEqual(
+                report["player_sample_totals"][0]["score_state_analysis"]["status"],
+                "unavailable",
+            )
+            self.assertTrue(
+                report["player_sample_totals"][0]["data_consistency"]["checks"][
+                    "score_state_metric_totals_match"
+                ]
+            )
             self.assertNotIn("per90_pass_completion_pct", rows[0])
             self.assertNotIn("per90_pass_length_mean", rows[0])
 
