@@ -203,6 +203,11 @@ def build_player_season_comparison(
             player_rows[(competition_key, player_id)].append({
                 "player_id": player["player_id"],
                 "player_name": player.get("player_name") or f"Unknown player {player_id}",
+                "positions_seen": sorted({
+                    " ".join(position.split())
+                    for position in (player.get("positions_seen") or [])
+                    if isinstance(position, str) and position.strip()
+                }, key=str.casefold),
                 "season_id": season_key,
                 "season_name": seasons[season_key]["season_name"],
                 "selected_match_count": selected_matches,
@@ -269,8 +274,26 @@ def build_player_season_comparison(
                         previous_positions & current_positions
                     )
 
+            current_positions = record["positions_seen"]
+            previous_positions = previous.get("positions_seen") if previous else None
+            if previous is None:
+                position_comparison = "no_previous_season"
+            elif not current_positions or not previous_positions:
+                position_comparison = "unavailable"
+            else:
+                current_position_keys = {value.casefold() for value in current_positions}
+                previous_position_keys = {value.casefold() for value in previous_positions}
+                position_comparison = (
+                    "unchanged"
+                    if current_position_keys == previous_position_keys
+                    else "changed"
+                )
+
             season_results.append({
                 "player_name": record["player_name"],
+                "positions_seen": current_positions,
+                "previous_season_positions": previous_positions,
+                "position_comparison": position_comparison,
                 "season_id": record["season_id"],
                 "season_name": record["season_name"],
                 "selected_match_count": record["selected_match_count"],
@@ -300,12 +323,33 @@ def build_player_season_comparison(
             previous = record
 
         latest_name = records[-1]["player_name"]
+        position_states = [
+            row["position_comparison"] for row in season_results
+            if row["position_comparison"] != "no_previous_season"
+        ]
+        if "changed" in position_states:
+            position_status = "changed"
+        elif "unavailable" in position_states and "unchanged" in position_states:
+            position_status = "partially_comparable"
+        elif "unchanged" in position_states:
+            position_status = "unchanged"
+        else:
+            position_status = "unavailable"
+        all_positions = sorted({
+            position
+            for row in records
+            for position in row["positions_seen"]
+        }, key=str.casefold)
         comparison_players.append({
             "player_id": records[-1]["player_id"],
             "identity_key": f"statsbomb:{player_id}",
             "player_name": latest_name,
             "competition_id": competition_id,
             "seasons_present": len(records),
+            "positions_seen_across_seasons": all_positions,
+            "position_comparison_status": position_status,
+            "position_change_count": position_states.count("changed"),
+            "position_data_gaps": position_states.count("unavailable"),
             "seasons": season_results,
         })
 
@@ -323,6 +367,7 @@ def build_player_season_comparison(
             "Per-90 values are compared only when verified minutes produced values in both seasons.",
             "A positive or negative per-90 change is a statistical difference, not a conclusion that the player improved or declined.",
             "Selected match counts, competition strength, role changes, team context and source coverage can affect comparisons.",
+            "Position comparisons use exact normalized source labels only; label differences do not independently prove a tactical role change.",
         ],
     }
 
