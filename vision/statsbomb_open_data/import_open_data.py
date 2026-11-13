@@ -168,7 +168,7 @@ def build_player_season_comparison(
 
     competitions: dict[str, str] = {}
     seasons: dict[str, dict[str, str]] = {}
-    player_rows: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    player_rows: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
 
     for report in reports:
         competition = report.get("competition_season") or {}
