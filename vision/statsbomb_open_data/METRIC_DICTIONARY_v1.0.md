@@ -221,6 +221,32 @@ the player record contains rates calculated from complete, positive verified
 minutes. The groups do not measure successful take-on rate, crossing quality,
 off-ball runs or tactical decision quality; no rating or ranking is produced.
 
+### ST profile metric groups
+
+The importer produces a striker/centre-forward profile under
+`role_profiles.ST`. It selects source labels that contain `Striker`, or
+contain `Forward` together with `Center`/`Centre`. Labels containing
+`Wing` are excluded. This includes source labels such as `Center Forward`,
+`Left Center Forward`, `Right Center Forward`, and striker variants. A label
+such as `Left Forward` alone is not enough evidence to classify a central
+striker. Original position labels remain visible on each player row.
+
+The profile groups existing event metrics into four sections:
+
+- **Finishing and shot output:** shots, goals and xG.
+- **Chance creation and combination:** shot assists, assists and through balls.
+- **Link play and ball retention:** pass attempts/completions, carries and
+  dribbles; pass completion percentage and mean pass length remain contextual.
+- **Pressing and defensive contribution:** pressures, tackle-type duels,
+  interceptions and ball recoveries.
+
+Raw counts are retained. Count metrics and xG receive per-90 values only when
+the player record contains rates calculated from complete, positive verified
+minutes. Touches in the penalty area, aerial-duel success and calibrated
+finishing efficiency are explicitly unavailable in this version; they are
+not inferred from shots, goals or generic duel counts. The profile does not
+produce a striker rating or ranking.
+
 ### CM profile metric groups
 
 The importer produces a central-midfielder profile under `role_profiles.CM`.
