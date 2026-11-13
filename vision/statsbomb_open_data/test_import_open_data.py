@@ -515,7 +515,7 @@ class StatsBombImportTests(unittest.TestCase):
         )
         self.assertEqual(missing_start["status"], "unavailable")
         self.assertIn(
-            "match_clock_validation_failed",
+            "period_start_or_end_boundary_ambiguous",
             missing_start["reason_codes"],
         )
 
