@@ -212,6 +212,11 @@ def build_player_season_comparison(
                 ),
                 "minutes_played": player.get("minutes_played"),
                 "per90_metrics": player.get("per90_metrics"),
+                "positions_seen": sorted({
+                    str(position).strip()
+                    for position in (player.get("positions_seen") or [])
+                    if str(position).strip()
+                }),
                 "data_quality_status": (player.get("data_quality") or {}).get("status"),
                 "data_consistency_status": (player.get("data_consistency") or {}).get("status"),
                 "identity_status": (player.get("identity") or {}).get("status"),
@@ -247,6 +252,23 @@ def build_player_season_comparison(
                             changes[metric] = round(float(after) - float(before), decimals)
                 previous_season = previous["season_name"]
 
+            position_status = "unavailable"
+            shared_positions = []
+            if previous is not None:
+                previous_positions = {
+                    value.casefold() for value in previous.get("positions_seen", [])
+                }
+                current_positions = {
+                    value.casefold() for value in record.get("positions_seen", [])
+                }
+                if previous_positions and current_positions:
+                    position_status = (
+                        "same" if previous_positions == current_positions else "changed"
+                    )
+                    shared_positions = sorted(
+                        previous_positions & current_positions
+                    )
+
             season_results.append({
                 "player_name": record["player_name"],
                 "season_id": record["season_id"],
@@ -257,6 +279,17 @@ def build_player_season_comparison(
                     "matches_with_appearance_evidence"
                 ],
                 "minutes_played": record["minutes_played"],
+                "positions_seen": record.get("positions_seen", []),
+                "position_comparison_from_previous": (
+                    {
+                        "status": position_status,
+                        "shared_positions": shared_positions,
+                        "previous_positions": (
+                            previous.get("positions_seen", []) if previous else []
+                        ),
+                        "current_positions": record.get("positions_seen", []),
+                    } if previous is not None else None
+                ),
                 "per90_metrics": per90_values,
                 "previous_season": previous_season,
                 "per90_change_from_previous": changes,
