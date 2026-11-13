@@ -197,6 +197,30 @@ The importer selects players whose observed lineup/event position labels contain
 | Blocks | Count of Block events | Recorded blocks | Shot/pass danger or whether the block prevented a goal |
 | Tackles | Duel events with `duel.type.name = Tackle` | Recorded tackle-type duels | Complete ground/aerial duel quality |
 
+### FB profile metric groups
+
+The importer also produces a full-back/wing-back profile under
+`role_profiles.FB`. It includes players whose selected-sample position labels
+end in `Back` or `Fullback`, excluding labels containing `Center Back` or
+`Centre Back`. The source labels remain visible on each player row; this
+selection does not infer a single primary role.
+
+The profile groups the existing event metrics into three sections:
+
+- **Chance creation and attacking output:** crosses, through balls, shot
+  assists, assists, shots, goals and xG.
+- **Distribution and progression:** pass attempts/completions, carries and
+  dribbles. Pass completion percentage and mean pass length remain contextual
+  fields rather than per-90 rates.
+- **Defensive activity:** pressures, tackle-type duels, interceptions, ball
+  recoveries, clearances and blocks.
+
+Raw counts are retained. Count metrics and xG receive per-90 values only when
+the selected-sample player record contains rates calculated from complete,
+positive verified minutes. This is a descriptive profile, not a rating or
+ranking. It does not measure overlapping runs, defensive positioning, crossing
+quality or tactical responsibility.
+
 ### CB profile safeguards
 
 ### CB profile metric groups
