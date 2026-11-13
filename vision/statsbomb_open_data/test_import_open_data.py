@@ -242,6 +242,44 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertEqual(metrics["xg"], 0.42)
         self.assertEqual(metrics["pressures"], 1)
 
+    def test_per90_normalizes_counts_and_xg_but_not_percentages_or_means(self):
+        metrics = {
+            "events": 15,
+            "passes_attempted": 10,
+            "xg": 1.25,
+            "pass_completion_pct": 80.0,
+            "pass_length_mean": 20.0,
+        }
+        result = calculate_per90_metrics(metrics, 45 * 60)
+        self.assertEqual(result["events"], 30.0)
+        self.assertEqual(result["passes_attempted"], 20.0)
+        self.assertEqual(result["xg"], 2.5)
+        self.assertNotIn("pass_completion_pct", result)
+        self.assertNotIn("pass_length_mean", result)
+
+    def test_per90_is_unavailable_without_positive_verified_minutes(self):
+        self.assertIsNone(calculate_per90_metrics({"events": 5}, None))
+        self.assertIsNone(calculate_per90_metrics({"events": 5}, 0))
+
+    def test_match_report_includes_per90_when_match_minutes_are_valid(self):
+        events = [
+            self._starting_xi(1, 1, [10]),
+            self._clock_event(2, 1, "00:00:00.000", "Half Start"),
+            self._clock_event(
+                3, 1, "00:10:00.000", "Pass",
+                player={"id": 10, "name": "Player 10"},
+                team={"id": 1, "name": "Team 1"},
+                pass_data={"length": 20.0},
+            ),
+            self._clock_event(4, 1, "00:45:00.000", "Half End"),
+        ]
+        events[2]["pass"] = events[2].pop("pass_data")
+        report = analyse_match(MATCH, LINEUPS, events)
+        player = next(row for row in report["player_metrics"] if row["player_id"] == 10)
+        self.assertEqual(player["minutes_played"], 45.0)
+        self.assertEqual(player["per90_metrics"]["events"], 2.0)
+        self.assertEqual(player["per90_metrics"]["passes_attempted"], 2.0)
+
     def test_does_not_fabricate_per90_without_minutes(self):
         report = analyse_match(MATCH, LINEUPS, EVENTS)
         player = report["player_metrics"][0]
