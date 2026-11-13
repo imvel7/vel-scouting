@@ -2,7 +2,7 @@ name: StatsBomb import prototype tests
 
 on:
   push:
-    branches: [main, feature/verified-minutes-calculation]
+    branches: [main, feature/verified-minutes-calculation, feature/metric-interpretation-guidance]
     paths:
       - "vision/statsbomb_open_data/**"
       - ".github/workflows/statsbomb-import-tests.yml"
