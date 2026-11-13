@@ -1092,6 +1092,52 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertTrue(result["checks"]["minutes_total_matches"])
         self.assertTrue(result["checks"]["per90_recalculated"])
 
+    def test_player_data_consistency_reconciles_score_state_totals(self):
+        states = {
+            "leading": {"events": 2, "passes_attempted": 1, "xg": 0.0},
+            "drawing": {"events": 1, "passes_attempted": 0, "xg": 0.2},
+            "trailing": {"events": 0, "passes_attempted": 0, "xg": 0.0},
+        }
+        player = {
+            "matches_listed_in_squads": 1,
+            "matches_with_appearance_evidence": 1,
+            "minutes_calculation_complete": False,
+            "minutes_matches_valid": 0,
+            "minutes_played": None,
+            "per90_metrics": None,
+            "metrics": {"events": 3, "passes_attempted": 1, "xg": 0.2},
+            "score_state_analysis": {
+                "match_status_counts": {
+                    "validated": 1,
+                    "partial": 0,
+                    "unavailable": 0,
+                },
+                "metrics_by_state": states,
+            },
+        }
+        match_rows = [{
+            "appearance_evidence": True,
+            "minutes_played_seconds": None,
+            "metrics": {"events": 3, "passes_attempted": 1, "xg": 0.2},
+            "score_state_analysis": {
+                "status": "validated",
+                "metrics_by_state": states,
+            },
+        }]
+        result = calculate_player_data_consistency(player, match_rows)
+        self.assertEqual(result["status"], "consistent")
+        self.assertTrue(result["checks"]["score_state_match_status_counts_match"])
+        self.assertTrue(result["checks"]["score_state_metric_totals_match"])
+
+        player["score_state_analysis"]["metrics_by_state"]["leading"]["passes_attempted"] = 2
+        mismatched = calculate_player_data_consistency(player, match_rows)
+        self.assertEqual(mismatched["status"], "review")
+        self.assertFalse(mismatched["checks"]["score_state_metric_totals_match"])
+        self.assertIn(
+            "score_state_metric_total_mismatch:leading:passes_attempted",
+            mismatched["reasons"],
+        )
+
     def test_player_data_consistency_flags_mismatched_event_totals(self):
         player = {
             "matches_listed_in_squads": 1,
