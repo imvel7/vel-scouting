@@ -933,6 +933,81 @@ def calculate_minutes_played(events: Any) -> dict[str, Any]:
     result["player_names"] = player_names
     return result
 
+def _non_negative_score(value: Any) -> int | None:
+    """Accept only finite, non-negative integer score values."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if not math.isfinite(float(value)) or float(value) < 0:
+        return None
+    if not float(value).is_integer():
+        return None
+    return int(value)
+
+
+def extract_match_context(match: dict[str, Any]) -> dict[str, Any]:
+    """Expose source-provided match context without inferring player performance."""
+    home = match.get("home_team") if isinstance(match.get("home_team"), dict) else {}
+    away = match.get("away_team") if isinstance(match.get("away_team"), dict) else {}
+    stadium = match.get("stadium") if isinstance(match.get("stadium"), dict) else {}
+    referee = match.get("referee") if isinstance(match.get("referee"), dict) else {}
+    home_score = _non_negative_score(match.get("home_score"))
+    away_score = _non_negative_score(match.get("away_score"))
+    if home_score is not None and away_score is not None:
+        scoreline_status = "complete"
+        if home_score > away_score:
+            result = "home_win"
+        elif away_score > home_score:
+            result = "away_win"
+        else:
+            result = "draw"
+        goal_difference = home_score - away_score
+    else:
+        scoreline_status = (
+            "partial" if home_score is not None or away_score is not None
+            else "unavailable"
+        )
+        result = None
+        goal_difference = None
+
+    competition_stage = _name(match.get("competition_stage"))
+    match_week = match.get("match_week")
+    kick_off = match.get("kick_off")
+    match_status = match.get("match_status")
+    stadium_name = _name(stadium)
+    referee_name = _name(referee)
+    home_group = home.get("home_team_group")
+    away_group = away.get("away_team_group")
+
+    return {
+        "kick_off": kick_off,
+        "competition_stage": competition_stage,
+        "match_week": match_week,
+        "match_status": match_status,
+        "stadium": stadium_name,
+        "referee": referee_name,
+        "home_team_group": home_group,
+        "away_team_group": away_group,
+        "scoreline_status": scoreline_status,
+        "listed_result": result,
+        "home_goal_difference": goal_difference,
+        "source_field_availability": {
+            "kick_off": kick_off is not None,
+            "competition_stage": competition_stage is not None,
+            "match_week": match_week is not None,
+            "match_status": match_status is not None,
+            "stadium": stadium_name is not None,
+            "referee": referee_name is not None,
+            "home_team_group": home_group is not None,
+            "away_team_group": away_group is not None,
+            "scoreline": scoreline_status == "complete",
+        },
+        "interpretation_limit": (
+            "Listed final score and match metadata only; no event-time score state, "
+            "possession adjustment or player-performance correction is calculated."
+        ),
+    }
+
+
 def analyse_match(match: dict[str, Any], lineups: Any,
                   events: Any) -> dict[str, Any]:
     """Build a cautious single-match player event summary."""
@@ -1128,6 +1203,7 @@ def analyse_match(match: dict[str, Any], lineups: Any,
             "away_team": away.get("away_team_name"),
             "home_score": match.get("home_score"),
             "away_score": match.get("away_score"),
+            "match_context": extract_match_context(match),
         },
         "quality": {
             "event_count": len(events),
