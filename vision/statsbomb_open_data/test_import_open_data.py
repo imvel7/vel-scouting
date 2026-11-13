@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import analyse_match, build_cb_profile, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, ImportErrorWithContext
+from import_open_data import analyse_match, build_cb_profile, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
 
 
 MATCH = {
@@ -458,6 +458,58 @@ class StatsBombImportTests(unittest.TestCase):
         comparison = build_player_season_comparison(reports)
         latest = comparison["players"][0]["seasons"][1]
         self.assertIsNone(latest["per90_change_from_previous"])
+
+    def test_main_writes_season_comparison_into_current_report(self):
+        previous_report = {
+            "competition_season": {
+                "competition_id": 43, "competition_name": "FIFA World Cup",
+                "season_id": 106, "season_name": "2022",
+            },
+            "sample": {"selected_match_count": 1},
+            "player_sample_totals": [{
+                "player_id": 10, "player_name": "Example Player",
+                "per90_metrics": {"events": 80.0},
+            }],
+        }
+        current_report = {
+            "competition_season": {
+                "competition_id": 43, "competition_name": "FIFA World Cup",
+                "season_id": 107, "season_name": "2023",
+            },
+            "sample": {"selected_match_count": 1, "event_count": 10, "unique_players_listed_or_seen": 1},
+            "player_sample_totals": [{
+                "player_id": 10, "player_name": "Example Player",
+                "per90_metrics": {"events": 90.0},
+            }],
+            "output_files": {},
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            previous_path = root / "2022.json"
+            output_path = root / "2023.json"
+            previous_path.write_text(json.dumps(previous_report), encoding="utf-8")
+            current_report["output_files"]["json"] = str(output_path)
+            current_report["output_files"]["players_csv"] = str(root / "2023.csv")
+            output_path.write_text(json.dumps(current_report), encoding="utf-8")
+
+            with patch("sys.argv", [
+                "import_open_data.py", "--report", str(output_path),
+                "--compare-report", str(previous_path),
+            ]), patch("import_open_data.run_import", return_value=current_report):
+                from contextlib import redirect_stdout
+                from io import StringIO
+                with redirect_stdout(StringIO()):
+                    result = main()
+
+            saved = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(result, 0)
+            self.assertEqual(saved["season_comparison"]["player_count"], 1)
+            self.assertEqual(
+                saved["season_comparison"]["players"][0]["seasons"][1][
+                    "per90_change_from_previous"
+                ]["events"],
+                10.0,
+            )
 
     def test_cli_accepts_multiple_comparison_report_paths(self):
         args = build_parser().parse_args([
