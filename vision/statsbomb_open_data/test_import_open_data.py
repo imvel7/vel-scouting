@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import analyse_match, build_cb_profile, build_goalkeeper_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_striker_profile, build_role_benchmarks, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
+from import_open_data import analyse_match, build_cb_profile, build_goalkeeper_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_striker_profile, build_role_benchmarks, build_player_evaluation_readiness, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
 
 
 MATCH = {
@@ -1849,6 +1849,183 @@ class StatsBombImportTests(unittest.TestCase):
             build_role_benchmarks({}, minimum_verified_minutes=-1)
         with self.assertRaisesRegex(ValueError, "en az 2"):
             build_role_benchmarks({}, minimum_cohort_size=1)
+
+    def test_player_evaluation_readiness_requires_core_evidence_and_reports_peer_context(self):
+        role_profiles = {
+            "CB": {
+                "role_name": "Centre-back",
+                "players": [
+                    {
+                        "player_id": 1,
+                        "player_name": "Ready Player",
+                        "minutes_played": 540.0,
+                        "matches_with_appearance_evidence": 6,
+                        "metrics": {"passes_attempted": 150},
+                        "per90_metrics": {"passes_attempted": 25.0},
+                        "data_quality": {
+                            "status": "complete",
+                            "checks": {"attributed_events": True},
+                        },
+                        "data_consistency": {"status": "consistent"},
+                        "identity": {
+                            "status": "consistent",
+                            "possible_same_name_collision": False,
+                        },
+                    },
+                    {
+                        "player_id": 2,
+                        "player_name": "Limited Player",
+                        "minutes_played": 300.0,
+                        "matches_with_appearance_evidence": 3,
+                        "metrics": {"passes_attempted": 70},
+                        "per90_metrics": {"passes_attempted": 21.0},
+                        "data_quality": {
+                            "status": "partial",
+                            "checks": {"attributed_events": True},
+                        },
+                        "data_consistency": {"status": "review"},
+                        "identity": {
+                            "status": "consistent",
+                            "possible_same_name_collision": True,
+                        },
+                    },
+                    {
+                        "player_id": 3,
+                        "player_name": "No Event Evidence",
+                        "minutes_played": None,
+                        "matches_with_appearance_evidence": 0,
+                        "metrics": {},
+                        "per90_metrics": None,
+                        "data_quality": {
+                            "status": "insufficient",
+                            "checks": {"attributed_events": False},
+                        },
+                        "data_consistency": {"status": "review"},
+                        "identity": {"status": "review"},
+                    },
+                ],
+            },
+        }
+        role_benchmarks = {
+            "roles": {
+                "CB": {
+                    "players": [
+                        {
+                            "player_id": 1,
+                            "eligible_for_peer_comparison": True,
+                            "metrics": {
+                                "passes_attempted": {
+                                    "value_per90": 25.0,
+                                    "cohort_size": 12,
+                                    "percentile": 70.0,
+                                    "status": "ready",
+                                },
+                                "clearances": {
+                                    "value_per90": 3.0,
+                                    "cohort_size": 4,
+                                    "percentile": None,
+                                    "status": "insufficient_sample",
+                                },
+                            },
+                        },
+                        {
+                            "player_id": 2,
+                            "eligible_for_peer_comparison": False,
+                            "metrics": {},
+                        },
+                        {
+                            "player_id": 3,
+                            "eligible_for_peer_comparison": False,
+                            "metrics": {},
+                        },
+                    ]
+                }
+            }
+        }
+
+        readiness = build_player_evaluation_readiness(
+            role_profiles, role_benchmarks
+        )
+        cb = readiness["roles"]["CB"]
+        ready = next(row for row in cb["players"] if row["player_id"] == 1)
+        limited = next(row for row in cb["players"] if row["player_id"] == 2)
+        insufficient = next(row for row in cb["players"] if row["player_id"] == 3)
+
+        self.assertEqual(ready["readiness_status"], "ready_for_scout_review")
+        self.assertEqual(ready["peer_context_status"], "available")
+        self.assertEqual(ready["peer_percentiles_available"], ["passes_attempted"])
+        self.assertEqual(ready["peer_metrics_available"], ["clearances", "passes_attempted"])
+
+        self.assertEqual(limited["readiness_status"], "limited")
+        self.assertIn("below_minimum_verified_minutes", limited["reason_codes"])
+        self.assertIn("insufficient_appearance_sample", limited["reason_codes"])
+        self.assertIn("data_quality_not_complete", limited["reason_codes"])
+        self.assertIn("data_consistency_not_consistent", limited["reason_codes"])
+        self.assertIn("possible_same_name_collision", limited["reason_codes"])
+        self.assertEqual(limited["peer_context_status"], "not_eligible")
+
+        self.assertEqual(insufficient["readiness_status"], "insufficient_data")
+        self.assertIn("insufficient_event_evidence", insufficient["reason_codes"])
+        self.assertIn("verified_minutes_unavailable", insufficient["reason_codes"])
+
+        self.assertEqual(readiness["summary"]["player_role_records"], 3)
+        self.assertEqual(readiness["summary"]["ready_for_scout_review"], 1)
+        self.assertEqual(readiness["summary"]["limited"], 1)
+        self.assertEqual(readiness["summary"]["insufficient_data"], 1)
+
+    def test_player_can_be_ready_for_human_review_without_peer_percentiles(self):
+        role_profiles = {
+            "ST": {
+                "role_name": "Striker",
+                "players": [{
+                    "player_id": 10,
+                    "player_name": "Small Cohort Player",
+                    "minutes_played": 600.0,
+                    "matches_with_appearance_evidence": 7,
+                    "metrics": {"shots": 15},
+                    "per90_metrics": {"shots": 2.25},
+                    "data_quality": {
+                        "status": "complete",
+                        "checks": {"attributed_events": True},
+                    },
+                    "data_consistency": {"status": "consistent"},
+                    "identity": {
+                        "status": "consistent",
+                        "possible_same_name_collision": False,
+                    },
+                }],
+            }
+        }
+        benchmarks = {
+            "roles": {
+                "ST": {
+                    "players": [{
+                        "player_id": 10,
+                        "eligible_for_peer_comparison": True,
+                        "metrics": {
+                            "shots": {
+                                "value_per90": 2.25,
+                                "cohort_size": 4,
+                                "percentile": None,
+                                "status": "insufficient_sample",
+                            }
+                        },
+                    }]
+                }
+            }
+        }
+        readiness = build_player_evaluation_readiness(role_profiles, benchmarks)
+        player = readiness["roles"]["ST"]["players"][0]
+        self.assertEqual(player["readiness_status"], "ready_for_scout_review")
+        self.assertEqual(player["peer_context_status"], "insufficient_sample")
+        self.assertEqual(player["peer_metrics_available"], ["shots"])
+        self.assertEqual(player["peer_percentiles_available"], [])
+
+    def test_player_evaluation_readiness_validates_sample_thresholds(self):
+        with self.assertRaisesRegex(ValueError, "negatif veya geçersiz"):
+            build_player_evaluation_readiness({}, {}, minimum_verified_minutes=-1)
+        with self.assertRaisesRegex(ValueError, "en az 1"):
+            build_player_evaluation_readiness({}, {}, minimum_appearances=0)
 
     def test_cache_json_records_content_hash(self):
         with tempfile.TemporaryDirectory() as directory:
