@@ -89,6 +89,18 @@ records for human review while preserving the source ID as the grouping key.
 This check does not independently verify a real-world identity outside the
 source's own identifiers.
 
+### Possible same-name players
+
+A separate report check groups display names after case folding and collapsing
+whitespace. When one normalized name belongs to multiple StatsBomb player IDs,
+the report lists the IDs and their teams under
+`player_identity_review.same_name_different_ids`.
+
+The affected player rows and CSV export include a possible-collision flag and
+the other source IDs. This is a review aid only: names are not treated as proof
+that two records refer to the same person, and no players are merged. The check
+does not use fuzzy matching, nicknames or transliteration.
+
 ## Match-to-aggregate consistency check
 
 Each selected-sample player total is reconciled against the player's individual
