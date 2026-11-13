@@ -492,6 +492,26 @@ score alone.
 
 
 
+### Time spent in match score states
+
+The match-level `match_context.score_state_timeline.durations` object reports
+whole-second duration totals for the home and away teams in `leading`,
+`drawing` and `trailing` states. It is calculated from the validated
+goal-by-goal timeline and period-local match-clock fields, from each
+`Half Start` event through its corresponding `Half End`. Half-time and
+between-period breaks are excluded, and period 5 penalty shootouts are not
+included.
+
+Duration output is `validated` only when the score timeline is reconciled,
+the existing match-clock/minutes validation succeeds, and each included
+period has one usable start and end boundary. If clock or boundary evidence
+is incomplete or contradictory, duration values remain unavailable.
+
+These are team-level state durations only. They are not yet player-specific
+minutes: substitutions and temporary player-off intervals have not been
+intersected with score-state intervals. Do not use team durations as a
+player's denominator for score-state per-90 calculations.
+
 ### Player actions by match score state
 
 For matches whose event-time score timeline is validated against the listed final

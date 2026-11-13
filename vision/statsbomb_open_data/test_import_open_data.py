@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import calculate_match_score_timeline, extract_match_context, analyse_match, build_cb_profile, build_goalkeeper_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_striker_profile, build_role_benchmarks, BENCHMARK_METRIC_GUIDANCE, ROLE_BENCHMARK_METRICS, build_player_evaluation_readiness, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
+from import_open_data import calculate_score_state_durations, calculate_match_score_timeline, extract_match_context, analyse_match, build_cb_profile, build_goalkeeper_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_striker_profile, build_role_benchmarks, BENCHMARK_METRIC_GUIDANCE, ROLE_BENCHMARK_METRICS, build_player_evaluation_readiness, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
 
 
 MATCH = {
@@ -423,6 +423,159 @@ class StatsBombImportTests(unittest.TestCase):
         timeline = report["match"]["match_context"]["score_state_timeline"]
         self.assertEqual(timeline["status"], "unavailable")
         self.assertIn("match_team_ids_unavailable_or_ambiguous", timeline["reason_codes"])
+
+    def test_score_state_durations_partition_match_time_across_all_three_states(self):
+        match = {
+            **MATCH,
+            "home_team": {
+                **MATCH["home_team"],
+                "home_team_id": 1,
+            },
+            "away_team": {
+                **MATCH["away_team"],
+                "away_team_id": 2,
+            },
+            "home_score": 2,
+            "away_score": 2,
+        }
+        events = [
+            self._starting_xi(1, 1, [10]),
+            self._starting_xi(2, 2, [20]),
+            self._clock_event(3, 1, "00:00:00.000", "Half Start"),
+            self._clock_event(
+                4, 1, "00:10:00.000", "Shot",
+                player={"id": 10, "name": "Home Player"},
+                team={"id": 1, "name": "Argentina"},
+                shot={"outcome": {"name": "Goal"}},
+            ),
+            self._clock_event(
+                5, 1, "00:20:00.000", "Shot",
+                player={"id": 20, "name": "Away Player"},
+                team={"id": 2, "name": "France"},
+                shot={"outcome": {"name": "Goal"}},
+            ),
+            self._clock_event(
+                6, 1, "00:30:00.000", "Shot",
+                player={"id": 20, "name": "Away Player"},
+                team={"id": 2, "name": "France"},
+                shot={"outcome": {"name": "Goal"}},
+            ),
+            self._clock_event(7, 1, "00:45:00.000", "Half End"),
+            self._clock_event(8, 2, "00:00:00.000", "Half Start"),
+            self._clock_event(
+                9, 2, "00:15:00.000", "Shot",
+                player={"id": 10, "name": "Home Player"},
+                team={"id": 1, "name": "Argentina"},
+                shot={"outcome": {"name": "Goal"}},
+            ),
+            self._clock_event(10, 2, "00:45:00.000", "Half End"),
+        ]
+
+        timeline = calculate_match_score_timeline(match, events)
+        durations = calculate_score_state_durations(match, events, timeline)
+
+        self.assertEqual(timeline["status"], "validated")
+        self.assertEqual(durations["status"], "validated")
+        self.assertEqual(durations["total_seconds"], 90 * 60)
+        self.assertEqual(durations["periods_included"], [1, 2])
+        self.assertEqual(
+            durations["home_team_seconds_by_state"],
+            {"leading": 10 * 60, "drawing": 50 * 60, "trailing": 30 * 60},
+        )
+        self.assertEqual(
+            durations["away_team_seconds_by_state"],
+            {"leading": 30 * 60, "drawing": 50 * 60, "trailing": 10 * 60},
+        )
+        self.assertEqual(
+            sum(durations["home_team_seconds_by_state"].values()),
+            durations["total_seconds"],
+        )
+        self.assertEqual(
+            sum(durations["away_team_seconds_by_state"].values()),
+            durations["total_seconds"],
+        )
+
+    def test_score_state_durations_accept_paired_team_period_boundaries(self):
+        match = {
+            **MATCH,
+            "home_team": {**MATCH["home_team"], "home_team_id": 1},
+            "away_team": {**MATCH["away_team"], "away_team_id": 2},
+            "home_score": 0,
+            "away_score": 0,
+        }
+        events = [
+            self._starting_xi(1, 1, [10]),
+            self._starting_xi(2, 2, [20]),
+            self._clock_event(3, 1, "00:00:00.000", "Half Start"),
+            self._clock_event(4, 1, "00:00:00.000", "Half Start"),
+            self._clock_event(5, 1, "00:45:00.000", "Half End"),
+            self._clock_event(6, 1, "00:45:00.000", "Half End"),
+            self._clock_event(7, 2, "00:00:00.000", "Half Start"),
+            self._clock_event(8, 2, "00:00:00.000", "Half Start"),
+            self._clock_event(9, 2, "00:45:00.000", "Half End"),
+            self._clock_event(10, 2, "00:45:00.000", "Half End"),
+        ]
+        timeline = calculate_match_score_timeline(match, events)
+        result = calculate_score_state_durations(match, events, timeline)
+        self.assertEqual(result["status"], "validated")
+        self.assertEqual(result["total_seconds"], 90 * 60)
+        self.assertEqual(result["home_team_seconds_by_state"]["drawing"], 90 * 60)
+        self.assertEqual(result["away_team_seconds_by_state"]["drawing"], 90 * 60)
+
+    def test_score_state_durations_fail_closed_without_period_boundaries(self):
+        match = {
+            **MATCH,
+            "home_team": {**MATCH["home_team"], "home_team_id": 1},
+            "away_team": {**MATCH["away_team"], "away_team_id": 2},
+            "home_score": 0,
+            "away_score": 0,
+        }
+        events = [
+            self._starting_xi(1, 1, [10]),
+            self._starting_xi(2, 2, [20]),
+            self._clock_event(3, 1, "00:00:00.000", "Half Start"),
+            self._clock_event(4, 1, "00:45:00.000", "Half End"),
+        ]
+        timeline = calculate_match_score_timeline(match, events)
+        missing_start = calculate_score_state_durations(
+            match, [event for event in events if event["type"]["name"] != "Half Start"], timeline
+        )
+        self.assertEqual(missing_start["status"], "unavailable")
+        self.assertIn(
+            "period_start_or_end_boundary_ambiguous",
+            missing_start["reason_codes"],
+        )
+
+    def test_score_state_durations_reject_unvalidated_score_timeline(self):
+        match = {
+            **MATCH,
+            "home_team": {**MATCH["home_team"], "home_team_id": 1},
+            "away_team": {**MATCH["away_team"], "away_team_id": 2},
+            "home_score": 1,
+            "away_score": 0,
+        }
+        events = [
+            self._starting_xi(1, 1, [10]),
+            self._starting_xi(2, 2, [20]),
+            self._clock_event(3, 1, "00:00:00.000", "Half Start"),
+            self._clock_event(
+                4, 1, "00:10:00.000", "Shot",
+                player={"id": 10, "name": "Home Player"},
+                team={"id": 1, "name": "Argentina"},
+                shot={"outcome": {"name": "Goal"}},
+            ),
+            self._clock_event(5, 1, "00:45:00.000", "Half End"),
+        ]
+        invalid_timeline = {
+            "status": "reconciliation_mismatch",
+            "goals": [],
+        }
+        result = calculate_score_state_durations(match, events, invalid_timeline)
+        self.assertEqual(result["status"], "unavailable")
+        self.assertEqual(
+            result["reason_codes"],
+            ["score_timeline_not_validated"],
+        )
 
     def test_player_actions_are_classified_by_score_state_before_each_goal(self):
         match = {
