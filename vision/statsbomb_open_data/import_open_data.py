@@ -515,6 +515,47 @@ def calculate_player_data_consistency(
         if not per90_matches:
             reasons.append("per90_recalculation_mismatch")
 
+    aggregate_score_state = player.get("score_state_analysis") or {}
+    aggregate_by_state = aggregate_score_state.get("metrics_by_state")
+    match_score_state_rows = [
+        row.get("score_state_analysis") or {} for row in match_rows
+    ]
+    score_state_status_counts = Counter(
+        row.get("status") or "unavailable" for row in match_score_state_rows
+    )
+    status_counts_match = (
+        score_state_status_counts
+        == Counter(aggregate_score_state.get("match_status_counts") or {})
+    )
+    if not status_counts_match:
+        reasons.append("score_state_match_status_count_mismatch")
+
+    match_rows_with_score_state = [
+        row for row in match_score_state_rows
+        if isinstance(row.get("metrics_by_state"), dict)
+    ]
+    score_state_metric_totals_match: bool | None = None
+    if isinstance(aggregate_by_state, dict):
+        score_state_metric_totals_match = True
+        for state in SCORE_STATES:
+            aggregate_metrics = aggregate_by_state.get(state) or {}
+            for field in SCORE_STATE_METRIC_FIELDS:
+                expected_value = sum(
+                    float((row["metrics_by_state"].get(state) or {}).get(field) or 0)
+                    for row in match_rows_with_score_state
+                )
+                actual_value = float(aggregate_metrics.get(field) or 0)
+                if not math.isclose(
+                    actual_value, expected_value, rel_tol=0.0, abs_tol=0.001
+                ):
+                    score_state_metric_totals_match = False
+                    reasons.append(f"score_state_metric_total_mismatch:{state}:{field}")
+    elif not match_rows_with_score_state:
+        score_state_metric_totals_match = True
+    else:
+        score_state_metric_totals_match = False
+        reasons.append("score_state_aggregate_missing")
+
     checks = {
         "match_record_count_matches": record_count_matches,
         "appearance_match_count_matches": appearance_count_matches,
@@ -523,6 +564,8 @@ def calculate_player_data_consistency(
         "minutes_record_count_matches": minutes_record_count_matches,
         "minutes_total_matches": minutes_total_matches,
         "per90_recalculated": per90_recalculated,
+        "score_state_match_status_counts_match": status_counts_match,
+        "score_state_metric_totals_match": score_state_metric_totals_match,
     }
     return {
         "status": "consistent" if not reasons else "review",
@@ -2523,9 +2566,30 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 "pass_length_sum": 0.0,
                 "pass_length_observations": 0,
                 "xg_values": [],
+                "score_state_metrics": {
+                    state: Counter() for state in SCORE_STATES
+                },
+                "score_state_match_statuses": Counter(),
+                "score_state_classified_events": 0,
+                "score_state_unclassified_events": 0,
                 "match_rows": [],
             })
             aggregate["match_rows"].append(player)
+            score_state_analysis = player.get("score_state_analysis") or {}
+            score_state_status = score_state_analysis.get("status") or "unavailable"
+            aggregate["score_state_match_statuses"][score_state_status] += 1
+            aggregate["score_state_classified_events"] += int(
+                score_state_analysis.get("classified_player_events") or 0
+            )
+            aggregate["score_state_unclassified_events"] += int(
+                score_state_analysis.get("unclassified_player_events") or 0
+            )
+            metrics_by_state = score_state_analysis.get("metrics_by_state")
+            if isinstance(metrics_by_state, dict):
+                for state in SCORE_STATES:
+                    for field in SCORE_STATE_METRIC_FIELDS:
+                        value = (metrics_by_state.get(state) or {}).get(field, 0)
+                        aggregate["score_state_metrics"][state][field] += value
             aggregate["squad_listings"] += 1
             if player.get("appearance_evidence"):
                 aggregate["matches_with_appearance_evidence"] += 1
@@ -2562,6 +2626,35 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             ),
             "xg": round(sum(player["xg_values"]), 3) if player["xg_values"] else None,
         })
+        match_status_counts = {
+            status: int(player["score_state_match_statuses"].get(status, 0))
+            for status in ("validated", "partial", "unavailable")
+        }
+        if match_status_counts["validated"] == len(player["match_rows"]):
+            score_state_status = "validated"
+        elif match_status_counts["validated"] + match_status_counts["partial"] > 0:
+            score_state_status = "partial"
+        else:
+            score_state_status = "unavailable"
+        has_score_state_metrics = (
+            match_status_counts["validated"] + match_status_counts["partial"] > 0
+        )
+        aggregate_score_state_analysis = {
+            "status": score_state_status,
+            "match_records": len(player["match_rows"]),
+            "match_status_counts": match_status_counts,
+            "classified_player_events": int(player["score_state_classified_events"]),
+            "unclassified_player_events": int(player["score_state_unclassified_events"]),
+            "metrics_by_state": (
+                _serialise_score_state_metrics(player["score_state_metrics"])
+                if has_score_state_metrics else None
+            ),
+            "unit": "raw event counts across selected match records; xG is summed source xG",
+            "interpretation_limit": (
+                "No score-state minutes or per-90 rates are calculated. "
+                "Only match records with a validated score timeline contribute to state totals."
+            ),
+        }
         aggregate_row = {
             "player_id": player["player_id"],
             "player_name": player["player_name"],
@@ -2580,6 +2673,7 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 player["minutes_played_seconds"] if player["minutes_calculation_complete"] else None,
             ),
             "metrics": counts,
+            "score_state_analysis": aggregate_score_state_analysis,
         }
         aggregate_row["data_quality"] = calculate_player_data_quality(aggregate_row)
         aggregate_row["data_consistency"] = calculate_player_data_consistency(
