@@ -159,6 +159,138 @@ def find_player_name_collisions(
     return sorted(collisions, key=lambda item: item["normalized_name"])
 
 
+def build_player_season_comparison(
+    reports: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Compare the same source-identified players across reports for one competition."""
+    if not isinstance(reports, list) or len(reports) < 2:
+        raise ValueError("Sezon karşılaştırması için en az iki sezon raporu gerekli.")
+
+    competitions: dict[str, str] = {}
+    seasons: dict[str, dict[str, str]] = {}
+    player_rows: dict[str, list[dict[str, Any]]] = defaultdict(list)
+
+    for report in reports:
+        competition = report.get("competition_season") or {}
+        competition_id = competition.get("competition_id")
+        season_id = competition.get("season_id")
+        if competition_id is None or season_id is None:
+            raise ValueError("Karşılaştırma raporunda turnuva veya sezon kimliği eksik.")
+        competition_key = str(competition_id)
+        season_key = str(season_id)
+        competitions.setdefault(
+            competition_key, str(competition.get("competition_name") or competition_key)
+        )
+        if season_key in seasons:
+            raise ValueError(f"Aynı sezon raporu birden fazla verildi: {season_key}")
+        seasons[season_key] = {
+            "season_id": season_key,
+            "season_name": str(competition.get("season_name") or season_key),
+        }
+
+        sample = report.get("sample") or {}
+        selected_matches = int(sample.get("selected_match_count") or 0)
+        player_totals = report.get("player_sample_totals")
+        if not isinstance(player_totals, list):
+            raise ValueError("Sezon raporunda player_sample_totals listesi bulunamadı.")
+
+        for player in player_totals:
+            if not isinstance(player, dict) or player.get("player_id") is None:
+                continue
+            player_id = str(player["player_id"])
+            player_rows[(competition_key, player_id)].append({
+                "player_id": player["player_id"],
+                "player_name": player.get("player_name") or f"Unknown player {player_id}",
+                "season_id": season_key,
+                "season_name": seasons[season_key]["season_name"],
+                "selected_match_count": selected_matches,
+                "matches_listed_in_squads": player.get("matches_listed_in_squads", 0),
+                "matches_with_appearance_evidence": player.get(
+                    "matches_with_appearance_evidence", 0
+                ),
+                "minutes_played": player.get("minutes_played"),
+                "per90_metrics": player.get("per90_metrics"),
+                "data_quality_status": (player.get("data_quality") or {}).get("status"),
+                "data_consistency_status": (player.get("data_consistency") or {}).get("status"),
+                "identity_status": (player.get("identity") or {}).get("status"),
+            })
+
+    if len(competitions) != 1:
+        raise ValueError(
+            "Aynı karşılaştırmada yalnızca tek bir turnuva kullanılabilir; "
+            "farklı turnuvaları ayrı karşılaştırın."
+        )
+
+    comparison_players = []
+    for (competition_id, player_id), records in player_rows.items():
+        if len(records) < 2:
+            continue
+        records.sort(key=lambda row: (row["season_name"].casefold(), row["season_id"]))
+        season_results = []
+        previous = None
+        for record in records:
+            per90 = record.get("per90_metrics")
+            per90_values = per90 if isinstance(per90, dict) else None
+            changes = None
+            previous_season = None
+            if previous is not None:
+                previous_values = previous.get("per90_metrics")
+                if isinstance(previous_values, dict) and isinstance(per90_values, dict):
+                    changes = {}
+                    for metric in sorted(set(previous_values) & set(per90_values)):
+                        before = previous_values[metric]
+                        after = per90_values[metric]
+                        if _finite(before) and _finite(after):
+                            decimals = 3 if metric == "xg" else 2
+                            changes[metric] = round(float(after) - float(before), decimals)
+                previous_season = previous["season_name"]
+
+            season_results.append({
+                "season_id": record["season_id"],
+                "season_name": record["season_name"],
+                "selected_match_count": record["selected_match_count"],
+                "matches_listed_in_squads": record["matches_listed_in_squads"],
+                "matches_with_appearance_evidence": record[
+                    "matches_with_appearance_evidence"
+                ],
+                "minutes_played": record["minutes_played"],
+                "per90_metrics": per90_values,
+                "previous_season": previous_season,
+                "per90_change_from_previous": changes,
+                "data_quality_status": record["data_quality_status"],
+                "data_consistency_status": record["data_consistency_status"],
+                "identity_status": record["identity_status"],
+            })
+            previous = record
+
+        latest_name = records[-1]["player_name"]
+        comparison_players.append({
+            "player_id": records[-1]["player_id"],
+            "identity_key": f"statsbomb:{player_id}",
+            "player_name": latest_name,
+            "competition_id": competition_id,
+            "seasons_present": len(records),
+            "seasons": season_results,
+        })
+
+    comparison_players.sort(key=lambda row: row["player_name"].casefold())
+    return {
+        "comparison_basis": "verified_per90_metrics",
+        "competition_id": next(iter(competitions)),
+        "competition_name": next(iter(competitions.values())),
+        "season_count": len(seasons),
+        "player_count": len(comparison_players),
+        "players": comparison_players,
+        "interpretation_limits": [
+            "Only the same source player_id is matched across seasons; names are not matching keys.",
+            "Only players found in at least two supplied season reports are included.",
+            "Per-90 values are compared only when verified minutes produced values in both seasons.",
+            "A positive or negative per-90 change is a statistical difference, not a conclusion that the player improved or declined.",
+            "Selected match counts, competition strength, role changes, team context and source coverage can affect comparisons.",
+        ],
+    }
+
+
 def calculate_player_identity(
     player: dict[str, Any],
     match_rows: list[dict[str, Any]],
@@ -1257,6 +1389,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--limit", type=int, default=1)
     parser.add_argument(
+        "--compare-report", action="append", default=[],
+        help="Aynı turnuvanın önceki sezon rapor yolu; birden fazla kez verilebilir.",
+    )
+    parser.add_argument(
         "--data-root", default=".cache/statsbomb-open-data/raw",
         help="Ham JSON cache dizini (varsayılan .cache altında).",
     )
@@ -1272,6 +1408,31 @@ def main() -> int:
     args = build_parser().parse_args()
     try:
         report = run_import(args)
+        comparison_paths = getattr(args, "compare_report", []) or []
+        if comparison_paths:
+            comparison_reports = []
+            current_report_path = Path(report["output_files"]["json"]).resolve()
+            for comparison_path in comparison_paths:
+                path = Path(comparison_path)
+                if path.resolve() == current_report_path:
+                    raise ValueError(
+                        "--compare-report mevcut raporun çıktı yoluyla aynı olamaz."
+                    )
+                try:
+                    comparison_reports.append(
+                        json.loads(path.read_text(encoding="utf-8"))
+                    )
+                except (OSError, json.JSONDecodeError) as exc:
+                    raise ValueError(
+                        f"Karşılaştırma raporu okunamadı: {path}: {exc}"
+                    ) from exc
+            comparison_reports.append(report)
+            report["season_comparison"] = build_player_season_comparison(
+                comparison_reports
+            )
+            current_report_path.write_text(
+                json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
     except (ImportErrorWithContext, ValueError) as exc:
         print(f"HATA: {exc}")
         return 2
