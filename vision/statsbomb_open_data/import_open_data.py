@@ -1119,6 +1119,37 @@ CB_PROFILE_METRICS = (
 )
 
 
+
+CB_METRIC_GROUPS = (
+    {
+        "code": "distribution_progression",
+        "label": "Distribution and progression",
+        "count_metrics": (
+            "passes_attempted", "passes_completed", "crosses",
+            "through_balls", "shot_assists", "carries",
+        ),
+        "context_metrics": ("pass_completion_pct", "pass_length_mean"),
+        "description": "Recorded passing volume, selected pass types and carries.",
+    },
+    {
+        "code": "defensive_activity",
+        "label": "Defensive activity",
+        "count_metrics": (
+            "pressures", "tackles", "interceptions", "ball_recoveries",
+        ),
+        "context_metrics": (),
+        "description": "Recorded pressure, tackle-type duels, interceptions and recoveries.",
+    },
+    {
+        "code": "box_protection",
+        "label": "Box protection",
+        "count_metrics": ("clearances", "blocks"),
+        "context_metrics": (),
+        "description": "Recorded clearances and blocks.",
+    },
+)
+
+
 def build_cb_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Select event profiles with an explicit centre-back position label.
 
@@ -1132,6 +1163,22 @@ def build_cb_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
         if not any("center back" in str(position).casefold() for position in positions):
             continue
         metrics = player.get("metrics") or {}
+        per90 = player.get("per90_metrics") or {}
+        grouped_metrics = {}
+        for group in CB_METRIC_GROUPS:
+            count_fields = group["count_metrics"]
+            context_fields = group["context_metrics"]
+            grouped_metrics[group["code"]] = {
+                "raw_counts": {key: metrics.get(key) for key in count_fields},
+                "per90_counts": {
+                    key: per90.get(key)
+                    for key in count_fields
+                    if key in per90
+                },
+                "context_metrics": {
+                    key: metrics.get(key) for key in context_fields
+                },
+            }
         centre_backs.append({
             "player_id": player.get("player_id"),
             "player_name": player.get("player_name"),
@@ -1141,6 +1188,7 @@ def build_cb_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
             "matches_with_appearance_evidence": player.get("matches_with_appearance_evidence", 0),
             "minutes_played": player.get("minutes_played"),
             "per90_metrics": player.get("per90_metrics"),
+            "grouped_metrics": grouped_metrics,
             "data_quality": player.get("data_quality"),
             "data_consistency": player.get("data_consistency"),
             "identity": player.get("identity"),
@@ -1151,12 +1199,30 @@ def build_cb_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "role_code": "CB",
         "role_name": "Centre-back",
-        "metric_mode": "raw_event_counts_source_percentages_and_verified_per90_rates",
+        "metric_mode": "grouped_raw_event_counts_with_verified_per90_rates",
+        "metric_groups": [
+            {
+                "code": group["code"],
+                "label": group["label"],
+                "count_metrics": list(group["count_metrics"]),
+                "context_metrics": list(group["context_metrics"]),
+                "description": group["description"],
+            }
+            for group in CB_METRIC_GROUPS
+        ],
         "player_count": len(centre_backs),
         "players": centre_backs,
+        "not_yet_available": [
+            {
+                "metric": "aerial_duel_success",
+                "reason": "Aerial-duel event classification and outcomes have not yet been separately validated against source records.",
+            }
+        ],
         "interpretation_limits": [
             "No defensive rating or ranking is calculated.",
             "Raw defensive-action counts are not adjusted for minutes, team possession, defensive opportunities, match state or opponent quality.",
+            "Per-90 counts are included only when verified positive minutes are available.",
+            "The groups organize recorded actions; they are not tactical evaluations or proof of action quality.",
             "Event data does not establish defensive line height, spacing, scanning, body orientation, aerial timing or communication.",
             "Pass completion and pass length describe recorded distribution only; they do not independently measure decision quality.",
         ],
