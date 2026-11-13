@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import analyse_match, build_cb_profile, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, fetch_json, run_import, ImportErrorWithContext
+from import_open_data import analyse_match, build_cb_profile, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, fetch_json, run_import, ImportErrorWithContext
 
 
 MATCH = {
@@ -278,6 +278,41 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertIn("no_appearance_evidence", quality["reasons"])
         self.assertIn("no_attributed_events", quality["reasons"])
 
+    def test_player_identity_uses_source_id_when_names_match_across_matches(self):
+        player = {"player_id": 10, "player_name": "Example Player"}
+        match_rows = [
+            {"player_id": 10, "player_name": "Example Player"},
+            {"player_id": 10, "player_name": "Example Player"},
+        ]
+        identity = calculate_player_identity(player, match_rows)
+        self.assertEqual(identity["key"], "statsbomb:10")
+        self.assertEqual(identity["status"], "consistent")
+        self.assertTrue(identity["checks"]["player_id_matches"])
+        self.assertEqual(identity["name_variants"], ["Example Player"])
+
+    def test_player_identity_flags_name_variants_without_merging_by_name(self):
+        player = {"player_id": 10, "player_name": "Example Player"}
+        match_rows = [
+            {"player_id": 10, "player_name": "Example Player"},
+            {"player_id": 10, "player_name": "Example P."},
+        ]
+        identity = calculate_player_identity(player, match_rows)
+        self.assertEqual(identity["key"], "statsbomb:10")
+        self.assertEqual(identity["status"], "review")
+        self.assertIn("player_name_varies_for_same_id", identity["reasons"])
+        self.assertEqual(len(identity["name_variants"]), 2)
+
+    def test_player_identity_flags_mismatched_source_ids(self):
+        player = {"player_id": 10, "player_name": "Example Player"}
+        match_rows = [
+            {"player_id": 10, "player_name": "Example Player"},
+            {"player_id": 11, "player_name": "Example Player"},
+        ]
+        identity = calculate_player_identity(player, match_rows)
+        self.assertEqual(identity["status"], "review")
+        self.assertFalse(identity["checks"]["player_id_matches"])
+        self.assertIn("player_id_mismatch_across_records", identity["reasons"])
+
     def test_player_data_consistency_accepts_matching_match_totals(self):
         metrics = {
             "events": 8,
@@ -509,6 +544,10 @@ class StatsBombImportTests(unittest.TestCase):
             self.assertEqual(rows[0]["data_consistency_status"], "consistent")
             self.assertEqual(rows[0]["data_consistency_reasons"], "")
             self.assertEqual(rows[0]["data_consistency_match_records"], "1")
+            self.assertEqual(rows[0]["player_identity_key"], "statsbomb:10")
+            self.assertEqual(rows[0]["player_identity_status"], "consistent")
+            self.assertEqual(rows[0]["player_identity_reasons"], "")
+            self.assertEqual(rows[0]["player_identity_name_variants"], "Example Player")
             self.assertNotIn("per90_pass_completion_pct", rows[0])
             self.assertNotIn("per90_pass_length_mean", rows[0])
 
