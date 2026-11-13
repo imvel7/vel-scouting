@@ -149,10 +149,18 @@ unavailable rather than being estimated. Percentages and averages are not
 included in this first comparison foundation.
 
 The comparison accepts only reports for one competition and rejects duplicate
-season IDs. It does not yet adjust for competition strength, age, team context,
-role changes, minutes thresholds or sample representativeness. A positive
-per-90 change is not automatically evidence of player improvement, and a
-negative change is not automatically evidence of decline.
+season IDs. Each season row also preserves the source position labels seen in
+that sample. Position comparison is marked `same` when both seasons have the
+same non-empty set of labels (case-insensitive), `changed` when both sets exist
+but differ, and `unavailable` when either season has no position labels. This
+is a source-label comparison, not a validated tactical-role classification;
+it does not establish whether a player's responsibilities changed within a
+position label.
+
+It does not yet adjust for competition strength, age, team context, minutes
+thresholds or sample representativeness. A positive per-90 change is not
+automatically evidence of player improvement, and a negative change is not
+automatically evidence of decline.
 
 ## Rules
 
