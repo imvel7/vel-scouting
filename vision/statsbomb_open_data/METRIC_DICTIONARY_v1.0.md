@@ -188,6 +188,19 @@ the status is `insufficient_sample`. The percentile uses the tie-aware
 midrank method: equal values share their middle rank. Each metric has its own
 eligible cohort size, so one metric can be comparable while another is not.
 
+Each metric summary also includes a descriptive cohort distribution when
+the minimum cohort size is met: minimum, 25th percentile, median, 75th
+percentile and maximum. Quartiles use linear interpolation over sorted
+observations. When the cohort is too small, the distribution is null rather
+than presented as if it were reliable.
+
+For each eligible player/metric with a valid peer comparison, the report also
+shows the difference between the player's per-90 value and the cohort median,
+and whether the value falls inside the cohort's middle 50% (between p25 and
+p75). These are descriptive comparisons within the same cohort, not adjusted
+performance effects or evidence of player quality. The distribution includes
+the player being compared.
+
 These percentiles describe relative per-90 event frequency, not action quality,
 player ability, a player ranking or a transfer recommendation. A higher
 percentile is not necessarily better: for example, a high value for goals
