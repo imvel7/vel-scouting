@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import analyse_match, build_cb_profile, calculate_minutes_played, fetch_json, run_import, ImportErrorWithContext
+from import_open_data import analyse_match, build_cb_profile, calculate_minutes_played, calculate_per90_metrics, fetch_json, run_import, ImportErrorWithContext
 
 
 MATCH = {
