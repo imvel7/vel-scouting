@@ -131,6 +131,29 @@ A `review` result is a data-reconciliation warning, not a judgement about the
 player or proof that the source match record is wrong. The underlying match
 records should be inspected before using the affected aggregate.
 
+## Cross-season player comparison foundation
+
+The importer can optionally compare the current report with one or more
+previous JSON reports from the same competition by passing
+`--compare-report PATH` once for each earlier season report.
+
+Players are matched only by the stable StatsBomb `player_id`. The comparison
+lists a player only when that ID is present in at least two supplied seasons.
+It places selected-match counts, appearance evidence, verified minutes and
+quality/consistency statuses beside the per-90 metrics for each season.
+
+Per-90 changes are calculated as the later season's value minus the previous
+season's value, only when both seasons have valid per-90 values for that metric.
+When either season lacks verified minutes, the rate and change remain
+unavailable rather than being estimated. Percentages and averages are not
+included in this first comparison foundation.
+
+The comparison accepts only reports for one competition and rejects duplicate
+season IDs. It does not yet adjust for competition strength, age, team context,
+role changes, minutes thresholds or sample representativeness. A positive
+per-90 change is not automatically evidence of player improvement, and a
+negative change is not automatically evidence of decline.
+
 ## Rules
 
 1. Produce per-90 values only from validated, positive on-pitch minutes; otherwise leave them unavailable.
