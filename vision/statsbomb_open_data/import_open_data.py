@@ -44,6 +44,7 @@ METRIC_DEFINITIONS = {
     "blocks": "Count of Block events attributed to the player.",
     "tackles": "Duel events whose duel.type.name is Tackle.",
     "dribbles": "Count of Dribble events attributed to the player.",
+    "per90_metrics": "Count metrics and total xG per 90 verified on-pitch minutes; null when minutes are unavailable or zero. Percentages and means are excluded.",
 }
 
 COUNTER_FIELDS = (
@@ -52,6 +53,22 @@ COUNTER_FIELDS = (
     "goals", "pressures", "interceptions", "ball_recoveries",
     "clearances", "blocks", "tackles", "dribbles",
 )
+
+
+def calculate_per90_metrics(metrics: dict[str, Any], minutes_played_seconds: Any) -> dict[str, float] | None:
+    """Normalize count metrics and total xG to 90 verified on-pitch minutes."""
+    if not _finite(minutes_played_seconds) or float(minutes_played_seconds) <= 0:
+        return None
+
+    scale = 5400.0 / float(minutes_played_seconds)
+    per90 = {
+        field: round(float(metrics[field]) * scale, 2)
+        for field in COUNTER_FIELDS
+        if _finite(metrics.get(field))
+    }
+    if _finite(metrics.get("xg")):
+        per90["xg"] = round(float(metrics["xg"]) * scale, 3)
+    return per90
 
 
 class ImportErrorWithContext(RuntimeError):
@@ -597,7 +614,7 @@ def analyse_match(match: dict[str, Any], lineups: Any,
             "pass_length_observations": len(lengths),
             "minutes_played": round(player_seconds / 60.0, 2) if player_seconds is not None else None,
             "minutes_played_seconds": round(player_seconds, 3) if player_seconds is not None else None,
-            "per90_metrics": None,
+            "per90_metrics": calculate_per90_metrics(metrics, player_seconds),
         })
 
     player_rows.sort(key=lambda item: (
@@ -678,6 +695,7 @@ def build_cb_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
             "matches_listed_in_squads": player.get("matches_listed_in_squads", 0),
             "matches_with_appearance_evidence": player.get("matches_with_appearance_evidence", 0),
             "minutes_played": player.get("minutes_played"),
+            "per90_metrics": player.get("per90_metrics"),
             "metrics": {key: metrics.get(key) for key in CB_PROFILE_METRICS},
         })
 
@@ -685,7 +703,7 @@ def build_cb_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "role_code": "CB",
         "role_name": "Centre-back",
-        "metric_mode": "raw_event_counts_and_source_percentages",
+        "metric_mode": "raw_event_counts_source_percentages_and_verified_per90_rates",
         "player_count": len(centre_backs),
         "players": centre_backs,
         "interpretation_limits": [
@@ -821,7 +839,10 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             ),
             "minutes_calculation_complete": player["minutes_calculation_complete"],
             "minutes_matches_valid": player["minutes_matches_valid"],
-            "per90_metrics": None,
+            "per90_metrics": calculate_per90_metrics(
+                counts,
+                player["minutes_played_seconds"] if player["minutes_calculation_complete"] else None,
+            ),
             "metrics": counts,
         })
     aggregate_rows.sort(key=lambda row: row["player_name"].casefold())
