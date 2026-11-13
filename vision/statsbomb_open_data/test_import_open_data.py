@@ -353,7 +353,23 @@ class StatsBombImportTests(unittest.TestCase):
             if relative_path == "lineups/123.json":
                 return LINEUPS, metadata
             if relative_path == "events/123.json":
-                return EVENTS, metadata
+                timed_events = [
+                    self._starting_xi(0, 1, [10]),
+                    self._clock_event(1, 1, "00:00:00.000", "Half Start"),
+                ]
+                for index, event in enumerate(EVENTS, start=2):
+                    extra = {
+                        key: value for key, value in event.items()
+                        if key not in {"index", "period", "minute", "second", "timestamp", "type"}
+                    }
+                    timed_events.append(self._clock_event(
+                        index, 1, f"00:{index * 5:02d}:00.000",
+                        event["type"]["name"], **extra
+                    ))
+                timed_events.append(self._clock_event(
+                    len(EVENTS) + 2, 1, "00:45:00.000", "Half End"
+                ))
+                return timed_events, metadata
             raise AssertionError("Unexpected source path: " + relative_path)
 
         with tempfile.TemporaryDirectory() as directory:
@@ -376,7 +392,7 @@ class StatsBombImportTests(unittest.TestCase):
             self.assertTrue(csv_path.exists())
             self.assertEqual(report["competition_season"]["competition_name"], "FIFA World Cup")
             self.assertEqual(report["competition_season"]["season_name"], "2022")
-            self.assertEqual(report["sample"]["event_count"], len(EVENTS))
+            self.assertEqual(report["sample"]["event_count"], len(EVENTS) + 2)
             self.assertEqual(report["sample"]["selected_match_count"], 1)
 
             with csv_path.open(encoding="utf-8-sig", newline="") as stream:
@@ -385,6 +401,12 @@ class StatsBombImportTests(unittest.TestCase):
             self.assertEqual(rows[0]["player_name"], "Example Player")
             self.assertEqual(rows[0]["passes_attempted"], "2")
             self.assertEqual(rows[0]["pass_completion_pct"], "50.0")
+            self.assertEqual(rows[0]["minutes_played"], "45.0")
+            self.assertEqual(rows[0]["per90_events"], "10.0")
+            self.assertEqual(rows[0]["per90_passes_attempted"], "4.0")
+            self.assertEqual(rows[0]["per90_xg"], "0.84")
+            self.assertNotIn("per90_pass_completion_pct", rows[0])
+            self.assertNotIn("per90_pass_length_mean", rows[0])
 
 
     def test_cb_profile_selects_centre_backs_without_creating_a_rating(self):
