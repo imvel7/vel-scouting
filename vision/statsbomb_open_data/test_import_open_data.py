@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import extract_match_context, analyse_match, build_cb_profile, build_goalkeeper_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_striker_profile, build_role_benchmarks, BENCHMARK_METRIC_GUIDANCE, ROLE_BENCHMARK_METRICS, build_player_evaluation_readiness, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
+from import_open_data import calculate_match_score_timeline, extract_match_context, analyse_match, build_cb_profile, build_goalkeeper_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_striker_profile, build_role_benchmarks, BENCHMARK_METRIC_GUIDANCE, ROLE_BENCHMARK_METRICS, build_player_evaluation_readiness, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
 
 
 MATCH = {
@@ -286,6 +286,143 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertIsNone(missing_metadata["competition_stage"])
         self.assertFalse(missing_metadata["source_field_availability"]["stadium"])
         self.assertFalse(missing_metadata["source_field_availability"]["scoreline"])
+
+    def test_score_timeline_reconstructs_goals_and_excludes_penalty_shootout(self):
+        match = {
+            **MATCH,
+            "home_team": {
+                **MATCH["home_team"],
+                "home_team_id": 1,
+            },
+            "away_team": {
+                **MATCH["away_team"],
+                "away_team_id": 2,
+            },
+            "home_score": 2,
+            "away_score": 1,
+        }
+        events = [
+            {
+                "period": 1, "index": 2, "timestamp": "00:12:00.000",
+                "type": {"name": "Shot"},
+                "shot": {"outcome": {"name": "Goal"}},
+                "team": {"id": 1, "name": "Argentina"},
+            },
+            {
+                "period": 1, "index": 3, "timestamp": "00:12:01.000",
+                "type": {"name": "Own Goal Against"},
+                "team": {"id": 2, "name": "France"},
+            },
+            {
+                "period": 1, "index": 4, "timestamp": "00:12:01.000",
+                "type": {"name": "Own Goal For"},
+                "team": {"id": 1, "name": "Argentina"},
+            },
+            {
+                "period": 2, "index": 1, "timestamp": "00:05:00.000",
+                "type": {"name": "Shot"},
+                "shot": {"outcome": {"name": "Goal"}},
+                "team": {"id": 2, "name": "France"},
+            },
+            {
+                "period": 5, "index": 1, "timestamp": "00:01:00.000",
+                "type": {"name": "Shot"},
+                "shot": {"outcome": {"name": "Goal"}},
+                "team": {"id": 2, "name": "France"},
+            },
+        ]
+
+        result = calculate_match_score_timeline(match, events)
+
+        self.assertEqual(result["status"], "validated")
+        self.assertTrue(result["score_reconciled"])
+        self.assertEqual(result["goal_count"], 3)
+        self.assertEqual(result["reconstructed_score"], {"home": 2, "away": 1})
+        self.assertEqual(
+            [goal["goal_type"] for goal in result["goals"]],
+            ["shot_goal", "own_goal_for", "shot_goal"],
+        )
+        self.assertEqual(
+            [(goal["period"], goal["event_index"]) for goal in result["goals"]],
+            [(1, 2), (1, 4), (2, 1)],
+        )
+        self.assertEqual(
+            [(goal["home_state_after"], goal["away_state_after"]) for goal in result["goals"]],
+            [("leading", "trailing"), ("leading", "trailing"), ("leading", "trailing")],
+        )
+
+    def test_score_timeline_marks_final_score_reconciliation_mismatch(self):
+        match = {
+            **MATCH,
+            "home_team": {**MATCH["home_team"], "home_team_id": 1},
+            "away_team": {**MATCH["away_team"], "away_team_id": 2},
+            "home_score": 0,
+            "away_score": 0,
+        }
+        events = [{
+            "period": 1, "index": 1, "timestamp": "00:10:00.000",
+            "type": {"name": "Shot"},
+            "shot": {"outcome": {"name": "Goal"}},
+            "team": {"id": 1, "name": "Argentina"},
+        }]
+        result = calculate_match_score_timeline(match, events)
+        self.assertEqual(result["status"], "reconciliation_mismatch")
+        self.assertFalse(result["score_reconciled"])
+        self.assertEqual(
+            result["reason_codes"],
+            ["reconstructed_score_does_not_match_listed_final_score"],
+        )
+        self.assertEqual(result["reconstructed_score"], {"home": 1, "away": 0})
+
+    def test_score_timeline_fails_closed_on_missing_or_duplicate_event_order(self):
+        match = {
+            **MATCH,
+            "home_team": {**MATCH["home_team"], "home_team_id": 1},
+            "away_team": {**MATCH["away_team"], "away_team_id": 2},
+        }
+        missing = calculate_match_score_timeline(
+            match,
+            [{"period": 1, "timestamp": "00:10:00.000"}],
+        )
+        duplicate = calculate_match_score_timeline(
+            match,
+            [
+                {"period": 1, "index": 1, "timestamp": "00:10:00.000"},
+                {"period": 1, "index": 1, "timestamp": "00:11:00.000"},
+            ],
+        )
+        unknown_team = calculate_match_score_timeline(
+            match,
+            [{
+                "period": 1, "index": 1, "timestamp": "00:10:00.000",
+                "type": {"name": "Shot"},
+                "shot": {"outcome": {"name": "Goal"}},
+                "team": {"id": 99, "name": "Unknown"},
+            }],
+        )
+        self.assertEqual(missing["status"], "unavailable")
+        self.assertIn("event_order_fields_unavailable_or_invalid", missing["reason_codes"])
+        self.assertEqual(duplicate["status"], "unavailable")
+        self.assertIn("duplicate_period_event_index", duplicate["reason_codes"])
+        self.assertEqual(unknown_team["status"], "unavailable")
+        self.assertIn("goal_team_id_unavailable_or_unknown", unknown_team["reason_codes"])
+
+    def test_score_timeline_is_not_claimed_when_final_score_is_missing(self):
+        match = {
+            **MATCH,
+            "home_team": {**MATCH["home_team"], "home_team_id": 1},
+            "away_team": {**MATCH["away_team"], "away_team_id": 2},
+            "home_score": None,
+        }
+        result = calculate_match_score_timeline(match, [])
+        self.assertEqual(result["status"], "unavailable")
+        self.assertIn("listed_final_score_unavailable_or_invalid", result["reason_codes"])
+
+    def test_analyse_match_exposes_unavailable_timeline_when_event_order_is_missing(self):
+        report = analyse_match(MATCH, LINEUPS, EVENTS)
+        timeline = report["match"]["match_context"]["score_state_timeline"]
+        self.assertEqual(timeline["status"], "unavailable")
+        self.assertIn("match_team_ids_unavailable_or_ambiguous", timeline["reason_codes"])
 
     def test_counts_events_and_pass_success_using_statsbomb_rule(self):
         report = analyse_match(MATCH, LINEUPS, EVENTS)
