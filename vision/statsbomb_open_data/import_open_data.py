@@ -983,6 +983,275 @@ def calculate_minutes_played(events: Any) -> dict[str, Any]:
     result["player_names"] = player_names
     return result
 
+
+def calculate_player_score_state_minutes(
+    match: dict[str, Any],
+    events: Any,
+    score_timeline: dict[str, Any],
+    minutes_result: dict[str, Any],
+) -> dict[str, Any]:
+    """Partition each player's verified on-pitch seconds by their team's score state."""
+    result: dict[str, Any] = {
+        "status": "unavailable",
+        "reason_codes": [],
+        "seconds_by_player": {},
+        "unit": "seconds",
+    }
+    if score_timeline.get("status") != "validated":
+        result["reason_codes"] = ["score_timeline_not_validated"]
+        return result
+    durations = score_timeline.get("durations")
+    if not isinstance(durations, dict) or durations.get("status") != "validated":
+        result["reason_codes"] = ["team_score_state_durations_not_validated"]
+        return result
+    if minutes_result.get("valid") is not True:
+        result["reason_codes"] = ["player_minutes_not_validated"]
+        return result
+    if not isinstance(events, list):
+        result["reason_codes"] = ["events_not_a_list"]
+        return result
+
+    home = match.get("home_team") if isinstance(match, dict) else None
+    away = match.get("away_team") if isinstance(match, dict) else None
+    home = home if isinstance(home, dict) else {}
+    away = away if isinstance(away, dict) else {}
+    home_id = home.get("home_team_id")
+    away_id = away.get("away_team_id")
+    if home_id is None or away_id is None or str(home_id) == str(away_id):
+        result["reason_codes"] = ["match_team_ids_unavailable_or_ambiguous"]
+        return result
+
+    home_key, away_key = str(home_id), str(away_id)
+    team_keys = {home_key, away_key}
+    score = {home_key: 0, away_key: 0}
+    goal_by_event = {
+        (int(goal["period"]), int(goal["event_index"])): str(goal["scoring_team_id"])
+        for goal in score_timeline.get("goals", [])
+    }
+    indexed_events = []
+    for event in events:
+        if not isinstance(event, dict):
+            result["reason_codes"] = ["invalid_event_record"]
+            return result
+        period, index = event.get("period"), event.get("index")
+        if (
+            isinstance(period, bool) or not isinstance(period, int)
+            or period < 1 or period > 5
+            or isinstance(index, bool) or not isinstance(index, int)
+            or index < 1
+        ):
+            result["reason_codes"] = ["event_order_fields_unavailable_or_invalid"]
+            return result
+        indexed_events.append((period, index, event))
+    indexed_events.sort(key=lambda row: (row[0], row[1]))
+
+    active: set[str] = set()
+    permanently_off: set[str] = set()
+    temporarily_off: set[str] = set()
+    player_team_ids: dict[str, str] = {}
+    seconds_by_player: defaultdict[str, Counter[str]] = defaultdict(
+        lambda: Counter({state: 0.0 for state in SCORE_STATES})
+    )
+    errors: list[str] = []
+    current_period: int | None = None
+    last_time = 0
+    last_event_type: str | None = None
+    last_event_id: str | None = None
+    period_clock_active = False
+
+    def remember_player(player: Any) -> str | None:
+        player_id = _id(player)
+        if player_id is None:
+            return None
+        key = str(player_id)
+        seconds_by_player.setdefault(key, Counter({state: 0.0 for state in SCORE_STATES}))
+        return key
+
+    def assign_team(player_id: str | None, team_id: Any, context: str) -> None:
+        if player_id is None:
+            return
+        if team_id is None or str(team_id) not in team_keys:
+            errors.append(f"{context}: player team is missing or outside the match.")
+            return
+        team_key = str(team_id)
+        existing = player_team_ids.get(player_id)
+        if existing is not None and existing != team_key:
+            errors.append(f"{context}: player team assignment changed unexpectedly.")
+            return
+        player_team_ids[player_id] = team_key
+
+    for period, index, event in indexed_events:
+        if period == 5:
+            continue
+        if period not in (1, 2, 3, 4):
+            errors.append(f"Unsupported match period: {period}.")
+            continue
+
+        event_type = _name(event.get("type")) or "Unknown"
+        event_time = _match_clock_seconds(event)
+        if event_time is None:
+            errors.append(f"Invalid match clock at period {period}, event {index}.")
+            continue
+
+        if current_period is None:
+            if period != 1:
+                errors.append("Match does not start in period 1.")
+            current_period = period
+            last_time = event_time
+        elif period != current_period:
+            if period != current_period + 1:
+                errors.append(f"Discontinuous period order: {current_period} to {period}.")
+            current_period = period
+            last_time = event_time
+            period_clock_active = False
+
+        linked_receipt_clock_anomaly = (
+            event_time < last_time
+            and event_type == "Ball Receipt*"
+            and last_event_type == "Pass"
+            and last_event_id in (event.get("related_events") or [])
+        )
+        if event_time < last_time and linked_receipt_clock_anomaly:
+            event_time = last_time
+        elif event_time < last_time:
+            errors.append(f"Match clock regressed at period {period}, event {index}.")
+            continue
+
+        delta = event_time - last_time
+        if delta and period_clock_active and event_type != "Half Start":
+            for player_id in active:
+                team_key = player_team_ids.get(player_id)
+                if team_key not in team_keys:
+                    errors.append("An active player has no verified match-team mapping.")
+                    continue
+                opponent_key = away_key if team_key == home_key else home_key
+                state = _score_state(score[team_key], score[opponent_key])
+                seconds_by_player[player_id][state] += delta
+
+        last_time = event_time
+
+        team_id = _id(event.get("team"))
+        if event_type == "Starting XI":
+            tactics = event.get("tactics") or {}
+            lineup = tactics.get("lineup")
+            if not isinstance(lineup, list) or not lineup:
+                errors.append(f"Period {period} Starting XI lineup is missing.")
+            else:
+                for member in lineup:
+                    member = member or {}
+                    player_id = remember_player(member.get("player"))
+                    if player_id is None:
+                        errors.append("Starting XI is missing a player ID.")
+                        continue
+                    assign_team(player_id, team_id, "Starting XI")
+                    active.add(player_id)
+                    permanently_off.discard(player_id)
+                    temporarily_off.discard(player_id)
+
+        elif event_type == "Substitution":
+            outgoing_id = remember_player(event.get("player"))
+            substitution = event.get("substitution") or {}
+            incoming_id = remember_player(substitution.get("replacement"))
+            if outgoing_id is None or incoming_id is None:
+                errors.append(f"Period {period} substitution player data is missing.")
+            else:
+                assign_team(outgoing_id, team_id, "Substitution outgoing player")
+                assign_team(incoming_id, team_id, "Substitution incoming player")
+                if outgoing_id not in active:
+                    errors.append("Substitution outgoing player is not active.")
+                active.discard(outgoing_id)
+                temporarily_off.discard(outgoing_id)
+                if incoming_id in permanently_off or incoming_id in active:
+                    errors.append("Substitution incoming player is already active or permanently off.")
+                active.add(incoming_id)
+                temporarily_off.discard(incoming_id)
+
+        elif event_type == "Player Off":
+            player_id = remember_player(event.get("player"))
+            if player_id is None:
+                errors.append("Player Off event is missing a player ID.")
+            else:
+                assign_team(player_id, team_id, "Player Off")
+                if player_id not in active:
+                    errors.append("Player Off player is not active.")
+                active.discard(player_id)
+                off_data = event.get("player_off") or {}
+                if off_data.get("permanent") is True:
+                    permanently_off.add(player_id)
+                    temporarily_off.discard(player_id)
+                else:
+                    temporarily_off.add(player_id)
+
+        elif event_type == "Player On":
+            player_id = remember_player(event.get("player"))
+            if player_id is None:
+                errors.append("Player On event is missing a player ID.")
+            else:
+                assign_team(player_id, team_id, "Player On")
+                if player_id in permanently_off:
+                    errors.append("A permanently dismissed player was marked as returning.")
+                elif player_id not in temporarily_off:
+                    errors.append("Player On has no matching temporary Player Off.")
+                else:
+                    active.add(player_id)
+                    temporarily_off.discard(player_id)
+
+        elif event_type in ("Bad Behaviour", "Foul Committed"):
+            payload_key = "bad_behaviour" if event_type == "Bad Behaviour" else "foul_committed"
+            card = _name((event.get(payload_key) or {}).get("card"))
+            if card in ("Red Card", "Second Yellow"):
+                player_id = remember_player(event.get("player"))
+                if player_id is None:
+                    errors.append(f"{card} event is missing a player ID.")
+                else:
+                    assign_team(player_id, team_id, card)
+                    if player_id not in active:
+                        errors.append(f"{card} player is not active.")
+                    active.discard(player_id)
+                    temporarily_off.discard(player_id)
+                    permanently_off.add(player_id)
+
+        scoring_team = goal_by_event.get((period, index))
+        if scoring_team is not None:
+            if scoring_team not in team_keys:
+                errors.append("Validated goal timeline contains an unknown scoring team.")
+            else:
+                score[scoring_team] += 1
+
+        if event_type == "Half Start":
+            period_clock_active = True
+        elif event_type == "Half End":
+            period_clock_active = False
+
+        last_event_type = event_type
+        last_event_id = str(event.get("id")) if event.get("id") is not None else None
+
+    if errors:
+        result["reason_codes"] = sorted(set(errors))
+        return result
+
+    expected_seconds = minutes_result.get("seconds_by_player") or {}
+    player_ids = set(expected_seconds) | set(seconds_by_player)
+    output = {}
+    for player_id in sorted(player_ids):
+        state_seconds = seconds_by_player[player_id]
+        expected = float(expected_seconds.get(player_id, 0.0))
+        actual = sum(float(state_seconds.get(state, 0.0)) for state in SCORE_STATES)
+        if not math.isclose(actual, expected, rel_tol=0.0, abs_tol=0.001):
+            result["reason_codes"] = ["player_score_state_minutes_do_not_reconcile_with_total_minutes"]
+            return result
+        output[player_id] = {
+            state: round(float(state_seconds.get(state, 0.0)), 3)
+            for state in SCORE_STATES
+        }
+
+    result.update({
+        "status": "validated",
+        "reason_codes": [],
+        "seconds_by_player": output,
+    })
+    return result
+
 def _non_negative_score(value: Any) -> int | None:
     """Accept only finite, non-negative integer score values."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -1524,6 +1793,9 @@ def analyse_match(match: dict[str, Any], lineups: Any,
     score_state_timeline["durations"] = calculate_score_state_durations(
         match, events, score_state_timeline
     )
+    player_score_state_minutes = calculate_player_score_state_minutes(
+        match, events, score_state_timeline, minutes_result
+    )
     score_state_lookup = _build_event_score_state_lookup(
         match, events, score_state_timeline
     )
@@ -1732,6 +2004,20 @@ def analyse_match(match: dict[str, Any], lineups: Any,
             score_state_status = "unavailable"
             score_state_metrics_by_state = None
 
+        player_state_seconds = player_score_state_minutes["seconds_by_player"].get(player_key)
+        if (
+            player_state_seconds is None
+            and player_score_state_minutes["status"] == "validated"
+            and not player.get("appearance_evidence")
+        ):
+            player_state_seconds = {state: 0.0 for state in SCORE_STATES}
+        player_state_minutes = (
+            {
+                state: round(float(player_state_seconds.get(state, 0.0)) / 60.0, 2)
+                for state in SCORE_STATES
+            }
+            if player_state_seconds is not None else None
+        )
         player_rows.append({
             **player,
             "metrics": metrics,
@@ -1741,10 +2027,14 @@ def analyse_match(match: dict[str, Any], lineups: Any,
                 "classified_player_events": classified_score_state_events,
                 "unclassified_player_events": unclassified_score_state_events,
                 "metrics_by_state": score_state_metrics_by_state,
-                "unit": "raw event counts; xG is summed source xG",
+                "minutes_status": player_score_state_minutes["status"],
+                "minutes_reason_codes": player_score_state_minutes["reason_codes"],
+                "minutes_by_state_seconds": player_state_seconds,
+                "minutes_by_state": player_state_minutes,
+                "unit": "raw event counts; xG is summed source xG; score-state minutes are verified on-pitch minutes",
                 "interpretation_limit": (
-                    "No score-state minutes or per-90 rates are calculated. "
-                    "Events without a validated state/team mapping remain unclassified."
+                    "Score-state minutes are available only when both score and player-time timelines validate. "
+                    "Per-90 score-state rates are not calculated in this step."
                 ),
             },
             "pass_length_sum": round(sum(lengths), 3),
