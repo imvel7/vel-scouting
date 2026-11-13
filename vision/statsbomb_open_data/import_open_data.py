@@ -204,13 +204,13 @@ def build_player_season_comparison(
                 "player_id": player["player_id"],
                 "player_name": player.get("player_name") or f"Unknown player {player_id}",
                 "positions_seen": sorted({
-                    " ".join(position.split()).casefold()
+                    " ".join(position.split())
                     for position in (
                         player.get("positions_seen")
                         if isinstance(player.get("positions_seen"), list) else []
                     )
                     if isinstance(position, str) and position.strip()
-                }),
+                }, key=str.casefold),
                 "season_id": season_key,
                 "season_name": seasons[season_key]["season_name"],
                 "selected_match_count": selected_matches,
