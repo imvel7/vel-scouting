@@ -44,8 +44,9 @@ verified on-pitch seconds for that player across the selected sample, not the
 number of matches or the full match duration.
 
 These rates describe recorded event volume per 90 minutes. They are not
-percentiles, peer rankings, role-adjusted measures, player ratings or scout
-verdicts.
+player ratings or scout verdicts. The report's separate peer-benchmark section
+may calculate cautious, same-role percentiles only when its explicit cohort
+requirements are met.
 
 ## Player-level data quality indicator
 
@@ -168,11 +169,38 @@ thresholds or sample representativeness. A positive per-90 change is not
 automatically evidence of player improvement, and a negative change is not
 automatically evidence of decline.
 
+## Same-role peer benchmarks
+
+The report includes a separate `role_benchmarks` object. The first version
+compares players only within the same role profile in the same competition and
+season report. It does not combine reports, competitions, seasons or roles.
+
+A player enters a benchmark cohort only when:
+- verified minutes are complete and at least **450 minutes**;
+- selected-sample data quality is `complete`;
+- match-to-aggregate reconciliation is `consistent`;
+- source player identity status is `consistent`; and
+- verified per-90 metrics are available.
+
+A metric percentile is emitted only when at least **10 eligible players**
+have a value for that same metric. Otherwise the percentile remains null and
+the status is `insufficient_sample`. The percentile uses the tie-aware
+midrank method: equal values share their middle rank. Each metric has its own
+eligible cohort size, so one metric can be comparable while another is not.
+
+These percentiles describe relative per-90 event frequency, not action quality,
+player ability, a player ranking or a transfer recommendation. A higher
+percentile is not necessarily better: for example, a high value for goals
+conceded is not a positive goalkeeper outcome. Team style, possession, player
+age, role variation, opposition strength and selected-sample coverage are not
+adjusted in this first version. Small datasets will correctly return
+`insufficient_sample` rather than manufacture a comparison.
+
 ## Rules
 
 1. Produce per-90 values only from validated, positive on-pitch minutes; otherwise leave them unavailable.
 2. Do not interpret a zero as a weakness without checking the player's opportunities and team context.
-3. Do not compare players across roles or competition levels without an explicit peer-group model.
+3. Compare players only through an explicit same-role, same-competition and same-season peer group; do not treat percentiles as quality ratings.
 4. Do not infer visual/off-ball traits from event data alone.
 5. Preserve source file hashes and the importer/metric version for reproducibility.
 
