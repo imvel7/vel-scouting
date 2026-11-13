@@ -192,6 +192,28 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertEqual(result["periods"], [1, 2, 3, 4])
         self.assertEqual(result["seconds_by_player"]["10"], 120 * 60)
 
+    def test_linked_ball_receipt_clock_anomaly_does_not_reset_minutes(self):
+        events = [
+            self._starting_xi(1, 1, [10]),
+            self._clock_event(2, 1, "00:00:00.000", "Half Start"),
+            self._clock_event(
+                3, 1, "00:01:00.000", "Pass",
+                id="pass-1",
+                player={"id": 10, "name": "Player 10"},
+            ),
+            self._clock_event(
+                4, 1, "00:00:00.275", "Ball Receipt*",
+                id="receipt-1",
+                related_events=["pass-1"],
+                player={"id": 10, "name": "Player 10"},
+            ),
+            self._clock_event(5, 1, "00:45:00.000", "Half End"),
+        ]
+        result = calculate_minutes_played(events)
+        self.assertTrue(result["valid"], result["errors"])
+        self.assertEqual(result["seconds_by_player"]["10"], 45 * 60)
+        self.assertTrue(any("Linked Ball Receipt*" in warning for warning in result["warnings"]))
+
     def test_minutes_are_unavailable_when_a_period_end_is_missing(self):
         events = [
             self._starting_xi(1, 1, [10]),
