@@ -58,7 +58,8 @@ METRIC_DEFINITIONS = {
     "goal_kicks": "Pass events whose pass.type.name is Goal Kick.",
     "per90_metrics": "Count metrics and total xG per 90 verified on-pitch minutes; null when minutes are unavailable or zero. Percentages and means are excluded.",
     "data_quality": "Selected-sample availability checks for appearance evidence, attributed events and verified positive minutes; not a player rating.",
-    "data_consistency": "Reconciliation of selected-match records against aggregate counts, xG, minutes and per-90 calculations.",
+    "data_consistency": "Reconciliation of selected-match records against aggregate counts, xG, minutes, per-90 calculations and score-state totals.",
+    "score_state_analysis": "Raw player event counts and summed source xG split by leading/drawing/trailing state, only where the match score timeline is validated; no score-state minutes or per-90 rates.",
 }
 
 COUNTER_FIELDS = (
@@ -515,6 +516,53 @@ def calculate_player_data_consistency(
         if not per90_matches:
             reasons.append("per90_recalculation_mismatch")
 
+    aggregate_score_state = player.get("score_state_analysis") or {}
+    aggregate_by_state = aggregate_score_state.get("metrics_by_state")
+    match_score_state_rows = [
+        row.get("score_state_analysis") or {} for row in match_rows
+    ]
+    has_score_state_metadata = (
+        "score_state_analysis" in player
+        or any("score_state_analysis" in row for row in match_rows)
+    )
+    score_state_status_counts = Counter(
+        row.get("status") or "unavailable" for row in match_score_state_rows
+    )
+    status_counts_match: bool | None = None
+    if has_score_state_metadata:
+        status_counts_match = (
+            score_state_status_counts
+            == Counter(aggregate_score_state.get("match_status_counts") or {})
+        )
+        if not status_counts_match:
+            reasons.append("score_state_match_status_count_mismatch")
+
+    match_rows_with_score_state = [
+        row for row in match_score_state_rows
+        if isinstance(row.get("metrics_by_state"), dict)
+    ]
+    score_state_metric_totals_match: bool | None = None
+    if isinstance(aggregate_by_state, dict):
+        score_state_metric_totals_match = True
+        for state in SCORE_STATES:
+            aggregate_metrics = aggregate_by_state.get(state) or {}
+            for field in SCORE_STATE_METRIC_FIELDS:
+                expected_value = sum(
+                    float((row["metrics_by_state"].get(state) or {}).get(field) or 0)
+                    for row in match_rows_with_score_state
+                )
+                actual_value = float(aggregate_metrics.get(field) or 0)
+                if not math.isclose(
+                    actual_value, expected_value, rel_tol=0.0, abs_tol=0.001
+                ):
+                    score_state_metric_totals_match = False
+                    reasons.append(f"score_state_metric_total_mismatch:{state}:{field}")
+    elif not match_rows_with_score_state:
+        score_state_metric_totals_match = True if has_score_state_metadata else None
+    else:
+        score_state_metric_totals_match = False
+        reasons.append("score_state_aggregate_missing")
+
     checks = {
         "match_record_count_matches": record_count_matches,
         "appearance_match_count_matches": appearance_count_matches,
@@ -523,6 +571,8 @@ def calculate_player_data_consistency(
         "minutes_record_count_matches": minutes_record_count_matches,
         "minutes_total_matches": minutes_total_matches,
         "per90_recalculated": per90_recalculated,
+        "score_state_match_status_counts_match": status_counts_match,
+        "score_state_metric_totals_match": score_state_metric_totals_match,
     }
     return {
         "status": "consistent" if not reasons else "review",
@@ -1154,6 +1204,150 @@ def calculate_match_score_timeline(
     return result
 
 
+SCORE_STATES = ("leading", "drawing", "trailing")
+SCORE_STATE_METRIC_FIELDS = (*COUNTER_FIELDS, "xg")
+
+
+def _build_event_score_state_lookup(
+    match: dict[str, Any],
+    events: Any,
+    score_timeline: dict[str, Any],
+) -> dict[tuple[int, int], dict[str, str]]:
+    """Map each ordered event to the state before it for home and away teams."""
+    if not isinstance(events, list) or score_timeline.get("status") != "validated":
+        return {}
+
+    home = match.get("home_team") if isinstance(match, dict) else None
+    away = match.get("away_team") if isinstance(match, dict) else None
+    home = home if isinstance(home, dict) else {}
+    away = away if isinstance(away, dict) else {}
+    home_id = home.get("home_team_id")
+    away_id = away.get("away_team_id")
+    if home_id is None or away_id is None:
+        return {}
+
+    home_key, away_key = str(home_id), str(away_id)
+    score = {home_key: 0, away_key: 0}
+    goal_by_event = {
+        (int(goal["period"]), int(goal["event_index"])): str(goal["scoring_team_id"])
+        for goal in score_timeline.get("goals", [])
+    }
+    lookup: dict[tuple[int, int], dict[str, str]] = {}
+
+    for period, index, event in sorted(
+        (int(event["period"]), int(event["index"]), event)
+        for event in events
+    ):
+        if period == 5:
+            continue
+        lookup[(period, index)] = {
+            home_key: _score_state(score[home_key], score[away_key]),
+            away_key: _score_state(score[away_key], score[home_key]),
+        }
+        scoring_team = goal_by_event.get((period, index))
+        if scoring_team == home_key:
+            score[home_key] += 1
+        elif scoring_team == away_key:
+            score[away_key] += 1
+    return lookup
+
+
+def _score_state_metric_contributions(event: dict[str, Any]) -> Counter[str]:
+    """Mirror supported player event counters for a single event."""
+    contributions: Counter[str] = Counter({"events": 1})
+    event_type = _name(event.get("type")) or "Unknown"
+
+    if event_type == "Pass":
+        pass_data = event.get("pass") or {}
+        contributions["passes_attempted"] += 1
+        if not pass_data.get("outcome"):
+            contributions["passes_completed"] += 1
+        if pass_data.get("cross") is True:
+            contributions["crosses"] += 1
+        if pass_data.get("through_ball") is True:
+            contributions["through_balls"] += 1
+        if pass_data.get("goal_assist") is True:
+            contributions["assists"] += 1
+        if pass_data.get("shot_assist") is True:
+            contributions["shot_assists"] += 1
+        if _name(pass_data.get("type")) == "Goal Kick":
+            contributions["goal_kicks"] += 1
+    elif event_type == "Carry":
+        contributions["carries"] += 1
+    elif event_type == "Shot":
+        shot = event.get("shot") or {}
+        contributions["shots"] += 1
+        if _name(shot.get("outcome")) == "Goal":
+            contributions["goals"] += 1
+        if _finite(shot.get("statsbomb_xg")):
+            contributions["xg"] += float(shot["statsbomb_xg"])
+    elif event_type == "Goal Keeper":
+        goalkeeper = event.get("goalkeeper") or {}
+        goalkeeper_type = _name(goalkeeper.get("type"))
+        normalized_type = goalkeeper_type.casefold() if goalkeeper_type else ""
+        contributions["goalkeeper_actions"] += 1
+        save_types = {
+            "penalty saved", "penalty saved to post", "shot saved",
+            "shot saved off target", "shot saved to post",
+        }
+        if normalized_type in save_types:
+            contributions["goalkeeper_saves"] += 1
+        if normalized_type in {"penalty saved", "penalty saved to post"}:
+            contributions["goalkeeper_penalty_saves"] += 1
+        if normalized_type == "shot faced":
+            contributions["goalkeeper_shots_faced"] += 1
+        elif normalized_type == "goal conceded":
+            contributions["goalkeeper_goals_conceded"] += 1
+        elif normalized_type == "collected":
+            contributions["goalkeeper_collections"] += 1
+        elif normalized_type == "punch":
+            contributions["goalkeeper_punches"] += 1
+        elif normalized_type in {
+            "keeper sweeper", "keeper sweep", "keeper pick-up", "keeper pick up"
+        }:
+            contributions["goalkeeper_sweeps"] += 1
+        elif normalized_type == "smother":
+            contributions["goalkeeper_smotherings"] += 1
+        elif normalized_type == "penalty conceded":
+            contributions["goalkeeper_penalties_conceded"] += 1
+        elif normalized_type not in save_types:
+            contributions["goalkeeper_unclassified_actions"] += 1
+    elif event_type == "Pressure":
+        contributions["pressures"] += 1
+    elif event_type == "Interception":
+        contributions["interceptions"] += 1
+    elif event_type == "Ball Recovery":
+        contributions["ball_recoveries"] += 1
+    elif event_type == "Clearance":
+        contributions["clearances"] += 1
+    elif event_type == "Block":
+        contributions["blocks"] += 1
+    elif event_type == "Duel":
+        if _name((event.get("duel") or {}).get("type")) == "Tackle":
+            contributions["tackles"] += 1
+    elif event_type == "Dribble":
+        contributions["dribbles"] += 1
+
+    return contributions
+
+
+def _serialise_score_state_metrics(
+    metrics_by_state: dict[str, Counter[str]],
+) -> dict[str, dict[str, int | float]]:
+    """Return explicit zero-filled raw-count maps for all score states."""
+    output = {}
+    for state in SCORE_STATES:
+        values = metrics_by_state.get(state, Counter())
+        output[state] = {
+            field: (
+                round(float(values.get(field, 0.0)), 3)
+                if field == "xg" else int(values.get(field, 0))
+            )
+            for field in SCORE_STATE_METRIC_FIELDS
+        }
+    return output
+
+
 def analyse_match(match: dict[str, Any], lineups: Any,
                   events: Any) -> dict[str, Any]:
     """Build a cautious single-match player event summary."""
@@ -1162,7 +1356,15 @@ def analyse_match(match: dict[str, Any], lineups: Any,
 
     players, warnings = _lineup_players(lineups)
     minutes_result = calculate_minutes_played(events)
+    score_state_timeline = calculate_match_score_timeline(match, events)
+    score_state_lookup = _build_event_score_state_lookup(
+        match, events, score_state_timeline
+    )
     counters: dict[str, Counter[str]] = defaultdict(Counter)
+    score_state_counters: dict[str, dict[str, Counter[str]]] = defaultdict(
+        lambda: {state: Counter() for state in SCORE_STATES}
+    )
+    score_state_unclassified_events: Counter[str] = Counter()
     pass_lengths: dict[str, list[float]] = defaultdict(list)
     xg_values: dict[str, list[float]] = defaultdict(list)
     event_types: Counter[str] = Counter()
@@ -1211,6 +1413,28 @@ def analyse_match(match: dict[str, Any], lineups: Any,
 
         row = counters[player_key]
         row["events"] += 1
+
+        if score_state_timeline["status"] == "validated":
+            period = event.get("period")
+            index = event.get("index")
+            event_team_id = _id(event.get("team"))
+            event_state = None
+            if (
+                isinstance(period, int) and not isinstance(period, bool)
+                and isinstance(index, int) and not isinstance(index, bool)
+                and event_team_id is not None
+            ):
+                event_state = score_state_lookup.get(
+                    (period, index), {}
+                ).get(str(event_team_id))
+            if event_state in SCORE_STATES:
+                score_state_counters[player_key][event_state].update(
+                    _score_state_metric_contributions(event)
+                )
+            else:
+                score_state_unclassified_events[player_key] += 1
+        else:
+            score_state_unclassified_events[player_key] += 1
 
         if event_type == "Pass":
             pass_data = event.get("pass") or {}
@@ -1323,9 +1547,39 @@ def analyse_match(match: dict[str, Any], lineups: Any,
             warnings.append(
                 f"Minutes hesaplanamadı; oyuncu appearance kanıtı var: {player.get('player_name', player_key)}"
             )
+        classified_score_state_events = sum(
+            int(score_state_counters[player_key][state].get("events", 0))
+            for state in SCORE_STATES
+        )
+        unclassified_score_state_events = int(
+            score_state_unclassified_events[player_key]
+        )
+        if score_state_timeline["status"] == "validated":
+            score_state_status = (
+                "validated" if unclassified_score_state_events == 0 else "partial"
+            )
+            score_state_metrics_by_state = _serialise_score_state_metrics(
+                score_state_counters[player_key]
+            )
+        else:
+            score_state_status = "unavailable"
+            score_state_metrics_by_state = None
+
         player_rows.append({
             **player,
             "metrics": metrics,
+            "score_state_analysis": {
+                "status": score_state_status,
+                "timeline_status": score_state_timeline["status"],
+                "classified_player_events": classified_score_state_events,
+                "unclassified_player_events": unclassified_score_state_events,
+                "metrics_by_state": score_state_metrics_by_state,
+                "unit": "raw event counts; xG is summed source xG",
+                "interpretation_limit": (
+                    "No score-state minutes or per-90 rates are calculated. "
+                    "Events without a validated state/team mapping remain unclassified."
+                ),
+            },
             "pass_length_sum": round(sum(lengths), 3),
             "pass_length_observations": len(lengths),
             "minutes_played": round(player_seconds / 60.0, 2) if player_seconds is not None else None,
@@ -1351,7 +1605,7 @@ def analyse_match(match: dict[str, Any], lineups: Any,
             "away_score": match.get("away_score"),
             "match_context": {
                 **extract_match_context(match),
-                "score_state_timeline": calculate_match_score_timeline(match, events),
+                "score_state_timeline": score_state_timeline,
             },
         },
         "quality": {
@@ -2319,9 +2573,30 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 "pass_length_sum": 0.0,
                 "pass_length_observations": 0,
                 "xg_values": [],
+                "score_state_metrics": {
+                    state: Counter() for state in SCORE_STATES
+                },
+                "score_state_match_statuses": Counter(),
+                "score_state_classified_events": 0,
+                "score_state_unclassified_events": 0,
                 "match_rows": [],
             })
             aggregate["match_rows"].append(player)
+            score_state_analysis = player.get("score_state_analysis") or {}
+            score_state_status = score_state_analysis.get("status") or "unavailable"
+            aggregate["score_state_match_statuses"][score_state_status] += 1
+            aggregate["score_state_classified_events"] += int(
+                score_state_analysis.get("classified_player_events") or 0
+            )
+            aggregate["score_state_unclassified_events"] += int(
+                score_state_analysis.get("unclassified_player_events") or 0
+            )
+            metrics_by_state = score_state_analysis.get("metrics_by_state")
+            if isinstance(metrics_by_state, dict):
+                for state in SCORE_STATES:
+                    for field in SCORE_STATE_METRIC_FIELDS:
+                        value = (metrics_by_state.get(state) or {}).get(field, 0)
+                        aggregate["score_state_metrics"][state][field] += value
             aggregate["squad_listings"] += 1
             if player.get("appearance_evidence"):
                 aggregate["matches_with_appearance_evidence"] += 1
@@ -2358,6 +2633,35 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             ),
             "xg": round(sum(player["xg_values"]), 3) if player["xg_values"] else None,
         })
+        match_status_counts = {
+            status: int(player["score_state_match_statuses"].get(status, 0))
+            for status in ("validated", "partial", "unavailable")
+        }
+        if match_status_counts["validated"] == len(player["match_rows"]):
+            score_state_status = "validated"
+        elif match_status_counts["validated"] + match_status_counts["partial"] > 0:
+            score_state_status = "partial"
+        else:
+            score_state_status = "unavailable"
+        has_score_state_metrics = (
+            match_status_counts["validated"] + match_status_counts["partial"] > 0
+        )
+        aggregate_score_state_analysis = {
+            "status": score_state_status,
+            "match_records": len(player["match_rows"]),
+            "match_status_counts": match_status_counts,
+            "classified_player_events": int(player["score_state_classified_events"]),
+            "unclassified_player_events": int(player["score_state_unclassified_events"]),
+            "metrics_by_state": (
+                _serialise_score_state_metrics(player["score_state_metrics"])
+                if has_score_state_metrics else None
+            ),
+            "unit": "raw event counts across selected match records; xG is summed source xG",
+            "interpretation_limit": (
+                "No score-state minutes or per-90 rates are calculated. "
+                "Only match records with a validated score timeline contribute to state totals."
+            ),
+        }
         aggregate_row = {
             "player_id": player["player_id"],
             "player_name": player["player_name"],
@@ -2376,6 +2680,7 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 player["minutes_played_seconds"] if player["minutes_calculation_complete"] else None,
             ),
             "metrics": counts,
+            "score_state_analysis": aggregate_score_state_analysis,
         }
         aggregate_row["data_quality"] = calculate_player_data_quality(aggregate_row)
         aggregate_row["data_consistency"] = calculate_player_data_consistency(
@@ -2456,6 +2761,8 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "This is a selected research dataset, not complete coverage of all leagues, seasons or youth players.",
             "Players are grouped only by the StatsBomb player_id; names are never used as a merge key. Name variants for one ID are exposed for review.",
             "The report is not a definitive scout verdict, potential rating or transfer recommendation.",
+            "Score-state player counts are raw event totals, not rates. They are available only when the match score timeline reconciles to the listed final score and the event team maps to the match home/away team.",
+            "No minutes by score state or score-state per-90 metrics are calculated; raw counts across different state durations must not be compared as performance rates.",
         ],
         "source_files": provenance,
         "matches": analysed_matches,
@@ -2487,6 +2794,14 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "player_identity_key", "player_identity_status",
             "player_identity_reasons", "player_identity_name_variants",
             "possible_same_name_collision", "other_same_name_player_ids",
+            "score_state_analysis_status",
+            "score_state_matches_validated", "score_state_matches_partial",
+            "score_state_matches_unavailable",
+            "score_state_classified_player_events",
+            "score_state_unclassified_player_events",
+            "score_state_leading_metrics_json",
+            "score_state_drawing_metrics_json",
+            "score_state_trailing_metrics_json",
             *COUNTER_FIELDS, "pass_completion_pct", "pass_length_mean", "xg",
             *[f"per90_{field}" for field in (*COUNTER_FIELDS, "xg")],
         ]
@@ -2517,6 +2832,24 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 "player_identity_name_variants": " | ".join(row["identity"]["name_variants"]),
                 "possible_same_name_collision": row["identity"]["possible_same_name_collision"],
                 "other_same_name_player_ids": " | ".join(row["identity"]["other_same_name_player_ids"]),
+                "score_state_analysis_status": row["score_state_analysis"]["status"],
+                "score_state_matches_validated": row["score_state_analysis"]["match_status_counts"]["validated"],
+                "score_state_matches_partial": row["score_state_analysis"]["match_status_counts"]["partial"],
+                "score_state_matches_unavailable": row["score_state_analysis"]["match_status_counts"]["unavailable"],
+                "score_state_classified_player_events": row["score_state_analysis"]["classified_player_events"],
+                "score_state_unclassified_player_events": row["score_state_analysis"]["unclassified_player_events"],
+                "score_state_leading_metrics_json": (
+                    json.dumps(row["score_state_analysis"]["metrics_by_state"]["leading"], ensure_ascii=False, sort_keys=True)
+                    if row["score_state_analysis"]["metrics_by_state"] is not None else ""
+                ),
+                "score_state_drawing_metrics_json": (
+                    json.dumps(row["score_state_analysis"]["metrics_by_state"]["drawing"], ensure_ascii=False, sort_keys=True)
+                    if row["score_state_analysis"]["metrics_by_state"] is not None else ""
+                ),
+                "score_state_trailing_metrics_json": (
+                    json.dumps(row["score_state_analysis"]["metrics_by_state"]["trailing"], ensure_ascii=False, sort_keys=True)
+                    if row["score_state_analysis"]["metrics_by_state"] is not None else ""
+                ),
                 **row["metrics"],
                 **{
                     f"per90_{field}": (row.get("per90_metrics") or {}).get(field)

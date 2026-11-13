@@ -424,6 +424,195 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertEqual(timeline["status"], "unavailable")
         self.assertIn("match_team_ids_unavailable_or_ambiguous", timeline["reason_codes"])
 
+    def test_player_actions_are_classified_by_score_state_before_each_goal(self):
+        match = {
+            **MATCH,
+            "home_team": {
+                **MATCH["home_team"],
+                "home_team_id": 1,
+            },
+            "away_team": {
+                **MATCH["away_team"],
+                "away_team_id": 2,
+            },
+            "home_score": 1,
+            "away_score": 0,
+        }
+        lineups = [
+            {
+                "team_id": 1,
+                "team_name": "Argentina",
+                "lineup": [{
+                    "player_id": 10,
+                    "player_name": "Home Player",
+                    "positions": [{"position": "Center Midfield"}],
+                }],
+            },
+            {
+                "team_id": 2,
+                "team_name": "France",
+                "lineup": [{
+                    "player_id": 20,
+                    "player_name": "Away Player",
+                    "positions": [{"position": "Center Midfield"}],
+                }],
+            },
+        ]
+        events = [
+            {
+                "period": 1, "index": 1, "timestamp": "00:01:00.000",
+                "type": {"name": "Pass"},
+                "player": {"id": 10, "name": "Home Player"},
+                "team": {"id": 1, "name": "Argentina"},
+                "pass": {},
+            },
+            {
+                "period": 1, "index": 2, "timestamp": "00:02:00.000",
+                "type": {"name": "Pressure"},
+                "player": {"id": 20, "name": "Away Player"},
+                "team": {"id": 2, "name": "France"},
+            },
+            {
+                "period": 1, "index": 3, "timestamp": "00:03:00.000",
+                "type": {"name": "Shot"},
+                "player": {"id": 10, "name": "Home Player"},
+                "team": {"id": 1, "name": "Argentina"},
+                "shot": {
+                    "outcome": {"name": "Goal"},
+                    "statsbomb_xg": 0.25,
+                },
+            },
+            {
+                "period": 1, "index": 4, "timestamp": "00:04:00.000",
+                "type": {"name": "Carry"},
+                "player": {"id": 10, "name": "Home Player"},
+                "team": {"id": 1, "name": "Argentina"},
+            },
+            {
+                "period": 1, "index": 5, "timestamp": "00:05:00.000",
+                "type": {"name": "Pass"},
+                "player": {"id": 10, "name": "Home Player"},
+                "team": {"id": 1, "name": "Argentina"},
+                "pass": {"outcome": {"name": "Incomplete"}},
+            },
+            {
+                "period": 1, "index": 6, "timestamp": "00:06:00.000",
+                "type": {"name": "Pressure"},
+                "player": {"id": 20, "name": "Away Player"},
+                "team": {"id": 2, "name": "France"},
+            },
+        ]
+
+        report = analyse_match(match, lineups, events)
+        home = next(row for row in report["player_metrics"] if row["player_id"] == 10)
+        away = next(row for row in report["player_metrics"] if row["player_id"] == 20)
+        home_state = home["score_state_analysis"]
+        away_state = away["score_state_analysis"]
+
+        self.assertEqual(report["match"]["match_context"]["score_state_timeline"]["status"], "validated")
+        self.assertEqual(home_state["status"], "validated")
+        self.assertEqual(home_state["classified_player_events"], 4)
+        self.assertEqual(home_state["unclassified_player_events"], 0)
+        self.assertEqual(home_state["metrics_by_state"]["drawing"]["events"], 2)
+        self.assertEqual(home_state["metrics_by_state"]["drawing"]["passes_attempted"], 1)
+        self.assertEqual(home_state["metrics_by_state"]["drawing"]["shots"], 1)
+        self.assertEqual(home_state["metrics_by_state"]["drawing"]["goals"], 1)
+        self.assertEqual(home_state["metrics_by_state"]["drawing"]["xg"], 0.25)
+        self.assertEqual(home_state["metrics_by_state"]["leading"]["events"], 2)
+        self.assertEqual(home_state["metrics_by_state"]["leading"]["carries"], 1)
+        self.assertEqual(home_state["metrics_by_state"]["leading"]["passes_attempted"], 1)
+        self.assertEqual(home_state["metrics_by_state"]["trailing"]["events"], 0)
+
+        self.assertEqual(away_state["status"], "validated")
+        self.assertEqual(away_state["metrics_by_state"]["drawing"]["pressures"], 1)
+        self.assertEqual(away_state["metrics_by_state"]["trailing"]["pressures"], 1)
+        self.assertEqual(away_state["metrics_by_state"]["drawing"]["events"], 1)
+        self.assertEqual(away_state["metrics_by_state"]["trailing"]["events"], 1)
+
+    def test_player_score_state_is_partial_when_event_team_cannot_be_mapped(self):
+        match = {
+            **MATCH,
+            "home_team": {**MATCH["home_team"], "home_team_id": 1},
+            "away_team": {**MATCH["away_team"], "away_team_id": 2},
+            "home_score": 1,
+            "away_score": 0,
+        }
+        lineups = [
+            {
+                "team_id": 1,
+                "team_name": "Argentina",
+                "lineup": [{
+                    "player_id": 10,
+                    "player_name": "Home Player",
+                    "positions": [{"position": "Center Midfield"}],
+                }],
+            },
+        ]
+        events = [
+            {
+                "period": 1, "index": 1, "timestamp": "00:01:00.000",
+                "type": {"name": "Pass"},
+                "player": {"id": 10, "name": "Home Player"},
+                "team": {"id": 1, "name": "Argentina"},
+                "pass": {},
+            },
+            {
+                "period": 1, "index": 2, "timestamp": "00:02:00.000",
+                "type": {"name": "Pressure"},
+                "player": {"id": 20, "name": "Unmapped Player"},
+                "team": {"id": 99, "name": "Unknown Team"},
+            },
+            {
+                "period": 1, "index": 3, "timestamp": "00:03:00.000",
+                "type": {"name": "Shot"},
+                "player": {"id": 10, "name": "Home Player"},
+                "team": {"id": 1, "name": "Argentina"},
+                "shot": {"outcome": {"name": "Goal"}},
+            },
+        ]
+        report = analyse_match(match, lineups, events)
+        unmapped = next(row for row in report["player_metrics"] if row["player_id"] == 20)
+        analysis = unmapped["score_state_analysis"]
+        self.assertEqual(report["match"]["match_context"]["score_state_timeline"]["status"], "validated")
+        self.assertEqual(analysis["status"], "partial")
+        self.assertEqual(analysis["classified_player_events"], 0)
+        self.assertEqual(analysis["unclassified_player_events"], 1)
+        self.assertEqual(analysis["metrics_by_state"]["drawing"]["events"], 0)
+
+    def test_player_score_state_metrics_are_unavailable_when_timeline_is_not_validated(self):
+        match = {
+            **MATCH,
+            "home_team": {**MATCH["home_team"], "home_team_id": 1},
+            "away_team": {**MATCH["away_team"], "away_team_id": 2},
+            "home_score": 1,
+            "away_score": 0,
+        }
+        lineups = [{
+            "team_id": 1,
+            "team_name": "Argentina",
+            "lineup": [{
+                "player_id": 10,
+                "player_name": "Home Player",
+                "positions": [{"position": "Center Midfield"}],
+            }],
+        }]
+        events = [{
+            "period": 1, "index": 1, "timestamp": "00:01:00.000",
+            "type": {"name": "Pass"},
+            "player": {"id": 10, "name": "Home Player"},
+            "team": {"id": 1, "name": "Argentina"},
+            "pass": {},
+        }]
+        report = analyse_match(match, lineups, events)
+        player = report["player_metrics"][0]
+        self.assertEqual(
+            report["match"]["match_context"]["score_state_timeline"]["status"],
+            "reconciliation_mismatch",
+        )
+        self.assertEqual(player["score_state_analysis"]["status"], "unavailable")
+        self.assertIsNone(player["score_state_analysis"]["metrics_by_state"])
+        self.assertEqual(player["score_state_analysis"]["unclassified_player_events"], 1)
+
     def test_counts_events_and_pass_success_using_statsbomb_rule(self):
         report = analyse_match(MATCH, LINEUPS, EVENTS)
         player = report["player_metrics"][0]
@@ -903,6 +1092,55 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertTrue(result["checks"]["minutes_total_matches"])
         self.assertTrue(result["checks"]["per90_recalculated"])
 
+    def test_player_data_consistency_reconciles_score_state_totals(self):
+        states = {
+            "leading": {"events": 2, "passes_attempted": 1, "xg": 0.0},
+            "drawing": {"events": 1, "passes_attempted": 0, "xg": 0.2},
+            "trailing": {"events": 0, "passes_attempted": 0, "xg": 0.0},
+        }
+        aggregate_states = {
+            state: dict(values) for state, values in states.items()
+        }
+        player = {
+            "matches_listed_in_squads": 1,
+            "matches_with_appearance_evidence": 1,
+            "minutes_calculation_complete": False,
+            "minutes_matches_valid": 0,
+            "minutes_played": None,
+            "per90_metrics": None,
+            "metrics": {"events": 3, "passes_attempted": 1, "xg": 0.2},
+            "score_state_analysis": {
+                "match_status_counts": {
+                    "validated": 1,
+                    "partial": 0,
+                    "unavailable": 0,
+                },
+                "metrics_by_state": aggregate_states,
+            },
+        }
+        match_rows = [{
+            "appearance_evidence": True,
+            "minutes_played_seconds": None,
+            "metrics": {"events": 3, "passes_attempted": 1, "xg": 0.2},
+            "score_state_analysis": {
+                "status": "validated",
+                "metrics_by_state": states,
+            },
+        }]
+        result = calculate_player_data_consistency(player, match_rows)
+        self.assertEqual(result["status"], "consistent")
+        self.assertTrue(result["checks"]["score_state_match_status_counts_match"])
+        self.assertTrue(result["checks"]["score_state_metric_totals_match"])
+
+        player["score_state_analysis"]["metrics_by_state"]["leading"]["passes_attempted"] = 2
+        mismatched = calculate_player_data_consistency(player, match_rows)
+        self.assertEqual(mismatched["status"], "review")
+        self.assertFalse(mismatched["checks"]["score_state_metric_totals_match"])
+        self.assertIn(
+            "score_state_metric_total_mismatch:leading:passes_attempted",
+            mismatched["reasons"],
+        )
+
     def test_player_data_consistency_flags_mismatched_event_totals(self):
         player = {
             "matches_listed_in_squads": 1,
@@ -1101,6 +1339,20 @@ class StatsBombImportTests(unittest.TestCase):
             self.assertEqual(rows[0]["player_identity_status"], "consistent")
             self.assertEqual(rows[0]["player_identity_reasons"], "")
             self.assertEqual(rows[0]["player_identity_name_variants"], "Example Player")
+            self.assertEqual(rows[0]["score_state_analysis_status"], "unavailable")
+            self.assertEqual(rows[0]["score_state_matches_unavailable"], "1")
+            self.assertEqual(rows[0]["score_state_classified_player_events"], "0")
+            self.assertEqual(rows[0]["score_state_unclassified_player_events"], "5")
+            self.assertEqual(rows[0]["score_state_leading_metrics_json"], "")
+            self.assertEqual(
+                report["player_sample_totals"][0]["score_state_analysis"]["status"],
+                "unavailable",
+            )
+            self.assertTrue(
+                report["player_sample_totals"][0]["data_consistency"]["checks"][
+                    "score_state_metric_totals_match"
+                ]
+            )
             self.assertNotIn("per90_pass_completion_pct", rows[0])
             self.assertNotIn("per90_pass_length_mean", rows[0])
 
