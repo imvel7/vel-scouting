@@ -46,6 +46,7 @@ METRIC_DEFINITIONS = {
     "dribbles": "Count of Dribble events attributed to the player.",
     "per90_metrics": "Count metrics and total xG per 90 verified on-pitch minutes; null when minutes are unavailable or zero. Percentages and means are excluded.",
     "data_quality": "Selected-sample availability checks for appearance evidence, attributed events and verified positive minutes; not a player rating.",
+    "data_consistency": "Reconciliation of selected-match records against aggregate counts, xG, minutes and per-90 calculations.",
 }
 
 COUNTER_FIELDS = (
@@ -110,6 +111,116 @@ def calculate_player_data_quality(player: dict[str, Any]) -> dict[str, Any]:
             "positive_verified_minutes": has_positive_minutes,
             "per90_available": isinstance(player.get("per90_metrics"), dict),
         },
+    }
+
+
+def calculate_player_data_consistency(
+    player: dict[str, Any],
+    match_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Reconcile an aggregate player row against its selected-match records."""
+    metrics = player.get("metrics") or {}
+    reasons: list[str] = []
+    expected_records = int(player.get("matches_listed_in_squads") or 0)
+    record_count_matches = len(match_rows) == expected_records
+    if not record_count_matches:
+        reasons.append("match_record_count_mismatch")
+
+    appearance_count = sum(1 for row in match_rows if row.get("appearance_evidence"))
+    appearance_count_matches = (
+        appearance_count == int(player.get("matches_with_appearance_evidence") or 0)
+    )
+    if not appearance_count_matches:
+        reasons.append("appearance_match_count_mismatch")
+
+    metric_totals_match = True
+    for field in COUNTER_FIELDS:
+        actual_total = int(metrics.get(field) or 0)
+        match_total = sum(
+            int((row.get("metrics") or {}).get(field) or 0)
+            for row in match_rows
+        )
+        if actual_total != match_total:
+            metric_totals_match = False
+            reasons.append(f"metric_total_mismatch:{field}")
+
+    xg_values = [
+        float((row.get("metrics") or {})["xg"])
+        for row in match_rows
+        if _finite((row.get("metrics") or {}).get("xg"))
+    ]
+    expected_xg = metrics.get("xg")
+    if _finite(expected_xg):
+        xg_total_matches = math.isclose(
+            float(expected_xg), sum(xg_values), rel_tol=0.0, abs_tol=0.001
+        )
+    else:
+        xg_total_matches = not xg_values
+    if not xg_total_matches:
+        reasons.append("xg_total_mismatch")
+
+    matched_minute_records = sum(
+        1 for row in match_rows if _finite(row.get("minutes_played_seconds"))
+    )
+    minutes_record_count_matches = (
+        matched_minute_records == int(player.get("minutes_matches_valid") or 0)
+    )
+    if not minutes_record_count_matches:
+        reasons.append("minutes_record_count_mismatch")
+
+    minutes_complete = player.get("minutes_calculation_complete") is True
+    minutes_total_matches: bool | None = None
+    per90_recalculated: bool | None = None
+    per90_matches: bool | None = None
+    if minutes_complete:
+        all_minutes_present = all(
+            _finite(row.get("minutes_played_seconds")) for row in match_rows
+        )
+        total_seconds = sum(
+            float(row["minutes_played_seconds"])
+            for row in match_rows
+            if _finite(row.get("minutes_played_seconds"))
+        )
+        minutes_total_matches = (
+            all_minutes_present
+            and round(total_seconds / 60.0, 2) == player.get("minutes_played")
+        )
+        if not minutes_total_matches:
+            reasons.append("minutes_total_mismatch")
+
+        expected_per90 = calculate_per90_metrics(metrics, total_seconds)
+        actual_per90 = player.get("per90_metrics")
+        if expected_per90 is None:
+            per90_matches = actual_per90 is None
+        elif not isinstance(actual_per90, dict):
+            per90_matches = False
+        else:
+            per90_matches = set(actual_per90) == set(expected_per90) and all(
+                math.isclose(
+                    float(actual_per90[key]), float(value),
+                    rel_tol=0.0, abs_tol=0.001
+                )
+                for key, value in expected_per90.items()
+            )
+        per90_recalculated = per90_matches
+        if not per90_matches:
+            reasons.append("per90_recalculation_mismatch")
+
+    checks = {
+        "match_record_count_matches": record_count_matches,
+        "appearance_match_count_matches": appearance_count_matches,
+        "event_metric_totals_match": metric_totals_match,
+        "xg_total_matches": xg_total_matches,
+        "minutes_record_count_matches": minutes_record_count_matches,
+        "minutes_total_matches": minutes_total_matches,
+        "per90_recalculated": per90_recalculated,
+    }
+    return {
+        "status": "consistent" if not reasons else "review",
+        "reasons": reasons,
+        "checked_match_records": len(match_rows),
+        "expected_match_records": expected_records,
+        "checks": checks,
     }
 
 
@@ -739,6 +850,7 @@ def build_cb_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
             "minutes_played": player.get("minutes_played"),
             "per90_metrics": player.get("per90_metrics"),
             "data_quality": player.get("data_quality"),
+            "data_consistency": player.get("data_consistency"),
             "metrics": {key: metrics.get(key) for key in CB_PROFILE_METRICS},
         })
 
@@ -832,7 +944,9 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 "pass_length_sum": 0.0,
                 "pass_length_observations": 0,
                 "xg_values": [],
+                "match_rows": [],
             })
+            aggregate["match_rows"].append(player)
             aggregate["squad_listings"] += 1
             if player.get("appearance_evidence"):
                 aggregate["matches_with_appearance_evidence"] += 1
@@ -889,6 +1003,9 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "metrics": counts,
         }
         aggregate_row["data_quality"] = calculate_player_data_quality(aggregate_row)
+        aggregate_row["data_consistency"] = calculate_player_data_consistency(
+            aggregate_row, player["match_rows"]
+        )
         aggregate_rows.append(aggregate_row)
     aggregate_rows.sort(key=lambda row: row["player_name"].casefold())
 
@@ -954,6 +1071,8 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "data_quality_status", "data_quality_reasons",
             "data_quality_appearance_evidence", "data_quality_minutes_complete",
             "data_quality_has_attributed_events",
+            "data_consistency_status", "data_consistency_reasons",
+            "data_consistency_match_records",
             *COUNTER_FIELDS, "pass_completion_pct", "pass_length_mean", "xg",
             *[f"per90_{field}" for field in (*COUNTER_FIELDS, "xg")],
         ]
@@ -975,6 +1094,9 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 "data_quality_appearance_evidence": row["data_quality"]["checks"]["appearance_evidence"],
                 "data_quality_minutes_complete": row["data_quality"]["checks"]["minutes_calculation_complete"],
                 "data_quality_has_attributed_events": row["data_quality"]["checks"]["attributed_events"],
+                "data_consistency_status": row["data_consistency"]["status"],
+                "data_consistency_reasons": " | ".join(row["data_consistency"]["reasons"]),
+                "data_consistency_match_records": row["data_consistency"]["checked_match_records"],
                 **row["metrics"],
                 **{
                     f"per90_{field}": (row.get("per90_metrics") or {}).get(field)
