@@ -2173,6 +2173,16 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
         player["identity"]["possible_same_name_collision"] = bool(other_ids)
         player["identity"]["other_same_name_player_ids"] = other_ids
 
+    role_profiles = {
+        "CB": build_cb_profile(aggregate_rows),
+        "FB": build_fullback_profile(aggregate_rows),
+        "CM": build_central_midfield_profile(aggregate_rows),
+        "W": build_winger_profile(aggregate_rows),
+        "ST": build_striker_profile(aggregate_rows),
+        "GK": build_goalkeeper_profile(aggregate_rows),
+    }
+    role_benchmarks = build_role_benchmarks(role_profiles)
+
     report = {
         "report_type": "statsbomb_import_quality_and_event_profile",
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -2213,7 +2223,7 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
         "limitations": [
             "Minutes are calculated from Starting XI, substitutions, Player Off/On, dismissal events and period-local timestamps. If period clocks or required state transitions are incomplete, minutes remain null; per-90 values are emitted only for complete, positive minute totals.",
             "Lineup/squad listings can include unused substitutes; unused substitutes receive 0.00 minutes only when the match-level event clock passes validation.",
-            "Percentiles and peer rankings are not produced by this single-source ingestion proof.",
+            "Peer percentiles are emitted only when same-role, same-report cohorts meet the minimum verified-minute and peer-count requirements; they describe event frequency, not player quality.",
             "Event data cannot establish off-ball positioning, scanning, body orientation, communication or visual tactical behaviour.",
             "This is a selected research dataset, not complete coverage of all leagues, seasons or youth players.",
             "Players are grouped only by the StatsBomb player_id; names are never used as a merge key. Name variants for one ID are exposed for review.",
@@ -2226,14 +2236,8 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "matching_rule": "case-insensitive exact name after whitespace normalization; source IDs remain separate",
             "same_name_different_ids": name_collisions,
         },
-        "role_profiles": {
-            "CB": build_cb_profile(aggregate_rows),
-            "FB": build_fullback_profile(aggregate_rows),
-            "CM": build_central_midfield_profile(aggregate_rows),
-            "W": build_winger_profile(aggregate_rows),
-            "ST": build_striker_profile(aggregate_rows),
-            "GK": build_goalkeeper_profile(aggregate_rows),
-        },
+        "role_profiles": role_profiles,
+        "role_benchmarks": role_benchmarks,
     }
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2301,6 +2305,172 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
         json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     return report
+
+
+
+ROLE_BENCHMARK_METRICS = {
+    "CB": (
+        "passes_attempted", "passes_completed", "pressures", "tackles",
+        "interceptions", "ball_recoveries", "clearances", "blocks",
+    ),
+    "FB": (
+        "crosses", "shot_assists", "carries", "dribbles", "pressures",
+        "tackles", "interceptions", "ball_recoveries",
+    ),
+    "CM": (
+        "passes_attempted", "passes_completed", "through_balls", "carries",
+        "dribbles", "shot_assists", "assists", "pressures", "tackles",
+        "interceptions", "ball_recoveries",
+    ),
+    "W": (
+        "shots", "goals", "xg", "shot_assists", "crosses", "dribbles",
+        "carries", "pressures",
+    ),
+    "ST": (
+        "shots", "goals", "xg", "shot_assists", "assists", "through_balls",
+        "carries", "dribbles", "pressures",
+    ),
+    "GK": (
+        "goalkeeper_saves", "goalkeeper_shots_faced",
+        "goalkeeper_goals_conceded", "goalkeeper_collections",
+        "goalkeeper_punches", "goalkeeper_sweeps",
+        "goalkeeper_smotherings", "goalkeeper_penalty_saves",
+        "goal_kicks", "passes_attempted",
+    ),
+}
+
+
+def _peer_percentile(value: float, cohort: list[float]) -> float:
+    """Return a tie-aware midrank percentile within the supplied cohort."""
+    less = sum(item < value for item in cohort)
+    equal = sum(item == value for item in cohort)
+    return round(((less + 0.5 * equal) / len(cohort)) * 100.0, 1)
+
+
+def build_role_benchmarks(
+    role_profiles: dict[str, dict[str, Any]],
+    minimum_verified_minutes: float = 450.0,
+    minimum_cohort_size: int = 10,
+) -> dict[str, Any]:
+    """Build cautious same-report, same-role percentiles from verified per-90 data."""
+    if not _finite(minimum_verified_minutes) or float(minimum_verified_minutes) < 0:
+        raise ValueError("minimum_verified_minutes negatif veya geçersiz olamaz.")
+    if minimum_cohort_size < 2:
+        raise ValueError("minimum_cohort_size en az 2 olmalı.")
+
+    benchmarks: dict[str, Any] = {}
+    for role_code, metric_names in ROLE_BENCHMARK_METRICS.items():
+        profile = role_profiles.get(role_code) or {}
+        players = profile.get("players") or []
+        prepared = []
+        for player in players:
+            reasons = []
+            minutes = player.get("minutes_played")
+            if not _finite(minutes) or float(minutes) <= 0:
+                reasons.append("verified_minutes_unavailable")
+            elif float(minutes) < minimum_verified_minutes:
+                reasons.append("below_minimum_verified_minutes")
+            if (player.get("data_quality") or {}).get("status") != "complete":
+                reasons.append("data_quality_not_complete")
+            if (player.get("data_consistency") or {}).get("status") != "consistent":
+                reasons.append("data_consistency_not_consistent")
+            if (player.get("identity") or {}).get("status") != "consistent":
+                reasons.append("identity_not_consistent")
+            per90 = player.get("per90_metrics")
+            if not isinstance(per90, dict) or not per90:
+                reasons.append("per90_metrics_unavailable")
+            prepared.append({
+                "player": player,
+                "reasons": sorted(set(reasons)),
+                "eligible": not reasons,
+            })
+
+        eligible = [item for item in prepared if item["eligible"]]
+        metric_cohorts: dict[str, list[float]] = {}
+        metric_summaries = {}
+        for metric in metric_names:
+            values = sorted(
+                float(item["player"]["per90_metrics"][metric])
+                for item in eligible
+                if _finite((item["player"].get("per90_metrics") or {}).get(metric))
+            )
+            metric_cohorts[metric] = values
+            ready = len(values) >= minimum_cohort_size
+            metric_summaries[metric] = {
+                "status": "ready" if ready else "insufficient_sample",
+                "eligible_values": len(values),
+                "minimum_required": minimum_cohort_size,
+            }
+
+        player_results = []
+        for item in prepared:
+            player = item["player"]
+            per90 = player.get("per90_metrics") or {}
+            player_metrics = {}
+            for metric in metric_names:
+                value = per90.get(metric) if isinstance(per90, dict) else None
+                cohort = metric_cohorts[metric]
+                if item["eligible"] and _finite(value) and len(cohort) >= minimum_cohort_size:
+                    player_metrics[metric] = {
+                        "value_per90": round(float(value), 3),
+                        "cohort_size": len(cohort),
+                        "percentile": _peer_percentile(float(value), cohort),
+                        "status": "ready",
+                    }
+                else:
+                    if not item["eligible"]:
+                        status = "player_not_eligible"
+                    elif not _finite(value):
+                        status = "metric_unavailable"
+                    else:
+                        status = "insufficient_sample"
+                    player_metrics[metric] = {
+                        "value_per90": round(float(value), 3) if _finite(value) else None,
+                        "cohort_size": len(cohort),
+                        "percentile": None,
+                        "status": status,
+                    }
+            player_results.append({
+                "player_id": player.get("player_id"),
+                "player_name": player.get("player_name"),
+                "minutes_played": player.get("minutes_played"),
+                "eligible_for_peer_comparison": item["eligible"],
+                "eligibility_reasons": item["reasons"],
+                "metrics": player_metrics,
+            })
+
+        benchmarks[role_code] = {
+            "role_name": profile.get("role_name"),
+            "comparison_scope": "same competition, season report and role profile",
+            "minimum_verified_minutes": minimum_verified_minutes,
+            "minimum_cohort_size": minimum_cohort_size,
+            "profile_player_count": len(players),
+            "eligible_player_count": len(eligible),
+            "cohort_status": (
+                "ready"
+                if any(item["status"] == "ready" for item in metric_summaries.values())
+                else "insufficient_sample"
+            ),
+            "percentile_method": "midrank; ties share the middle rank",
+            "metric_summaries": metric_summaries,
+            "players": player_results,
+            "interpretation_limits": [
+                "Percentiles describe relative per-90 event frequency within this report's same-role cohort; they are not quality scores or player rankings.",
+                "A higher percentile is not always better; interpretation depends on the metric and tactical context.",
+                "Only players with complete data quality, consistent match reconciliation, consistent source identity and at least the minimum verified minutes enter a cohort.",
+                "Each metric requires its own minimum number of available peer values; otherwise its percentile remains unavailable.",
+                "The cohort is limited to this competition/season report and does not adjust for team style, possession, age, opposition strength or tactical role.",
+            ],
+        }
+
+    return {
+        "benchmark_version": "peer-percentiles-v1",
+        "minimum_verified_minutes": minimum_verified_minutes,
+        "minimum_cohort_size": minimum_cohort_size,
+        "comparison_scope": "same competition and season report; same role profile",
+        "roles": benchmarks,
+    }
+
 
 
 def build_parser() -> argparse.ArgumentParser:
