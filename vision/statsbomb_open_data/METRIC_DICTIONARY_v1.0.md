@@ -197,6 +197,29 @@ The importer selects players whose observed lineup/event position labels contain
 | Blocks | Count of Block events | Recorded blocks | Shot/pass danger or whether the block prevented a goal |
 | Tackles | Duel events with `duel.type.name = Tackle` | Recorded tackle-type duels | Complete ground/aerial duel quality |
 
+### CM profile metric groups
+
+The importer produces a central-midfielder profile under `role_profiles.CM`.
+It selects source position labels that contain `Midfield` and are either
+explicitly centre-labelled (`Center`/`Centre`) or exactly the generic
+`Defensive Midfield`, `Attacking Midfield` or `Central Midfield` labels.
+Side midfield and wide-midfield labels are not included by this rule.
+
+The profile groups existing event metrics into three sections:
+
+- **Passing and progression:** pass attempts/completions, through balls,
+  carries and dribbles. Pass completion percentage and mean pass length remain
+  contextual fields.
+- **Chance creation and attacking contribution:** shot assists, assists,
+  crosses, shots, goals and xG.
+- **Defensive work:** pressures, tackle-type duels, interceptions, ball
+  recoveries, clearances and blocks.
+
+Raw counts are retained. Count metrics and xG receive per-90 values only when
+the player record contains rates calculated from complete, positive verified
+minutes. The groups do not measure scanning, pressure resistance, positional
+discipline or decision quality and do not produce a rating or ranking.
+
 ### FB profile metric groups
 
 The importer also produces a full-back/wing-back profile under
