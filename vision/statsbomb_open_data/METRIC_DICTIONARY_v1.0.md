@@ -19,9 +19,37 @@
 | Dribbles | Count of Dribble events | Does not measure success until outcome handling is separately validated |
 | Minutes played | Sum of period-local elapsed seconds while the player is active, based on Starting XI, substitutions, Player Off/On and dismissal events | Requires complete ordered timestamps and a Half End per period; unavailable rather than guessed when state/clock evidence is incomplete |
 
+## Per-90 normalization and CSV export
+
+Per-90 values are produced only after the player's on-pitch minutes pass the
+match-clock and player-state validation described above.
+
+| Export field | Calculation | Rounding |
+|---|---|---|
+| `per90_<count_metric>` | Selected-sample count metric ÷ verified on-pitch minutes × 90 | 2 decimal places |
+| `per90_xg` | Sum of available `statsbomb_xg` values ÷ verified on-pitch minutes × 90 | 3 decimal places |
+
+The `per90_<count_metric>` fields cover `events`, `passes_attempted`,
+`passes_completed`, `crosses`, `through_balls`, `assists`,
+`shot_assists`, `carries`, `shots`, `goals`, `pressures`,
+`interceptions`, `ball_recoveries`, `clearances`, `blocks`,
+`tackles` and `dribbles`.
+
+The CSV contains the raw aggregate fields and separate `per90_*` columns.
+`per90_pass_completion_pct` and `per90_pass_length_mean` are intentionally
+not created: percentages and averages are not event counts. Per-90 values are
+blank when the minutes for a relevant selected-match record are unavailable,
+or when the total verified minutes are zero. The denominator is the sum of
+verified on-pitch seconds for that player across the selected sample, not the
+number of matches or the full match duration.
+
+These rates describe recorded event volume per 90 minutes. They are not
+percentiles, peer rankings, role-adjusted measures, player ratings or scout
+verdicts.
+
 ## Rules
 
-1. Do not create per-90 values until reliable minutes played are calculated and tested.
+1. Produce per-90 values only from validated, positive on-pitch minutes; otherwise leave them unavailable.
 2. Do not interpret a zero as a weakness without checking the player's opportunities and team context.
 3. Do not compare players across roles or competition levels without an explicit peer-group model.
 4. Do not infer visual/off-ball traits from event data alone.
@@ -55,7 +83,7 @@ The importer selects players whose observed lineup/event position labels contain
 - `matches_with_appearance_evidence` is based on position records or attributed
   player events. It is not a minutes-played calculation.
 - Minutes are calculated from the event state machine using StatsBomb minute/second match-clock fields; each period is anchored to its first clock value, so half-time breaks and extra-time intervals are excluded. Penalty shootouts are excluded. Missing or contradictory clock/state evidence leaves minutes null.
-- Per-90 normalization remains disabled until the real three-match sample has passed the new minutes validation.
+- The profile exposes per-90 counts and xG only when the selected-sample minutes are complete and positive. Percentages and averages remain unnormalized.
 - No composite CB score, defensive rating, percentile or ranking is produced.
 - No aerial-duel success metric is included until event labels/outcomes are
   separately validated against the source specification and real samples.
