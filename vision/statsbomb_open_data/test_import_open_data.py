@@ -392,7 +392,7 @@ class StatsBombImportTests(unittest.TestCase):
             self.assertTrue(csv_path.exists())
             self.assertEqual(report["competition_season"]["competition_name"], "FIFA World Cup")
             self.assertEqual(report["competition_season"]["season_name"], "2022")
-            self.assertEqual(report["sample"]["event_count"], len(EVENTS) + 2)
+            self.assertEqual(report["sample"]["event_count"], len(EVENTS) + 3)
             self.assertEqual(report["sample"]["selected_match_count"], 1)
 
             with csv_path.open(encoding="utf-8-sig", newline="") as stream:
