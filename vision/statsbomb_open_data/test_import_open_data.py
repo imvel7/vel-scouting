@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import analyse_match, build_cb_profile, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
+from import_open_data import analyse_match, build_cb_profile, build_fullback_profile, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
 
 
 MATCH = {
@@ -937,6 +937,132 @@ class StatsBombImportTests(unittest.TestCase):
         )
         self.assertNotIn("rating", selected)
         self.assertIn("defensive rating or ranking", profile["interpretation_limits"][0])
+
+    def test_fullback_profile_groups_wingback_and_fullback_metrics(self):
+        players = [
+            {
+                "player_id": 1,
+                "player_name": "Right Back",
+                "team_names": ["Example FC"],
+                "positions_seen": ["Right Back"],
+                "matches_listed_in_squads": 4,
+                "matches_with_appearance_evidence": 4,
+                "minutes_played": 300.0,
+                "per90_metrics": {
+                    "crosses": 3.0,
+                    "assists": 0.3,
+                    "xg": 0.1,
+                    "passes_attempted": 45.0,
+                    "carries": 5.0,
+                    "pressures": 8.0,
+                    "tackles": 2.0,
+                    "interceptions": 1.0,
+                    "clearances": 2.0,
+                },
+                "metrics": {
+                    "crosses": 10,
+                    "through_balls": 2,
+                    "shot_assists": 1,
+                    "assists": 1,
+                    "shots": 3,
+                    "goals": 1,
+                    "xg": 0.2,
+                    "passes_attempted": 150,
+                    "passes_completed": 120,
+                    "pass_completion_pct": 80.0,
+                    "pass_length_mean": 23.5,
+                    "carries": 17,
+                    "dribbles": 4,
+                    "pressures": 27,
+                    "tackles": 7,
+                    "interceptions": 3,
+                    "ball_recoveries": 5,
+                    "clearances": 8,
+                    "blocks": 2,
+                },
+            },
+            {
+                "player_id": 2,
+                "player_name": "Wing Back",
+                "positions_seen": ["Left Wing Back", "Left Midfield"],
+                "metrics": {"crosses": 4},
+            },
+            {
+                "player_id": 3,
+                "player_name": "Centre Back",
+                "positions_seen": ["Right Center Back"],
+                "metrics": {"clearances": 5},
+            },
+            {
+                "player_id": 4,
+                "player_name": "Winger",
+                "positions_seen": ["Right Wing"],
+                "metrics": {"crosses": 8},
+            },
+        ]
+
+        profile = build_fullback_profile(players)
+        self.assertEqual(profile["role_code"], "FB")
+        self.assertEqual(profile["player_count"], 2)
+        self.assertEqual(
+            [row["player_id"] for row in profile["players"]],
+            [1, 2],
+        )
+
+        selected = profile["players"][0]
+        self.assertEqual(selected["fullback_position_labels"], ["Right Back"])
+        self.assertEqual(
+            [group["code"] for group in profile["metric_groups"]],
+            ["attacking_output", "distribution_progression", "defensive_activity"],
+        )
+        attacking = selected["grouped_metrics"]["attacking_output"]
+        self.assertEqual(attacking["raw_counts"]["crosses"], 10)
+        self.assertEqual(attacking["per90_counts"]["crosses"], 3.0)
+        self.assertEqual(attacking["raw_rate_totals"]["xg"], 0.2)
+        self.assertEqual(attacking["per90_rate_metrics"]["xg"], 0.1)
+
+        progression = selected["grouped_metrics"]["distribution_progression"]
+        self.assertEqual(progression["raw_counts"]["passes_attempted"], 150)
+        self.assertEqual(progression["context_metrics"]["pass_completion_pct"], 80.0)
+        defence = selected["grouped_metrics"]["defensive_activity"]
+        self.assertEqual(defence["raw_counts"]["tackles"], 7)
+        self.assertEqual(defence["per90_counts"]["pressures"], 8.0)
+
+        wingback = profile["players"][1]
+        self.assertEqual(wingback["fullback_position_labels"], ["Left Wing Back"])
+        self.assertNotIn("rating", selected)
+        self.assertEqual(profile["interpretation_limits"][0], "No full-back rating or ranking is calculated.")
+
+    def test_fullback_profile_does_not_fabricate_per90_without_verified_metrics(self):
+        profile = build_fullback_profile([{
+            "player_id": 8,
+            "player_name": "Unverified Fullback",
+            "positions_seen": ["Left Back"],
+            "metrics": {"crosses": 5, "pressures": 10},
+            "per90_metrics": None,
+        }])
+        player = profile["players"][0]
+        self.assertEqual(
+            player["grouped_metrics"]["attacking_output"]["raw_counts"]["crosses"],
+            5,
+        )
+        self.assertEqual(
+            player["grouped_metrics"]["attacking_output"]["per90_counts"],
+            {},
+        )
+        self.assertEqual(
+            player["grouped_metrics"]["defensive_activity"]["per90_counts"],
+            {},
+        )
+
+    def test_fullback_position_filter_excludes_centre_back_and_attacking_winger(self):
+        profile = build_fullback_profile([
+            {"player_id": 1, "player_name": "CB", "positions_seen": ["Left Centre Back"]},
+            {"player_id": 2, "player_name": "Winger", "positions_seen": ["Left Wing"]},
+            {"player_id": 3, "player_name": "Fullback", "positions_seen": ["Right Fullback"]},
+        ])
+        self.assertEqual(profile["player_count"], 1)
+        self.assertEqual(profile["players"][0]["player_id"], 3)
 
     def test_cache_json_records_content_hash(self):
         with tempfile.TemporaryDirectory() as directory:
