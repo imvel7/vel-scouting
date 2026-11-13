@@ -31,7 +31,7 @@ jobs:
         run: python -m unittest discover -s vision/statsbomb_open_data -p "test_*.py" -v
 
   statsbomb-live-data-smoke:
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/feature/verified-minutes-calculation'
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/feature/verified-minutes-calculation' || github.ref == 'refs/heads/feature/metric-interpretation-guidance'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
