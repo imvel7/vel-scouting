@@ -432,7 +432,7 @@ class StatsBombImportTests(unittest.TestCase):
         comparison = build_player_season_comparison(reports)
         role = comparison["players"][0]["seasons"][1]["position_comparison_from_previous"]
         self.assertEqual(role["status"], "same")
-        self.assertEqual(role["shared_positions"], ["Center Back"])
+        self.assertEqual(role["shared_positions"], ["center back"])
 
     def test_season_comparison_preserves_shared_position_label_and_summary(self):
         reports = [
@@ -459,7 +459,7 @@ class StatsBombImportTests(unittest.TestCase):
         player = comparison["players"][0]
         relation = player["seasons"][1]["position_comparison_from_previous"]
         self.assertEqual(relation["status"], "changed")
-        self.assertEqual(relation["shared_positions"], ["Center Back"])
+        self.assertEqual(relation["shared_positions"], ["center back"])
         self.assertEqual(relation["previous_positions"], ["Center Back", "Defensive Midfield"])
         self.assertEqual(player["position_comparison_status"], "changed")
         self.assertEqual(player["position_change_count"], 1)
