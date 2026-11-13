@@ -1292,6 +1292,148 @@ def build_fullback_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 
+
+WINGER_METRIC_GROUPS = (
+    {
+        "code": "chance_creation_finishing",
+        "label": "Chance creation and finishing",
+        "count_metrics": ("shot_assists", "assists", "shots", "goals"),
+        "rate_metrics": ("xg",),
+        "context_metrics": (),
+        "description": "Recorded shot creation, assists and shooting output.",
+    },
+    {
+        "code": "wide_delivery",
+        "label": "Wide delivery and passing",
+        "count_metrics": (
+            "crosses", "through_balls", "passes_attempted", "passes_completed",
+        ),
+        "rate_metrics": (),
+        "context_metrics": ("pass_completion_pct", "pass_length_mean"),
+        "description": "Recorded crosses, through balls and passing volume.",
+    },
+    {
+        "code": "one_v_one_progression",
+        "label": "One-v-one and ball progression",
+        "count_metrics": ("dribbles", "carries"),
+        "rate_metrics": (),
+        "context_metrics": (),
+        "description": "Recorded dribble actions and ball carries.",
+    },
+    {
+        "code": "defensive_contribution",
+        "label": "Pressing and defensive contribution",
+        "count_metrics": (
+            "pressures", "tackles", "interceptions", "ball_recoveries",
+        ),
+        "rate_metrics": (),
+        "context_metrics": (),
+        "description": "Recorded pressures, tackle-type duels, interceptions and recoveries.",
+    },
+)
+
+
+def _is_winger_position(position: Any) -> bool:
+    """Recognize explicit wing labels while excluding wing-back positions."""
+    if not isinstance(position, str):
+        return False
+    tokens = set(" ".join(position.casefold().split()).split())
+    return "wing" in tokens and not {"back", "fullback"}.intersection(tokens)
+
+
+def build_winger_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Group explicit winger position labels; this is not a player rating."""
+    wingers = []
+    for player in player_rows:
+        positions = player.get("positions_seen") or []
+        winger_positions = sorted({
+            " ".join(position.split())
+            for position in positions
+            if _is_winger_position(position)
+        }, key=str.casefold)
+        if not winger_positions:
+            continue
+
+        metrics = player.get("metrics") or {}
+        per90 = player.get("per90_metrics") or {}
+        grouped_metrics = {}
+        for group in WINGER_METRIC_GROUPS:
+            count_fields = group["count_metrics"]
+            rate_fields = group["rate_metrics"]
+            context_fields = group["context_metrics"]
+            grouped_metrics[group["code"]] = {
+                "raw_counts": {key: metrics.get(key) for key in count_fields},
+                "per90_counts": {
+                    key: per90.get(key) for key in count_fields if key in per90
+                },
+                "raw_rate_totals": {key: metrics.get(key) for key in rate_fields},
+                "per90_rate_metrics": {
+                    key: per90.get(key) for key in rate_fields if key in per90
+                },
+                "context_metrics": {
+                    key: metrics.get(key) for key in context_fields
+                },
+            }
+
+        wingers.append({
+            "player_id": player.get("player_id"),
+            "player_name": player.get("player_name"),
+            "team_names": player.get("team_names") or [],
+            "positions_seen": positions,
+            "winger_position_labels": winger_positions,
+            "matches_listed_in_squads": player.get("matches_listed_in_squads", 0),
+            "matches_with_appearance_evidence": player.get(
+                "matches_with_appearance_evidence", 0
+            ),
+            "minutes_played": player.get("minutes_played"),
+            "per90_metrics": player.get("per90_metrics"),
+            "grouped_metrics": grouped_metrics,
+            "data_quality": player.get("data_quality"),
+            "data_consistency": player.get("data_consistency"),
+            "identity": player.get("identity"),
+            "metrics": {
+                key: metrics.get(key)
+                for key in (
+                    "shot_assists", "assists", "shots", "goals", "xg",
+                    "crosses", "through_balls", "passes_attempted",
+                    "passes_completed", "pass_completion_pct",
+                    "pass_length_mean", "dribbles", "carries",
+                    "pressures", "tackles", "interceptions", "ball_recoveries",
+                )
+            },
+        })
+
+    wingers.sort(key=lambda row: str(row.get("player_name") or "").casefold())
+    return {
+        "role_code": "W",
+        "role_name": "Winger",
+        "position_labels_included": ["Left Wing", "Right Wing"],
+        "metric_mode": "grouped_raw_event_counts_with_verified_per90_rates",
+        "metric_groups": [
+            {
+                "code": group["code"],
+                "label": group["label"],
+                "count_metrics": list(group["count_metrics"]),
+                "rate_metrics": list(group["rate_metrics"]),
+                "context_metrics": list(group["context_metrics"]),
+                "description": group["description"],
+            }
+            for group in WINGER_METRIC_GROUPS
+        ],
+        "player_count": len(wingers),
+        "players": wingers,
+        "interpretation_limits": [
+            "No winger rating or ranking is calculated.",
+            "Raw event counts depend on selected minutes, team possession, role, match state and opponent context.",
+            "Per-90 values are included only when derived from complete, positive verified minutes.",
+            "The profile groups recorded actions; it does not measure successful take-on rate, crossing quality, off-ball runs, pressing triggers or tactical decision quality.",
+            "Players with more than one observed position retain all source position labels; the profile does not infer one primary wing.",
+            "Wing-back labels are deliberately excluded from this profile.",
+        ],
+    }
+
+
+
 CM_METRIC_GROUPS = (
     {
         "code": "distribution_progression",
@@ -1724,6 +1866,7 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "CB": build_cb_profile(aggregate_rows),
             "FB": build_fullback_profile(aggregate_rows),
             "CM": build_central_midfield_profile(aggregate_rows),
+            "W": build_winger_profile(aggregate_rows),
         },
     }
 
