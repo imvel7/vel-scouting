@@ -197,6 +197,30 @@ The importer selects players whose observed lineup/event position labels contain
 | Blocks | Count of Block events | Recorded blocks | Shot/pass danger or whether the block prevented a goal |
 | Tackles | Duel events with `duel.type.name = Tackle` | Recorded tackle-type duels | Complete ground/aerial duel quality |
 
+### W profile metric groups
+
+The importer produces an explicit winger profile under `role_profiles.W`.
+It selects position labels containing the standalone token `Wing` while
+excluding labels that also identify a `Back` or `Fullback`. This includes
+source labels such as `Left Wing` and `Right Wing`, but not wing-backs,
+centre-forwards or side-midfield labels. Original position labels remain
+available on each player row.
+
+The profile groups existing event metrics into four sections:
+
+- **Chance creation and finishing:** shot assists, assists, shots, goals and xG.
+- **Wide delivery and passing:** crosses, through balls, pass attempts and
+  completions; pass completion percentage and mean pass length remain
+  contextual fields.
+- **One-v-one and ball progression:** dribbles and carries.
+- **Pressing and defensive contribution:** pressures, tackle-type duels,
+  interceptions and ball recoveries.
+
+Raw counts are retained. Count metrics and xG receive per-90 values only when
+the player record contains rates calculated from complete, positive verified
+minutes. The groups do not measure successful take-on rate, crossing quality,
+off-ball runs or tactical decision quality; no rating or ranking is produced.
+
 ### CM profile metric groups
 
 The importer produces a central-midfielder profile under `role_profiles.CM`.
