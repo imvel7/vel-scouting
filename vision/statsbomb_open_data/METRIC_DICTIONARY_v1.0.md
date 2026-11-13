@@ -221,6 +221,36 @@ the player record contains rates calculated from complete, positive verified
 minutes. The groups do not measure successful take-on rate, crossing quality,
 off-ball runs or tactical decision quality; no rating or ranking is produced.
 
+### GK profile metric groups
+
+The importer produces a goalkeeper profile under `role_profiles.GK`. It
+selects only explicit `Goalkeeper`, `Goal Keeper` or `Keeper` position
+labels; a keeper-sweeper action label is not treated as a playing position.
+
+The profile groups existing event fields into three sections:
+
+- **Shot stopping:** goalkeeper save events, shot-faced events, goal-conceded
+  events and penalty-save/concession events.
+- **Area control:** collections, punches, sweeps and smothers.
+- **Distribution and restarts:** passes, completed passes, goal kicks, pass
+  completion percentage and mean pass length.
+
+The `goalkeeper_saves` count uses the StatsBomb Stats Portal definition:
+Goal Keeper events whose type is `Penalty Saved`, `Penalty Saved to Post`,
+`Shot Saved`, `Shot Saved Off Target` or `Shot Saved to Post`
+([StatsBomb glossary](https://stats-portal.statsbomb.com/glossary)). Other
+goalkeeper action types are counted separately. StatsBomb documentation notes
+that goalkeeper event records can represent an attempted action and do not
+necessarily mean the attempt succeeded; these counts are therefore event
+counts, not automatic success counts.
+
+Raw counts are retained. Count metrics receive per-90 values only when the
+player record contains rates calculated from complete, positive verified
+minutes. Save percentage, post-shot xG/goals prevented, cross-claim rate and
+long-ball accuracy remain unavailable until their denominators and underlying
+event classifications are validated. The profile does not produce a
+goalkeeper rating or ranking.
+
 ### ST profile metric groups
 
 The importer produces a striker/centre-forward profile under
