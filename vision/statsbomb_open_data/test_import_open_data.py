@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import analyse_match, build_cb_profile, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, fetch_json, run_import, ImportErrorWithContext
+from import_open_data import analyse_match, build_cb_profile, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, fetch_json, run_import, ImportErrorWithContext
 
 
 MATCH = {
@@ -278,6 +278,66 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertIn("no_appearance_evidence", quality["reasons"])
         self.assertIn("no_attributed_events", quality["reasons"])
 
+    def test_player_data_consistency_accepts_matching_match_totals(self):
+        metrics = {
+            "events": 8,
+            "passes_attempted": 4,
+            "passes_completed": 3,
+            "xg": 0.5,
+        }
+        for field in (
+            "crosses", "through_balls", "assists", "shot_assists", "carries",
+            "shots", "goals", "pressures", "interceptions", "ball_recoveries",
+            "clearances", "blocks", "tackles", "dribbles",
+        ):
+            metrics.setdefault(field, 0)
+        player = {
+            "matches_listed_in_squads": 2,
+            "matches_with_appearance_evidence": 2,
+            "minutes_calculation_complete": True,
+            "minutes_matches_valid": 2,
+            "minutes_played": 90.0,
+            "per90_metrics": calculate_per90_metrics(metrics, 90 * 60),
+            "metrics": metrics,
+        }
+        match_rows = [
+            {
+                "appearance_evidence": True,
+                "minutes_played_seconds": 45 * 60,
+                "metrics": {"events": 3, "passes_attempted": 1, "passes_completed": 1, "xg": 0.2},
+            },
+            {
+                "appearance_evidence": True,
+                "minutes_played_seconds": 45 * 60,
+                "metrics": {"events": 5, "passes_attempted": 3, "passes_completed": 2, "xg": 0.3},
+            },
+        ]
+        result = calculate_player_data_consistency(player, match_rows)
+        self.assertEqual(result["status"], "consistent")
+        self.assertEqual(result["reasons"], [])
+        self.assertTrue(result["checks"]["event_metric_totals_match"])
+        self.assertTrue(result["checks"]["minutes_total_matches"])
+        self.assertTrue(result["checks"]["per90_recalculated"])
+
+    def test_player_data_consistency_flags_mismatched_event_totals(self):
+        player = {
+            "matches_listed_in_squads": 1,
+            "matches_with_appearance_evidence": 1,
+            "minutes_calculation_complete": False,
+            "minutes_matches_valid": 0,
+            "minutes_played": None,
+            "per90_metrics": None,
+            "metrics": {"events": 8},
+        }
+        match_rows = [{
+            "appearance_evidence": True,
+            "minutes_played_seconds": None,
+            "metrics": {"events": 7},
+        }]
+        result = calculate_player_data_consistency(player, match_rows)
+        self.assertEqual(result["status"], "review")
+        self.assertIn("metric_total_mismatch:events", result["reasons"])
+
     def test_per90_normalizes_counts_and_xg_but_not_percentages_or_means(self):
         metrics = {
             "events": 15,
@@ -446,6 +506,9 @@ class StatsBombImportTests(unittest.TestCase):
             self.assertEqual(rows[0]["data_quality_appearance_evidence"], "True")
             self.assertEqual(rows[0]["data_quality_minutes_complete"], "True")
             self.assertEqual(rows[0]["data_quality_has_attributed_events"], "True")
+            self.assertEqual(rows[0]["data_consistency_status"], "consistent")
+            self.assertEqual(rows[0]["data_consistency_reasons"], "")
+            self.assertEqual(rows[0]["data_consistency_match_records"], "1")
             self.assertNotIn("per90_pass_completion_pct", rows[0])
             self.assertNotIn("per90_pass_length_mean", rows[0])
 
