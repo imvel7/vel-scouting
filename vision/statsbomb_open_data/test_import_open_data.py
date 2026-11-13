@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import analyse_match, build_cb_profile, build_central_midfield_profile, build_fullback_profile, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
+from import_open_data import analyse_match, build_cb_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
 
 
 MATCH = {
@@ -1211,6 +1211,163 @@ class StatsBombImportTests(unittest.TestCase):
             {row["player_id"] for row in profile["players"]},
             {1, 2, 6},
         )
+
+    def test_winger_profile_groups_attacking_and_progression_metrics(self):
+        players = [
+            {
+                "player_id": 30,
+                "player_name": "Right Winger",
+                "team_names": ["Example FC"],
+                "positions_seen": ["Right Wing"],
+                "matches_listed_in_squads": 5,
+                "matches_with_appearance_evidence": 5,
+                "minutes_played": 410.0,
+                "per90_metrics": {
+                    "shot_assists": 0.9,
+                    "assists": 0.4,
+                    "shots": 2.1,
+                    "goals": 0.5,
+                    "xg": 0.28,
+                    "crosses": 2.7,
+                    "through_balls": 0.8,
+                    "passes_attempted": 28.0,
+                    "passes_completed": 21.0,
+                    "dribbles": 4.2,
+                    "carries": 5.1,
+                    "pressures": 9.8,
+                    "tackles": 1.2,
+                    "interceptions": 0.6,
+                    "ball_recoveries": 1.9,
+                },
+                "metrics": {
+                    "shot_assists": 4,
+                    "assists": 2,
+                    "shots": 10,
+                    "goals": 2,
+                    "xg": 1.3,
+                    "crosses": 13,
+                    "through_balls": 3,
+                    "passes_attempted": 130,
+                    "passes_completed": 96,
+                    "pass_completion_pct": 73.85,
+                    "pass_length_mean": 16.2,
+                    "dribbles": 19,
+                    "carries": 23,
+                    "pressures": 45,
+                    "tackles": 6,
+                    "interceptions": 3,
+                    "ball_recoveries": 9,
+                },
+            },
+            {
+                "player_id": 31,
+                "player_name": "Left Winger",
+                "positions_seen": ["Left Wing"],
+                "metrics": {"dribbles": 8},
+            },
+            {
+                "player_id": 32,
+                "player_name": "Wing Back",
+                "positions_seen": ["Left Wing Back"],
+                "metrics": {"crosses": 10},
+            },
+            {
+                "player_id": 33,
+                "player_name": "Centre Forward",
+                "positions_seen": ["Right Center Forward"],
+                "metrics": {"shots": 5},
+            },
+            {
+                "player_id": 34,
+                "player_name": "Wide Midfielder",
+                "positions_seen": ["Left Midfield"],
+                "metrics": {"crosses": 7},
+            },
+        ]
+
+        profile = build_winger_profile(players)
+        self.assertEqual(profile["role_code"], "W")
+        self.assertEqual(profile["player_count"], 2)
+        self.assertEqual(
+            [row["player_id"] for row in profile["players"]],
+            [31, 30],
+        )
+        selected = profile["players"][1]
+        self.assertEqual(selected["winger_position_labels"], ["Right Wing"])
+        self.assertEqual(
+            [group["code"] for group in profile["metric_groups"]],
+            [
+                "chance_creation_finishing",
+                "wide_delivery",
+                "one_v_one_progression",
+                "defensive_contribution",
+            ],
+        )
+
+        attacking = selected["grouped_metrics"]["chance_creation_finishing"]
+        self.assertEqual(attacking["raw_counts"]["shots"], 10)
+        self.assertEqual(attacking["per90_counts"]["shots"], 2.1)
+        self.assertEqual(attacking["raw_rate_totals"]["xg"], 1.3)
+        self.assertEqual(attacking["per90_rate_metrics"]["xg"], 0.28)
+
+        delivery = selected["grouped_metrics"]["wide_delivery"]
+        self.assertEqual(delivery["raw_counts"]["crosses"], 13)
+        self.assertEqual(delivery["per90_counts"]["crosses"], 2.7)
+        self.assertEqual(delivery["context_metrics"]["pass_completion_pct"], 73.85)
+
+        progression = selected["grouped_metrics"]["one_v_one_progression"]
+        self.assertEqual(progression["raw_counts"]["dribbles"], 19)
+        self.assertEqual(progression["per90_counts"]["carries"], 5.1)
+
+        defence = selected["grouped_metrics"]["defensive_contribution"]
+        self.assertEqual(defence["raw_counts"]["pressures"], 45)
+        self.assertEqual(defence["per90_counts"]["ball_recoveries"], 1.9)
+        self.assertNotIn("rating", selected)
+        self.assertIn("No winger rating or ranking", profile["interpretation_limits"][0])
+
+    def test_winger_profile_does_not_fabricate_per90_rates(self):
+        profile = build_winger_profile([{
+            "player_id": 40,
+            "player_name": "Unverified Winger",
+            "positions_seen": ["Left Wing"],
+            "metrics": {"shots": 4, "xg": 0.4, "crosses": 6, "dribbles": 8, "pressures": 10},
+            "per90_metrics": None,
+        }])
+        player = profile["players"][0]
+        self.assertEqual(
+            player["grouped_metrics"]["chance_creation_finishing"]["raw_counts"]["shots"],
+            4,
+        )
+        self.assertEqual(
+            player["grouped_metrics"]["chance_creation_finishing"]["per90_counts"],
+            {},
+        )
+        self.assertEqual(
+            player["grouped_metrics"]["chance_creation_finishing"]["per90_rate_metrics"],
+            {},
+        )
+        self.assertEqual(
+            player["grouped_metrics"]["one_v_one_progression"]["per90_counts"],
+            {},
+        )
+
+    def test_winger_position_filter_excludes_wingbacks_forwards_and_wide_midfielders(self):
+        profile = build_winger_profile([
+            {"player_id": 1, "player_name": "Left Wing", "positions_seen": ["Left Wing"]},
+            {"player_id": 2, "player_name": "Right Wing", "positions_seen": ["Right Wing"]},
+            {"player_id": 3, "player_name": "Wing Back", "positions_seen": ["Right Wing Back"]},
+            {"player_id": 4, "player_name": "Forward", "positions_seen": ["Left Center Forward"]},
+            {"player_id": 5, "player_name": "Wide Midfielder", "positions_seen": ["Right Midfield"]},
+            {"player_id": 6, "player_name": "Mixed Role", "positions_seen": ["Left Wing", "Left Wing Back"]},
+        ])
+        self.assertEqual(profile["player_count"], 3)
+        self.assertEqual(
+            {row["player_id"] for row in profile["players"]},
+            {1, 2, 6},
+        )
+        mixed = next(row for row in profile["players"] if row["player_id"] == 6)
+        self.assertEqual(mixed["winger_position_labels"], ["Left Wing"])
+        self.assertEqual(mixed["positions_seen"], ["Left Wing", "Left Wing Back"])
 
     def test_cache_json_records_content_hash(self):
         with tempfile.TemporaryDirectory() as directory:
