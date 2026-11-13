@@ -204,10 +204,13 @@ def build_player_season_comparison(
                 "player_id": player["player_id"],
                 "player_name": player.get("player_name") or f"Unknown player {player_id}",
                 "positions_seen": sorted({
-                    " ".join(position.split())
-                    for position in (player.get("positions_seen") or [])
+                    " ".join(position.split()).casefold()
+                    for position in (
+                        player.get("positions_seen")
+                        if isinstance(player.get("positions_seen"), list) else []
+                    )
                     if isinstance(position, str) and position.strip()
-                }, key=str.casefold),
+                }),
                 "season_id": season_key,
                 "season_name": seasons[season_key]["season_name"],
                 "selected_match_count": selected_matches,
@@ -217,11 +220,6 @@ def build_player_season_comparison(
                 ),
                 "minutes_played": player.get("minutes_played"),
                 "per90_metrics": player.get("per90_metrics"),
-                "positions_seen": sorted({
-                    str(position).strip()
-                    for position in (player.get("positions_seen") or [])
-                    if str(position).strip()
-                }),
                 "data_quality_status": (player.get("data_quality") or {}).get("status"),
                 "data_consistency_status": (player.get("data_consistency") or {}).get("status"),
                 "identity_status": (player.get("identity") or {}).get("status"),
