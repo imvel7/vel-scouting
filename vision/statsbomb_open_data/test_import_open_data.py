@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import analyse_match, build_cb_profile, calculate_minutes_played, calculate_per90_metrics, fetch_json, run_import, ImportErrorWithContext
+from import_open_data import analyse_match, build_cb_profile, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, fetch_json, run_import, ImportErrorWithContext
 
 
 MATCH = {
@@ -242,6 +242,42 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertEqual(metrics["xg"], 0.42)
         self.assertEqual(metrics["pressures"], 1)
 
+    def test_player_data_quality_is_complete_when_core_checks_pass(self):
+        quality = calculate_player_data_quality({
+            "matches_with_appearance_evidence": 2,
+            "minutes_calculation_complete": True,
+            "minutes_played": 155.0,
+            "per90_metrics": {"events": 90.0},
+            "metrics": {"events": 155},
+        })
+        self.assertEqual(quality["status"], "complete")
+        self.assertEqual(quality["reasons"], [])
+        self.assertTrue(quality["checks"]["per90_available"])
+
+    def test_player_data_quality_is_partial_when_minutes_are_incomplete(self):
+        quality = calculate_player_data_quality({
+            "matches_with_appearance_evidence": 2,
+            "minutes_calculation_complete": False,
+            "minutes_played": None,
+            "per90_metrics": None,
+            "metrics": {"events": 70},
+        })
+        self.assertEqual(quality["status"], "partial")
+        self.assertIn("minutes_calculation_incomplete", quality["reasons"])
+        self.assertFalse(quality["checks"]["per90_available"])
+
+    def test_player_data_quality_is_insufficient_without_appearance_or_events(self):
+        quality = calculate_player_data_quality({
+            "matches_with_appearance_evidence": 0,
+            "minutes_calculation_complete": True,
+            "minutes_played": 0.0,
+            "per90_metrics": None,
+            "metrics": {"events": 0},
+        })
+        self.assertEqual(quality["status"], "insufficient")
+        self.assertIn("no_appearance_evidence", quality["reasons"])
+        self.assertIn("no_attributed_events", quality["reasons"])
+
     def test_per90_normalizes_counts_and_xg_but_not_percentages_or_means(self):
         metrics = {
             "events": 15,
@@ -405,6 +441,11 @@ class StatsBombImportTests(unittest.TestCase):
             self.assertEqual(rows[0]["per90_events"], "10.0")
             self.assertEqual(rows[0]["per90_passes_attempted"], "4.0")
             self.assertEqual(rows[0]["per90_xg"], "0.84")
+            self.assertEqual(rows[0]["data_quality_status"], "complete")
+            self.assertEqual(rows[0]["data_quality_reasons"], "")
+            self.assertEqual(rows[0]["data_quality_appearance_evidence"], "True")
+            self.assertEqual(rows[0]["data_quality_minutes_complete"], "True")
+            self.assertEqual(rows[0]["data_quality_has_attributed_events"], "True")
             self.assertNotIn("per90_pass_completion_pct", rows[0])
             self.assertNotIn("per90_pass_length_mean", rows[0])
 
