@@ -274,10 +274,9 @@ def build_player_season_comparison(
                         if set(previous_by_key) == set(current_by_key)
                         else "changed"
                     )
-                    shared_positions = [
-                        current_by_key[key]
-                        for key in sorted(set(previous_by_key) & set(current_by_key))
-                    ]
+                    shared_positions = sorted(
+                        set(previous_by_key) & set(current_by_key)
+                    )
                 position_comparison = {
                     "status": position_status,
                     "shared_positions": shared_positions,
