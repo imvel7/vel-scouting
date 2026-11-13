@@ -17,12 +17,218 @@
 | Interceptions / recoveries / clearances / blocks | Counts of respective event types | Opportunity and team context are not yet modelled |
 | Tackles | Duel events with `duel.type.name = Tackle` | Not a complete defensive quality assessment |
 | Dribbles | Count of Dribble events | Does not measure success until outcome handling is separately validated |
+| Minutes played | Sum of period-local elapsed seconds while the player is active, based on Starting XI, substitutions, Player Off/On and dismissal events | Requires complete ordered timestamps and a Half End per period; unavailable rather than guessed when state/clock evidence is incomplete |
+
+## Per-90 normalization and CSV export
+
+Per-90 values are produced only after the player's on-pitch minutes pass the
+match-clock and player-state validation described above.
+
+| Export field | Calculation | Rounding |
+|---|---|---|
+| `per90_<count_metric>` | Selected-sample count metric ÷ verified on-pitch minutes × 90 | 2 decimal places |
+| `per90_xg` | Sum of available `statsbomb_xg` values ÷ verified on-pitch minutes × 90 | 3 decimal places |
+
+The `per90_<count_metric>` fields cover `events`, `passes_attempted`,
+`passes_completed`, `crosses`, `through_balls`, `assists`,
+`shot_assists`, `carries`, `shots`, `goals`, `pressures`,
+`interceptions`, `ball_recoveries`, `clearances`, `blocks`,
+`tackles` and `dribbles`.
+
+The CSV contains the raw aggregate fields and separate `per90_*` columns.
+`per90_pass_completion_pct` and `per90_pass_length_mean` are intentionally
+not created: percentages and averages are not event counts. Per-90 values are
+blank when the minutes for a relevant selected-match record are unavailable,
+or when the total verified minutes are zero. The denominator is the sum of
+verified on-pitch seconds for that player across the selected sample, not the
+number of matches or the full match duration.
+
+These rates describe recorded event volume per 90 minutes. They are not
+player ratings or scout verdicts. The report's separate peer-benchmark section
+may calculate cautious, same-role percentiles only when its explicit cohort
+requirements are met.
+
+## Player-level data quality indicator
+
+The aggregate player record and CSV include a transparent `data_quality_status`
+with supporting reason codes and boolean checks. It describes data availability
+inside the selected sample; it is not a measure of player ability, scouting
+confidence or sample representativeness.
+
+| Status | Rule |
+|---|---|
+| `complete` | At least one appearance-evidence match, at least one attributed event, and verified positive minutes across all player match records in the selected sample |
+| `partial` | Appearance evidence and attributed events exist, but minutes are incomplete or no positive verified total is available |
+| `insufficient` | No appearance evidence or no attributed events are available for the player in the selected sample |
+
+Possible reason codes are `no_appearance_evidence`, `no_attributed_events`,
+`minutes_calculation_incomplete` and `no_positive_verified_minutes`.
+The JSON `data_quality.checks` object also records whether per-90 values are
+available. CSV exports flatten the status, reason codes and core checks into
+separate columns.
+
+A `complete` status means only that these core checks passed for this selected
+sample. It does not mean that the sample is large, that every event type is
+captured, or that the player has been evaluated fairly against peers.
+
+## Player identity matching across matches
+
+Player records are grouped only by the source's stable `player_id`, exposed as
+`statsbomb:<player_id>`. Player names are display labels, not matching keys.
+This prevents two different players with the same name from being automatically
+merged.
+
+The JSON `identity` object and CSV fields report:
+
+- Whether every contributing match row carries the same source player ID.
+- The name variants observed for that ID.
+- An identity status of `consistent` or `review`, with reason codes when a
+  source-ID mismatch or name variation is found.
+
+Name variation does not trigger an automatic split or merge. It flags the
+records for human review while preserving the source ID as the grouping key.
+This check does not independently verify a real-world identity outside the
+source's own identifiers.
+
+### Possible same-name players
+
+A separate report check groups display names after case folding and collapsing
+whitespace. When one normalized name belongs to multiple StatsBomb player IDs,
+the report lists the IDs and their teams under
+`player_identity_review.same_name_different_ids`.
+
+The affected player rows and CSV export include a possible-collision flag and
+the other source IDs. This is a review aid only: names are not treated as proof
+that two records refer to the same person, and no players are merged. The check
+does not use fuzzy matching, nicknames or transliteration.
+
+## Match-to-aggregate consistency check
+
+Each selected-sample player total is reconciled against the player's individual
+match records. The check compares:
+
+- Number of match records and appearance-evidence match count.
+- Every exported raw event-count total.
+- Total available xG.
+- Number of match records with valid minutes and, when all minutes are valid,
+  the summed minutes played.
+- The exported per-90 values against a fresh calculation from the aggregate
+  counts and verified seconds.
+
+The JSON output exposes `data_consistency.status`:
+
+| Status | Meaning |
+|---|---|
+| `consistent` | All applicable comparisons match. Minute/per-90 checks are marked not applicable when minute data is incomplete. |
+| `review` | At least one comparable field differs between match records and the aggregate. |
+
+The `data_consistency.reasons` array identifies a failed comparison, for
+example `metric_total_mismatch:passes_attempted` or
+`minutes_total_mismatch`. Supporting boolean checks and the number of checked
+match records are included. CSV exports include the status, reason codes and
+record count.
+
+A `review` result is a data-reconciliation warning, not a judgement about the
+player or proof that the source match record is wrong. The underlying match
+records should be inspected before using the affected aggregate.
+
+## Cross-season player comparison foundation
+
+The importer can optionally compare the current report with one or more
+previous JSON reports from the same competition by passing
+`--compare-report PATH` once for each earlier season report.
+
+Players are matched only by the stable StatsBomb `player_id`. The comparison
+lists a player only when that ID is present in at least two supplied seasons.
+It places selected-match counts, appearance evidence, verified minutes and
+quality/consistency statuses beside the per-90 metrics for each season.
+
+Per-90 changes are calculated as the later season's value minus the previous
+season's value, only when both seasons have valid per-90 values for that metric.
+When either season lacks verified minutes, the rate and change remain
+unavailable rather than being estimated. Percentages and averages are not
+included in this first comparison foundation.
+
+The comparison accepts only reports for one competition and rejects duplicate
+season IDs. Each season row preserves the source position labels seen in that
+sample and a single `position_comparison_from_previous` result. Position
+comparison is marked `same` when both seasons have the same non-empty set of
+labels (case-insensitive), `changed` when both sets exist but differ, and
+`unavailable` when either season has no position labels. Shared labels retain
+the display form recorded in the later season. The player-level summary exposes
+`position_comparison_status`, `position_change_count` and
+`position_data_gaps`.
+
+These are positions recorded in the selected lineups, not a minutes-weighted
+primary role or a validated tactical-role classification. They do not establish
+how long the player operated in each role or whether responsibilities changed
+within a position label.
+
+It does not yet adjust for competition strength, age, team context, minutes
+thresholds or sample representativeness. A positive per-90 change is not
+automatically evidence of player improvement, and a negative change is not
+automatically evidence of decline.
+
+## Same-role peer benchmarks
+
+The report includes a separate `role_benchmarks` object. The first version
+compares players only within the same role profile in the same competition and
+season report. It does not combine reports, competitions, seasons or roles.
+
+A player enters a benchmark cohort only when:
+- verified minutes are complete and at least **450 minutes**;
+- selected-sample data quality is `complete`;
+- match-to-aggregate reconciliation is `consistent`;
+- source player identity status is `consistent`; and
+- verified per-90 metrics are available.
+
+A metric percentile is emitted only when at least **10 eligible players**
+have a value for that same metric. Otherwise the percentile remains null and
+the status is `insufficient_sample`. The percentile uses the tie-aware
+midrank method: equal values share their middle rank. Each metric has its own
+eligible cohort size, so one metric can be comparable while another is not.
+
+These percentiles describe relative per-90 event frequency, not action quality,
+player ability, a player ranking or a transfer recommendation. A higher
+percentile is not necessarily better: for example, a high value for goals
+conceded is not a positive goalkeeper outcome. Team style, possession, player
+age, role variation, opposition strength and selected-sample coverage are not
+adjusted in this first version. Small datasets will correctly return
+`insufficient_sample` rather than manufacture a comparison.
+
+## Player scouting-review readiness gate
+
+The report includes `player_evaluation_readiness`, a technical gate before a
+human scout reviews a player. It does not assign a player score or declare
+whether a player is good.
+
+The initial statuses are:
+
+- `ready_for_scout_review`: complete selected-sample data quality,
+  consistent match reconciliation and source identity, at least **450
+  verified minutes**, at least **5 appearance-evidence matches**, and
+  attributed event evidence.
+- `limited`: some useful data exists, but one or more appearance, sample,
+  quality, reconciliation, identity or name-collision checks needs review.
+- `insufficient_data`: attributed event evidence is absent.
+
+Each player-role record includes reason codes, checked sample values,
+available per-90 metrics and whether same-role peer percentiles are available.
+A player can be ready for a human video/scouting review while peer percentiles
+remain unavailable because the role cohort is too small. This is deliberate:
+peer comparison is supporting context, not a gate that blocks all human review.
+
+The 450-minute and 5-appearance thresholds are initial engineering defaults,
+not universal scouting standards. Age, competition strength, team style,
+positional opportunity, opposition level, match state and video evidence are
+not yet adjusted. A readiness status is not a quality grade, potential
+assessment or transfer recommendation.
 
 ## Rules
 
-1. Do not create per-90 values until reliable minutes played are calculated and tested.
+1. Produce per-90 values only from validated, positive on-pitch minutes; otherwise leave them unavailable.
 2. Do not interpret a zero as a weakness without checking the player's opportunities and team context.
-3. Do not compare players across roles or competition levels without an explicit peer-group model.
+3. Compare players only through an explicit same-role, same-competition and same-season peer group; do not treat percentiles as quality ratings.
 4. Do not infer visual/off-ball traits from event data alone.
 5. Preserve source file hashes and the importer/metric version for reproducibility.
 
@@ -47,13 +253,162 @@ The importer selects players whose observed lineup/event position labels contain
 | Blocks | Count of Block events | Recorded blocks | Shot/pass danger or whether the block prevented a goal |
 | Tackles | Duel events with `duel.type.name = Tackle` | Recorded tackle-type duels | Complete ground/aerial duel quality |
 
+### W profile metric groups
+
+The importer produces an explicit winger profile under `role_profiles.W`.
+It selects position labels containing the standalone token `Wing` while
+excluding labels that also identify a `Back` or `Fullback`. This includes
+source labels such as `Left Wing` and `Right Wing`, but not wing-backs,
+centre-forwards or side-midfield labels. Original position labels remain
+available on each player row.
+
+The profile groups existing event metrics into four sections:
+
+- **Chance creation and finishing:** shot assists, assists, shots, goals and xG.
+- **Wide delivery and passing:** crosses, through balls, pass attempts and
+  completions; pass completion percentage and mean pass length remain
+  contextual fields.
+- **One-v-one and ball progression:** dribbles and carries.
+- **Pressing and defensive contribution:** pressures, tackle-type duels,
+  interceptions and ball recoveries.
+
+Raw counts are retained. Count metrics and xG receive per-90 values only when
+the player record contains rates calculated from complete, positive verified
+minutes. The groups do not measure successful take-on rate, crossing quality,
+off-ball runs or tactical decision quality; no rating or ranking is produced.
+
+### GK profile metric groups
+
+The importer produces a goalkeeper profile under `role_profiles.GK`. It
+selects only explicit `Goalkeeper`, `Goal Keeper` or `Keeper` position
+labels; a keeper-sweeper action label is not treated as a playing position.
+
+The profile groups existing event fields into three sections:
+
+- **Shot stopping:** goalkeeper save events, shot-faced events, goal-conceded
+  events and penalty-save/concession events.
+- **Area control:** collections, punches, sweeps and smothers.
+- **Distribution and restarts:** passes, completed passes, goal kicks, pass
+  completion percentage and mean pass length.
+
+The `goalkeeper_saves` count uses the StatsBomb Stats Portal definition:
+Goal Keeper events whose type is `Penalty Saved`, `Penalty Saved to Post`,
+`Shot Saved`, `Shot Saved Off Target` or `Shot Saved to Post`
+([StatsBomb glossary](https://stats-portal.statsbomb.com/glossary)). Other
+goalkeeper action types are counted separately. StatsBomb documentation notes
+that goalkeeper event records can represent an attempted action and do not
+necessarily mean the attempt succeeded; these counts are therefore event
+counts, not automatic success counts.
+
+Raw counts are retained. Count metrics receive per-90 values only when the
+player record contains rates calculated from complete, positive verified
+minutes. Save percentage, post-shot xG/goals prevented, cross-claim rate and
+long-ball accuracy remain unavailable until their denominators and underlying
+event classifications are validated. The profile does not produce a
+goalkeeper rating or ranking.
+
+### ST profile metric groups
+
+The importer produces a striker/centre-forward profile under
+`role_profiles.ST`. It selects source labels that contain `Striker`, or
+contain `Forward` together with `Center`/`Centre`. Labels containing
+`Wing` are excluded. This includes source labels such as `Center Forward`,
+`Left Center Forward`, `Right Center Forward`, and striker variants. A label
+such as `Left Forward` alone is not enough evidence to classify a central
+striker. Original position labels remain visible on each player row.
+
+The profile groups existing event metrics into four sections:
+
+- **Finishing and shot output:** shots, goals and xG.
+- **Chance creation and combination:** shot assists, assists and through balls.
+- **Link play and ball retention:** pass attempts/completions, carries and
+  dribbles; pass completion percentage and mean pass length remain contextual.
+- **Pressing and defensive contribution:** pressures, tackle-type duels,
+  interceptions and ball recoveries.
+
+Raw counts are retained. Count metrics and xG receive per-90 values only when
+the player record contains rates calculated from complete, positive verified
+minutes. Touches in the penalty area, aerial-duel success and calibrated
+finishing efficiency are explicitly unavailable in this version; they are
+not inferred from shots, goals or generic duel counts. The profile does not
+produce a striker rating or ranking.
+
+### CM profile metric groups
+
+The importer produces a central-midfielder profile under `role_profiles.CM`.
+It selects source position labels that contain `Midfield` and are either
+explicitly centre-labelled (`Center`/`Centre`) or exactly the generic
+`Defensive Midfield`, `Attacking Midfield` or `Central Midfield` labels.
+Side midfield and wide-midfield labels are not included by this rule.
+
+The profile groups existing event metrics into three sections:
+
+- **Passing and progression:** pass attempts/completions, through balls,
+  carries and dribbles. Pass completion percentage and mean pass length remain
+  contextual fields.
+- **Chance creation and attacking contribution:** shot assists, assists,
+  crosses, shots, goals and xG.
+- **Defensive work:** pressures, tackle-type duels, interceptions, ball
+  recoveries, clearances and blocks.
+
+Raw counts are retained. Count metrics and xG receive per-90 values only when
+the player record contains rates calculated from complete, positive verified
+minutes. The groups do not measure scanning, pressure resistance, positional
+discipline or decision quality and do not produce a rating or ranking.
+
+### FB profile metric groups
+
+The importer also produces a full-back/wing-back profile under
+`role_profiles.FB`. It includes players whose selected-sample position labels
+end in `Back` or `Fullback`, excluding labels containing `Center Back` or
+`Centre Back`. The source labels remain visible on each player row; this
+selection does not infer a single primary role.
+
+The profile groups the existing event metrics into three sections:
+
+- **Chance creation and attacking output:** crosses, through balls, shot
+  assists, assists, shots, goals and xG.
+- **Distribution and progression:** pass attempts/completions, carries and
+  dribbles. Pass completion percentage and mean pass length remain contextual
+  fields rather than per-90 rates.
+- **Defensive activity:** pressures, tackle-type duels, interceptions, ball
+  recoveries, clearances and blocks.
+
+Raw counts are retained. Count metrics and xG receive per-90 values only when
+the selected-sample player record contains rates calculated from complete,
+positive verified minutes. This is a descriptive profile, not a rating or
+ranking. It does not measure overlapping runs, defensive positioning, crossing
+quality or tactical responsibility.
+
 ### CB profile safeguards
+
+### CB profile metric groups
+
+The centre-back profile now groups the existing event metrics into three
+descriptive sections:
+
+- **Distribution and progression:** pass attempts/completions, crosses,
+  through balls, shot assists and carries. Pass completion percentage and
+  mean pass length remain contextual fields, not per-90 rates.
+- **Defensive activity:** pressures, tackle-type duels, interceptions and
+  ball recoveries.
+- **Box protection:** clearances and blocks.
+
+Each group exposes raw counts and includes per-90 counts only when the source
+player record contains per-90 values derived from complete, positive verified
+minutes. The grouping is a presentation aid; it does not calculate a role
+score, rank or action-quality grade.
+
+Aerial-duel success remains explicitly unavailable until duel event
+classification and outcomes have been separately validated against the source
+records. It must not be inferred from generic duel counts.
 
 - Values are raw totals or source percentages over the selected sample.
 - A player must have a centre-back position label to enter `role_profiles.CB`.
 - `matches_with_appearance_evidence` is based on position records or attributed
   player events. It is not a minutes-played calculation.
-- Minutes are currently null, so no per-90 normalization is produced.
+- Minutes are calculated from the event state machine using StatsBomb minute/second match-clock fields; each period is anchored to its first clock value, so half-time breaks and extra-time intervals are excluded. Penalty shootouts are excluded. Missing or contradictory clock/state evidence leaves minutes null.
+- The profile exposes per-90 counts and xG only when the selected-sample minutes are complete and positive. Percentages and averages remain unnormalized.
 - No composite CB score, defensive rating, percentile or ranking is produced.
 - No aerial-duel success metric is included until event labels/outcomes are
   separately validated against the source specification and real samples.

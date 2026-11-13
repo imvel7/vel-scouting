@@ -44,6 +44,21 @@ METRIC_DEFINITIONS = {
     "blocks": "Count of Block events attributed to the player.",
     "tackles": "Duel events whose duel.type.name is Tackle.",
     "dribbles": "Count of Dribble events attributed to the player.",
+    "goalkeeper_actions": "Count of Goal Keeper events; StatsBomb records attempts, not only successful actions.",
+    "goalkeeper_saves": "Goal Keeper events with type Penalty Saved, Penalty Saved to Post, Shot Saved, Shot Saved Off Target or Shot Saved to Post.",
+    "goalkeeper_shots_faced": "Goal Keeper events with type Shot Faced.",
+    "goalkeeper_goals_conceded": "Goal Keeper events with type Goal Conceded.",
+    "goalkeeper_collections": "Goal Keeper events with type Collected.",
+    "goalkeeper_punches": "Goal Keeper events with type Punch.",
+    "goalkeeper_sweeps": "Goal Keeper events with type Keeper Sweeper or Keeper Sweep.",
+    "goalkeeper_smotherings": "Goal Keeper events with type Smother.",
+    "goalkeeper_penalty_saves": "Goal Keeper events with type Penalty Saved or Penalty Saved to Post.",
+    "goalkeeper_penalties_conceded": "Goal Keeper events with type Penalty Conceded.",
+    "goalkeeper_unclassified_actions": "Goal Keeper events with a missing or unrecognized goalkeeper type.",
+    "goal_kicks": "Pass events whose pass.type.name is Goal Kick.",
+    "per90_metrics": "Count metrics and total xG per 90 verified on-pitch minutes; null when minutes are unavailable or zero. Percentages and means are excluded.",
+    "data_quality": "Selected-sample availability checks for appearance evidence, attributed events and verified positive minutes; not a player rating.",
+    "data_consistency": "Reconciliation of selected-match records against aggregate counts, xG, minutes and per-90 calculations.",
 }
 
 COUNTER_FIELDS = (
@@ -51,7 +66,471 @@ COUNTER_FIELDS = (
     "through_balls", "assists", "shot_assists", "carries", "shots",
     "goals", "pressures", "interceptions", "ball_recoveries",
     "clearances", "blocks", "tackles", "dribbles",
+    "goalkeeper_actions", "goalkeeper_saves", "goalkeeper_shots_faced",
+    "goalkeeper_goals_conceded", "goalkeeper_collections",
+    "goalkeeper_punches", "goalkeeper_sweeps", "goalkeeper_smotherings",
+    "goalkeeper_penalty_saves", "goalkeeper_penalties_conceded",
+    "goalkeeper_unclassified_actions", "goal_kicks",
 )
+
+
+def calculate_per90_metrics(metrics: dict[str, Any], minutes_played_seconds: Any) -> dict[str, float] | None:
+    """Normalize count metrics and total xG to 90 verified on-pitch minutes."""
+    if not _finite(minutes_played_seconds) or float(minutes_played_seconds) <= 0:
+        return None
+
+    scale = 5400.0 / float(minutes_played_seconds)
+    per90 = {
+        field: round(float(metrics[field]) * scale, 2)
+        for field in COUNTER_FIELDS
+        if _finite(metrics.get(field))
+    }
+    if _finite(metrics.get("xg")):
+        per90["xg"] = round(float(metrics["xg"]) * scale, 3)
+    return per90
+
+
+def calculate_player_data_quality(player: dict[str, Any]) -> dict[str, Any]:
+    """Describe data availability for a player's selected-match aggregate."""
+    metrics = player.get("metrics") or {}
+    appearance_matches = int(player.get("matches_with_appearance_evidence") or 0)
+    has_appearance_evidence = appearance_matches > 0
+    has_attributed_events = int(metrics.get("events") or 0) > 0
+    minutes_complete = player.get("minutes_calculation_complete") is True
+    minutes_played = player.get("minutes_played")
+    has_positive_minutes = _finite(minutes_played) and float(minutes_played) > 0
+
+    reasons = []
+    if not has_appearance_evidence:
+        reasons.append("no_appearance_evidence")
+    if not has_attributed_events:
+        reasons.append("no_attributed_events")
+    if not minutes_complete:
+        reasons.append("minutes_calculation_incomplete")
+    if not has_positive_minutes:
+        reasons.append("no_positive_verified_minutes")
+
+    if not has_appearance_evidence or not has_attributed_events:
+        status = "insufficient"
+    elif not minutes_complete or not has_positive_minutes:
+        status = "partial"
+    else:
+        status = "complete"
+
+    return {
+        "status": status,
+        "reasons": reasons,
+        "checks": {
+            "appearance_evidence": has_appearance_evidence,
+            "appearance_matches": appearance_matches,
+            "attributed_events": has_attributed_events,
+            "minutes_calculation_complete": minutes_complete,
+            "positive_verified_minutes": has_positive_minutes,
+            "per90_available": isinstance(player.get("per90_metrics"), dict),
+        },
+    }
+
+
+def _normalise_player_name(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalised = " ".join(value.casefold().split())
+    if not normalised or normalised.startswith("unknown player "):
+        return None
+    return normalised
+
+
+def find_player_name_collisions(
+    players: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Find exact normalized names associated with multiple source player IDs."""
+    grouped: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
+    for player in players:
+        normalised = _normalise_player_name(player.get("player_name"))
+        player_id = player.get("player_id")
+        if normalised is None or player_id is None:
+            continue
+        grouped[normalised].setdefault(str(player_id), player)
+
+    collisions = []
+    for normalised, by_id in grouped.items():
+        if len(by_id) < 2:
+            continue
+        entries = []
+        for player_id in sorted(by_id):
+            player = by_id[player_id]
+            entries.append({
+                "player_id": player.get("player_id"),
+                "identity_key": f"statsbomb:{player_id}",
+                "player_name": player.get("player_name"),
+                "team_names": player.get("team_names") or [],
+                "matches_listed_in_squads": player.get("matches_listed_in_squads", 0),
+            })
+        collisions.append({
+            "normalized_name": normalised,
+            "display_name": entries[0]["player_name"],
+            "player_ids": [entry["player_id"] for entry in entries],
+            "players": entries,
+        })
+
+    return sorted(collisions, key=lambda item: item["normalized_name"])
+
+
+def build_player_season_comparison(
+    reports: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Compare the same source-identified players across reports for one competition."""
+    if not isinstance(reports, list) or len(reports) < 2:
+        raise ValueError("Sezon karşılaştırması için en az iki sezon raporu gerekli.")
+
+    competitions: dict[str, str] = {}
+    seasons: dict[str, dict[str, str]] = {}
+    player_rows: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+
+    for report in reports:
+        if not isinstance(report, dict):
+            raise ValueError("Sezon raporunun kökü JSON nesnesi olmalı.")
+        competition = report.get("competition_season") or {}
+        competition_id = competition.get("competition_id")
+        season_id = competition.get("season_id")
+        if competition_id is None or season_id is None:
+            raise ValueError("Karşılaştırma raporunda turnuva veya sezon kimliği eksik.")
+        competition_key = str(competition_id)
+        season_key = str(season_id)
+        competitions.setdefault(
+            competition_key, str(competition.get("competition_name") or competition_key)
+        )
+        if season_key in seasons:
+            raise ValueError(f"Aynı sezon raporu birden fazla verildi: {season_key}")
+        seasons[season_key] = {
+            "season_id": season_key,
+            "season_name": str(competition.get("season_name") or season_key),
+        }
+
+        sample = report.get("sample") or {}
+        selected_matches = int(sample.get("selected_match_count") or 0)
+        player_totals = report.get("player_sample_totals")
+        if not isinstance(player_totals, list):
+            raise ValueError("Sezon raporunda player_sample_totals listesi bulunamadı.")
+
+        for player in player_totals:
+            if not isinstance(player, dict) or player.get("player_id") is None:
+                continue
+            player_id = str(player["player_id"])
+            player_rows[(competition_key, player_id)].append({
+                "player_id": player["player_id"],
+                "player_name": player.get("player_name") or f"Unknown player {player_id}",
+                "positions_seen": sorted({
+                    " ".join(position.split())
+                    for position in (
+                        player.get("positions_seen")
+                        if isinstance(player.get("positions_seen"), list) else []
+                    )
+                    if isinstance(position, str) and position.strip()
+                }, key=str.casefold),
+                "season_id": season_key,
+                "season_name": seasons[season_key]["season_name"],
+                "selected_match_count": selected_matches,
+                "matches_listed_in_squads": player.get("matches_listed_in_squads", 0),
+                "matches_with_appearance_evidence": player.get(
+                    "matches_with_appearance_evidence", 0
+                ),
+                "minutes_played": player.get("minutes_played"),
+                "per90_metrics": player.get("per90_metrics"),
+                "data_quality_status": (player.get("data_quality") or {}).get("status"),
+                "data_consistency_status": (player.get("data_consistency") or {}).get("status"),
+                "identity_status": (player.get("identity") or {}).get("status"),
+            })
+
+    if len(competitions) != 1:
+        raise ValueError(
+            "Aynı karşılaştırmada yalnızca tek bir turnuva kullanılabilir; "
+            "farklı turnuvaları ayrı karşılaştırın."
+        )
+
+    comparison_players = []
+    for (competition_id, player_id), records in player_rows.items():
+        if len(records) < 2:
+            continue
+        records.sort(key=lambda row: (row["season_name"].casefold(), row["season_id"]))
+        season_results = []
+        previous = None
+        for record in records:
+            per90 = record.get("per90_metrics")
+            per90_values = per90 if isinstance(per90, dict) else None
+            changes = None
+            previous_season = None
+            if previous is not None:
+                previous_values = previous.get("per90_metrics")
+                if isinstance(previous_values, dict) and isinstance(per90_values, dict):
+                    changes = {}
+                    for metric in sorted(set(previous_values) & set(per90_values)):
+                        before = previous_values[metric]
+                        after = per90_values[metric]
+                        if _finite(before) and _finite(after):
+                            decimals = 3 if metric == "xg" else 2
+                            changes[metric] = round(float(after) - float(before), decimals)
+                previous_season = previous["season_name"]
+
+            current_positions = record["positions_seen"]
+            previous_positions = previous.get("positions_seen", []) if previous else []
+            position_comparison = None
+            if previous is not None:
+                if not current_positions or not previous_positions:
+                    position_status = "unavailable"
+                    shared_positions = []
+                else:
+                    previous_by_key = {
+                        value.casefold(): value for value in previous_positions
+                    }
+                    current_by_key = {
+                        value.casefold(): value for value in current_positions
+                    }
+                    position_status = (
+                        "same"
+                        if set(previous_by_key) == set(current_by_key)
+                        else "changed"
+                    )
+                    shared_positions = sorted(
+                        set(previous_by_key) & set(current_by_key)
+                    )
+                position_comparison = {
+                    "status": position_status,
+                    "shared_positions": shared_positions,
+                    "previous_positions": previous_positions,
+                    "current_positions": current_positions,
+                }
+            season_results.append({
+                "player_name": record["player_name"],
+                "season_id": record["season_id"],
+                "season_name": record["season_name"],
+                "selected_match_count": record["selected_match_count"],
+                "matches_listed_in_squads": record["matches_listed_in_squads"],
+                "matches_with_appearance_evidence": record[
+                    "matches_with_appearance_evidence"
+                ],
+                "minutes_played": record["minutes_played"],
+                "positions_seen": current_positions,
+                "position_comparison_from_previous": position_comparison,
+                "per90_metrics": per90_values,
+                "previous_season": previous_season,
+                "per90_change_from_previous": changes,
+                "data_quality_status": record["data_quality_status"],
+                "data_consistency_status": record["data_consistency_status"],
+                "identity_status": record["identity_status"],
+            })
+            previous = record
+
+        latest_name = records[-1]["player_name"]
+        position_states = [
+            row["position_comparison_from_previous"]["status"]
+            for row in season_results
+            if row["position_comparison_from_previous"] is not None
+        ]
+        if "changed" in position_states:
+            position_status = "changed"
+        elif "unavailable" in position_states and "same" in position_states:
+            position_status = "partially_comparable"
+        elif "same" in position_states:
+            position_status = "same"
+        else:
+            position_status = "unavailable"
+        all_positions = sorted({
+            position
+            for row in records
+            for position in row["positions_seen"]
+        }, key=str.casefold)
+        comparison_players.append({
+            "player_id": records[-1]["player_id"],
+            "identity_key": f"statsbomb:{player_id}",
+            "player_name": latest_name,
+            "competition_id": competition_id,
+            "seasons_present": len(records),
+            "positions_seen_across_seasons": all_positions,
+            "position_comparison_status": position_status,
+            "position_change_count": position_states.count("changed"),
+            "position_data_gaps": position_states.count("unavailable"),
+            "seasons": season_results,
+        })
+
+    comparison_players.sort(key=lambda row: row["player_name"].casefold())
+    return {
+        "comparison_basis": "verified_per90_metrics",
+        "competition_id": next(iter(competitions)),
+        "competition_name": next(iter(competitions.values())),
+        "season_count": len(seasons),
+        "player_count": len(comparison_players),
+        "players": comparison_players,
+        "interpretation_limits": [
+            "Only the same source player_id is matched across seasons; names are not matching keys.",
+            "Only players found in at least two supplied season reports are included.",
+            "Per-90 values are compared only when verified minutes produced values in both seasons.",
+            "A positive or negative per-90 change is a statistical difference, not a conclusion that the player improved or declined.",
+            "Selected match counts, competition strength, role changes, team context and source coverage can affect comparisons.",
+            "Position comparisons use exact normalized source labels only; label differences do not independently prove a tactical role change.",
+        ],
+    }
+
+
+def calculate_player_identity(
+    player: dict[str, Any],
+    match_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Validate a player's source ID across match rows; never merge by name."""
+    player_id = player.get("player_id")
+    expected_id = str(player_id) if player_id is not None else None
+    record_ids = {
+        str(row.get("player_id"))
+        for row in match_rows
+        if row.get("player_id") is not None
+    }
+    player_id_matches = (
+        expected_id is not None
+        and record_ids == {expected_id}
+        and len(record_ids) == 1
+    )
+
+    names: dict[str, str] = {}
+    for row in match_rows:
+        label = row.get("player_name")
+        normalised = _normalise_player_name(label)
+        if normalised:
+            names.setdefault(normalised, str(label).strip())
+
+    aggregate_name = player.get("player_name")
+    aggregate_normalised = _normalise_player_name(aggregate_name)
+    if aggregate_normalised:
+        names.setdefault(aggregate_normalised, str(aggregate_name).strip())
+
+    reasons = []
+    if not player_id_matches:
+        reasons.append("player_id_mismatch_across_records")
+    if len(names) > 1:
+        reasons.append("player_name_varies_for_same_id")
+
+    return {
+        "key": f"statsbomb:{expected_id}" if expected_id is not None else None,
+        "source": "StatsBomb player_id",
+        "status": "consistent" if not reasons else "review",
+        "reasons": reasons,
+        "name_variants": sorted(names.values(), key=str.casefold),
+        "checked_match_records": len(match_rows),
+        "checks": {
+            "player_id_matches": player_id_matches,
+            "single_source_id": len(record_ids) == 1 and expected_id is not None,
+            "name_consistent": len(names) <= 1,
+        },
+    }
+
+
+def calculate_player_data_consistency(
+    player: dict[str, Any],
+    match_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Reconcile an aggregate player row against its selected-match records."""
+    metrics = player.get("metrics") or {}
+    reasons: list[str] = []
+    expected_records = int(player.get("matches_listed_in_squads") or 0)
+    record_count_matches = len(match_rows) == expected_records
+    if not record_count_matches:
+        reasons.append("match_record_count_mismatch")
+
+    appearance_count = sum(1 for row in match_rows if row.get("appearance_evidence"))
+    appearance_count_matches = (
+        appearance_count == int(player.get("matches_with_appearance_evidence") or 0)
+    )
+    if not appearance_count_matches:
+        reasons.append("appearance_match_count_mismatch")
+
+    metric_totals_match = True
+    for field in COUNTER_FIELDS:
+        actual_total = int(metrics.get(field) or 0)
+        match_total = sum(
+            int((row.get("metrics") or {}).get(field) or 0)
+            for row in match_rows
+        )
+        if actual_total != match_total:
+            metric_totals_match = False
+            reasons.append(f"metric_total_mismatch:{field}")
+
+    xg_values = [
+        float((row.get("metrics") or {})["xg"])
+        for row in match_rows
+        if _finite((row.get("metrics") or {}).get("xg"))
+    ]
+    expected_xg = metrics.get("xg")
+    if _finite(expected_xg):
+        xg_total_matches = math.isclose(
+            float(expected_xg), sum(xg_values), rel_tol=0.0, abs_tol=0.001
+        )
+    else:
+        xg_total_matches = not xg_values
+    if not xg_total_matches:
+        reasons.append("xg_total_mismatch")
+
+    matched_minute_records = sum(
+        1 for row in match_rows if _finite(row.get("minutes_played_seconds"))
+    )
+    minutes_record_count_matches = (
+        matched_minute_records == int(player.get("minutes_matches_valid") or 0)
+    )
+    if not minutes_record_count_matches:
+        reasons.append("minutes_record_count_mismatch")
+
+    minutes_complete = player.get("minutes_calculation_complete") is True
+    minutes_total_matches: bool | None = None
+    per90_recalculated: bool | None = None
+    per90_matches: bool | None = None
+    if minutes_complete:
+        all_minutes_present = all(
+            _finite(row.get("minutes_played_seconds")) for row in match_rows
+        )
+        total_seconds = sum(
+            float(row["minutes_played_seconds"])
+            for row in match_rows
+            if _finite(row.get("minutes_played_seconds"))
+        )
+        minutes_total_matches = (
+            all_minutes_present
+            and round(total_seconds / 60.0, 2) == player.get("minutes_played")
+        )
+        if not minutes_total_matches:
+            reasons.append("minutes_total_mismatch")
+
+        expected_per90 = calculate_per90_metrics(metrics, total_seconds)
+        actual_per90 = player.get("per90_metrics")
+        if expected_per90 is None:
+            per90_matches = actual_per90 is None
+        elif not isinstance(actual_per90, dict):
+            per90_matches = False
+        else:
+            per90_matches = set(actual_per90) == set(expected_per90) and all(
+                math.isclose(
+                    float(actual_per90[key]), float(value),
+                    rel_tol=0.0, abs_tol=0.001
+                )
+                for key, value in expected_per90.items()
+            )
+        per90_recalculated = per90_matches
+        if not per90_matches:
+            reasons.append("per90_recalculation_mismatch")
+
+    checks = {
+        "match_record_count_matches": record_count_matches,
+        "appearance_match_count_matches": appearance_count_matches,
+        "event_metric_totals_match": metric_totals_match,
+        "xg_total_matches": xg_total_matches,
+        "minutes_record_count_matches": minutes_record_count_matches,
+        "minutes_total_matches": minutes_total_matches,
+        "per90_recalculated": per90_recalculated,
+    }
+    return {
+        "status": "consistent" if not reasons else "review",
+        "reasons": reasons,
+        "checked_match_records": len(match_rows),
+        "expected_match_records": expected_records,
+        "checks": checks,
+    }
 
 
 class ImportErrorWithContext(RuntimeError):
@@ -202,6 +681,258 @@ def _lineup_players(lineups: Any) -> tuple[dict[str, dict[str, Any]], list[str]]
     return players, warnings
 
 
+
+def _match_clock_seconds(event: dict[str, Any]) -> int | None:
+    """Read the StatsBomb match clock from its integer minute/second fields."""
+    try:
+        minute = int(event.get("minute"))
+        second = int(event.get("second"))
+    except (TypeError, ValueError):
+        return None
+    if minute < 0 or second < 0 or second >= 60:
+        return None
+    return minute * 60 + second
+
+
+def calculate_minutes_played(events: Any) -> dict[str, Any]:
+    """Calculate on-pitch time from ordered StatsBomb event match-clock fields.
+
+    StatsBomb's minute/second clock is used because the video timestamp can
+    have different offsets across regulation and extra-time periods. Each
+    period starts from its first recorded clock value, so breaks are excluded.
+    Period 5 (penalty shootout) is excluded. Missing or contradictory
+    clock/state evidence makes the whole match result unavailable rather than
+    guessed.
+    """
+    result = {
+        "valid": False,
+        "seconds_by_player": {},
+        "player_names": {},
+        "periods": [],
+        "warnings": [],
+        "errors": [],
+    }
+    if not isinstance(events, list):
+        result["errors"] = ["Events kökü liste değil."]
+        return result
+
+    indexed_events = [(index, event) for index, event in enumerate(events) if isinstance(event, dict)]
+    if indexed_events and all(isinstance(event.get("index"), int) for _, event in indexed_events):
+        indexed_events.sort(key=lambda item: item[1]["index"])
+
+    active: set[str] = set()
+    permanently_off: set[str] = set()
+    temporarily_off: set[str] = set()
+    seconds_by_player: defaultdict[str, float] = defaultdict(float)
+    player_names: dict[str, str] = {}
+    warnings: list[str] = []
+    errors: list[str] = []
+    periods_seen: set[int] = set()
+    periods_closed: set[int] = set()
+    current_period: int | None = None
+    last_time = 0.0
+    last_event_index: Any = None
+    last_event_type: str | None = None
+    last_event_id: str | None = None
+    starting_xi_count = 0
+
+    def remember_player(player: Any) -> str | None:
+        player_id = _id(player)
+        if player_id is None:
+            return None
+        key = str(player_id)
+        name = _name(player)
+        if name:
+            player_names[key] = name
+        seconds_by_player.setdefault(key, 0.0)
+        return key
+
+    for _, event in indexed_events:
+        try:
+            period = int(event.get("period"))
+        except (TypeError, ValueError):
+            errors.append("Bir event için geçerli period alanı yok.")
+            continue
+        if period == 5:
+            continue
+        if period not in (1, 2, 3, 4):
+            errors.append(f"Desteklenmeyen maç periodu: {period}.")
+            continue
+
+        event_type = _name(event.get("type")) or "Unknown"
+        event_time = _match_clock_seconds(event)
+        if event_time is None:
+            errors.append(
+                f"Geçersiz minute/second maç saati: period {period}, index {event.get('index')}."
+            )
+            continue
+
+        periods_seen.add(period)
+        if current_period is None:
+            if period != 1:
+                errors.append("Maç period 1 ile başlamıyor.")
+            current_period = period
+            last_time = event_time
+        elif period != current_period:
+            if period != current_period + 1:
+                errors.append(
+                    f"Period sırası kesintili: {current_period} sonrasında {period} geldi."
+                )
+            if current_period not in periods_closed:
+                errors.append(f"Period {current_period} için Half End olayı eksik.")
+            current_period = period
+            # Anchor to the first clock value in the new period; do not count
+            # half-time or the interval between extra-time periods.
+            last_time = event_time
+
+        if period in periods_closed and event_type != "Half End":
+            errors.append(f"Period {period}, Half End sonrasında yeni event içeriyor.")
+        linked_receipt_clock_anomaly = (
+            event_time < last_time
+            and event_type == "Ball Receipt*"
+            and last_event_type == "Pass"
+            and last_event_id in (event.get("related_events") or [])
+        )
+        if event_time < last_time and linked_receipt_clock_anomaly:
+            warnings.append(
+                f"Linked Ball Receipt* timestamp ignored for clock continuity "
+                f"(event index {event.get('index')}, related pass {last_event_id})."
+            )
+            event_time = last_time
+        elif event_time < last_time:
+            errors.append(
+                f"Period {period} maç saati geriye gidiyor: "
+                f"event index={event.get('index')} type={event_type} "
+                f"clock={event_time}; previous index={last_event_index} "
+                f"type={last_event_type} clock={last_time}."
+            )
+            continue
+
+        delta = event_time - last_time
+        if delta:
+            for player_id in active:
+                seconds_by_player[player_id] += delta
+        last_time = event_time
+        last_event_index = event.get("index")
+        last_event_type = event_type
+        last_event_id = str(event.get("id")) if event.get("id") is not None else None
+
+        if event_type == "Starting XI":
+            tactics = event.get("tactics") or {}
+            lineup = tactics.get("lineup")
+            if not isinstance(lineup, list) or not lineup:
+                errors.append(f"Period {period} Starting XI lineup verisi eksik.")
+                continue
+            starting_xi_count += 1
+            for member in lineup:
+                member = member or {}
+                player_id = remember_player(member.get("player"))
+                if player_id is None:
+                    errors.append("Starting XI içinde player_id eksik.")
+                    continue
+                active.add(player_id)
+                permanently_off.discard(player_id)
+                temporarily_off.discard(player_id)
+
+        elif event_type == "Substitution":
+            outgoing_id = remember_player(event.get("player"))
+            substitution = event.get("substitution") or {}
+            incoming_id = remember_player(substitution.get("replacement"))
+            if outgoing_id is None or incoming_id is None:
+                errors.append(f"Period {period} substitution oyuncu bilgisi eksik.")
+                continue
+            if outgoing_id not in active:
+                warnings.append(
+                    f"Substitution sırasında çıkan oyuncu aktif görünmüyor: {player_names.get(outgoing_id, outgoing_id)}."
+                )
+                errors.append("Substitution state uyuşmazlığı.")
+            active.discard(outgoing_id)
+            temporarily_off.discard(outgoing_id)
+            if incoming_id in permanently_off or incoming_id in active:
+                errors.append(
+                    f"Substitution ile giren oyuncu zaten aktif veya kalıcı olarak çıkmış: {player_names.get(incoming_id, incoming_id)}."
+                )
+            active.add(incoming_id)
+            temporarily_off.discard(incoming_id)
+
+        elif event_type == "Player Off":
+            player_id = remember_player(event.get("player"))
+            if player_id is None:
+                errors.append("Player Off event içinde player_id eksik.")
+                continue
+            if player_id not in active:
+                errors.append(
+                    f"Player Off sırasında oyuncu aktif görünmüyor: {player_names.get(player_id, player_id)}."
+                )
+            active.discard(player_id)
+            off_data = event.get("player_off") or {}
+            if off_data.get("permanent") is True:
+                permanently_off.add(player_id)
+                temporarily_off.discard(player_id)
+            else:
+                temporarily_off.add(player_id)
+
+        elif event_type == "Player On":
+            player_id = remember_player(event.get("player"))
+            if player_id is None:
+                errors.append("Player On event içinde player_id eksik.")
+                continue
+            if player_id in permanently_off:
+                errors.append(
+                    f"Kalıcı olarak çıkmış oyuncu tekrar döndü olarak işaretlenmiş: {player_names.get(player_id, player_id)}."
+                )
+            elif player_id not in temporarily_off:
+                errors.append(
+                    f"Karşılık gelen Player Off olmadan Player On geldi: {player_names.get(player_id, player_id)}."
+                )
+            else:
+                active.add(player_id)
+                temporarily_off.discard(player_id)
+
+        elif event_type in ("Bad Behaviour", "Foul Committed"):
+            payload_key = "bad_behaviour" if event_type == "Bad Behaviour" else "foul_committed"
+            card = _name((event.get(payload_key) or {}).get("card"))
+            if card in ("Red Card", "Second Yellow"):
+                player_id = remember_player(event.get("player"))
+                if player_id is None:
+                    errors.append(f"{card} event içinde player_id eksik.")
+                else:
+                    if player_id not in active:
+                        errors.append(
+                            f"{card} sırasında oyuncu aktif görünmüyor: {player_names.get(player_id, player_id)}."
+                        )
+                    active.discard(player_id)
+                    temporarily_off.discard(player_id)
+                    permanently_off.add(player_id)
+
+        elif event_type == "Half End":
+            if event.get("early_video_end") is True or event.get("match_suspended") is True:
+                errors.append(
+                    f"Period {period} Half End kaydı erken video bitişi veya maçın askıya alınmasını işaretliyor."
+                )
+            periods_closed.add(period)
+
+    if starting_xi_count == 0:
+        errors.append("Starting XI eventleri bulunamadı.")
+    if not periods_seen:
+        errors.append("Süre hesaplamak için geçerli maç periodu bulunamadı.")
+    if periods_seen and sorted(periods_seen) != list(range(1, max(periods_seen) + 1)):
+        errors.append("Maç periodları kesintisiz değil.")
+    for period in sorted(periods_seen):
+        if period not in periods_closed:
+            errors.append(f"Period {period} için Half End olayı eksik.")
+
+    result["periods"] = sorted(periods_seen)
+    result["warnings"] = sorted(set(warnings))
+    result["errors"] = sorted(set(errors))
+    if errors:
+        return result
+
+    result["valid"] = True
+    result["seconds_by_player"] = dict(seconds_by_player)
+    result["player_names"] = player_names
+    return result
+
 def analyse_match(match: dict[str, Any], lineups: Any,
                   events: Any) -> dict[str, Any]:
     """Build a cautious single-match player event summary."""
@@ -209,6 +940,7 @@ def analyse_match(match: dict[str, Any], lineups: Any,
         raise ImportErrorWithContext("Events dosyasının kökü JSON dizisi değil.")
 
     players, warnings = _lineup_players(lineups)
+    minutes_result = calculate_minutes_played(events)
     counters: dict[str, Counter[str]] = defaultdict(Counter)
     pass_lengths: dict[str, list[float]] = defaultdict(list)
     xg_values: dict[str, list[float]] = defaultdict(list)
@@ -275,6 +1007,8 @@ def analyse_match(match: dict[str, Any], lineups: Any,
                 row["assists"] += 1
             if pass_data.get("shot_assist") is True:
                 row["shot_assists"] += 1
+            if _name(pass_data.get("type")) == "Goal Kick":
+                row["goal_kicks"] += 1
         elif event_type == "Carry":
             row["carries"] += 1
         elif event_type == "Shot":
@@ -284,6 +1018,37 @@ def analyse_match(match: dict[str, Any], lineups: Any,
                 row["goals"] += 1
             if _finite(shot.get("statsbomb_xg")):
                 xg_values[player_key].append(float(shot["statsbomb_xg"]))
+        elif event_type == "Goal Keeper":
+            goalkeeper = event.get("goalkeeper") or {}
+            goalkeeper_type = _name(goalkeeper.get("type"))
+            normalized_type = goalkeeper_type.casefold() if goalkeeper_type else ""
+            row["goalkeeper_actions"] += 1
+            if normalized_type in {
+                "penalty saved", "penalty saved to post", "shot saved",
+                "shot saved off target", "shot saved to post",
+            }:
+                row["goalkeeper_saves"] += 1
+            if normalized_type in {"penalty saved", "penalty saved to post"}:
+                row["goalkeeper_penalty_saves"] += 1
+            if normalized_type == "shot faced":
+                row["goalkeeper_shots_faced"] += 1
+            elif normalized_type == "goal conceded":
+                row["goalkeeper_goals_conceded"] += 1
+            elif normalized_type == "collected":
+                row["goalkeeper_collections"] += 1
+            elif normalized_type == "punch":
+                row["goalkeeper_punches"] += 1
+            elif normalized_type in {"keeper sweeper", "keeper sweep", "keeper pick-up", "keeper pick up"}:
+                row["goalkeeper_sweeps"] += 1
+            elif normalized_type == "smother":
+                row["goalkeeper_smotherings"] += 1
+            elif normalized_type == "penalty conceded":
+                row["goalkeeper_penalties_conceded"] += 1
+            elif normalized_type not in {
+                "penalty saved", "penalty saved to post", "shot saved",
+                "shot saved off target", "shot saved to post",
+            }:
+                row["goalkeeper_unclassified_actions"] += 1
         elif event_type == "Pressure":
             row["pressures"] += 1
         elif event_type == "Interception":
@@ -312,6 +1077,15 @@ def analyse_match(match: dict[str, Any], lineups: Any,
         lengths = pass_lengths.get(player_key, [])
         xg = xg_values.get(player_key, [])
         metrics = {field: int(values.get(field, 0)) for field in COUNTER_FIELDS}
+        player_seconds = None
+        if minutes_result["valid"]:
+            if player_key in minutes_result["seconds_by_player"]:
+                player_seconds = minutes_result["seconds_by_player"][player_key]
+            elif not player.get("appearance_evidence"):
+                # A listed squad member with no on-pitch event is an unused substitute.
+                player_seconds = 0.0
+        if player_seconds is not None and player_seconds > 0:
+            player["appearance_evidence"] = True
         metrics.update({
             "pass_completion_pct": round(completed / attempted * 100, 2) if attempted else None,
             "pass_length_mean": round(sum(lengths) / len(lengths), 2) if lengths else None,
@@ -320,13 +1094,22 @@ def analyse_match(match: dict[str, Any], lineups: Any,
             "xg": round(sum(xg), 3) if xg else None,
             "xg_shots_with_value": len(xg),
         })
+        if (
+            minutes_result["valid"]
+            and player.get("appearance_evidence")
+            and player_seconds is None
+        ):
+            warnings.append(
+                f"Minutes hesaplanamadı; oyuncu appearance kanıtı var: {player.get('player_name', player_key)}"
+            )
         player_rows.append({
             **player,
             "metrics": metrics,
             "pass_length_sum": round(sum(lengths), 3),
             "pass_length_observations": len(lengths),
-            "minutes_played": None,
-            "per90_metrics": None,
+            "minutes_played": round(player_seconds / 60.0, 2) if player_seconds is not None else None,
+            "minutes_played_seconds": round(player_seconds, 3) if player_seconds is not None else None,
+            "per90_metrics": calculate_per90_metrics(metrics, player_seconds),
         })
 
     player_rows.sort(key=lambda item: (
@@ -356,6 +1139,15 @@ def analyse_match(match: dict[str, Any], lineups: Any,
             "events_without_team_id": unknown_team_events,
             "event_types": dict(sorted(event_types.items())),
             "warnings": sorted(set(warnings)),
+            "minutes_calculation": {
+                "status": "valid" if minutes_result["valid"] else "unavailable",
+                "periods": minutes_result["periods"],
+                "players_with_minutes": sum(
+                    1 for value in minutes_result["seconds_by_player"].values() if value > 0
+                ),
+                "warnings": minutes_result["warnings"],
+                "errors": minutes_result["errors"],
+            },
         },
         "player_metrics": player_rows,
     }
@@ -377,6 +1169,778 @@ CB_PROFILE_METRICS = (
 )
 
 
+
+CB_METRIC_GROUPS = (
+    {
+        "code": "distribution_progression",
+        "label": "Distribution and progression",
+        "count_metrics": (
+            "passes_attempted", "passes_completed", "crosses",
+            "through_balls", "shot_assists", "carries",
+        ),
+        "context_metrics": ("pass_completion_pct", "pass_length_mean"),
+        "description": "Recorded passing volume, selected pass types and carries.",
+    },
+    {
+        "code": "defensive_activity",
+        "label": "Defensive activity",
+        "count_metrics": (
+            "pressures", "tackles", "interceptions", "ball_recoveries",
+        ),
+        "context_metrics": (),
+        "description": "Recorded pressure, tackle-type duels, interceptions and recoveries.",
+    },
+    {
+        "code": "box_protection",
+        "label": "Box protection",
+        "count_metrics": ("clearances", "blocks"),
+        "context_metrics": (),
+        "description": "Recorded clearances and blocks.",
+    },
+)
+
+
+
+FB_METRIC_GROUPS = (
+    {
+        "code": "attacking_output",
+        "label": "Chance creation and attacking output",
+        "count_metrics": (
+            "crosses", "through_balls", "shot_assists", "assists",
+            "shots", "goals",
+        ),
+        "rate_metrics": ("xg",),
+        "context_metrics": (),
+        "description": "Recorded delivery, chance creation and shot contribution.",
+    },
+    {
+        "code": "distribution_progression",
+        "label": "Distribution and progression",
+        "count_metrics": (
+            "passes_attempted", "passes_completed", "carries", "dribbles",
+        ),
+        "rate_metrics": (),
+        "context_metrics": ("pass_completion_pct", "pass_length_mean"),
+        "description": "Recorded passing volume, completion, carries and dribbles.",
+    },
+    {
+        "code": "defensive_activity",
+        "label": "Defensive activity",
+        "count_metrics": (
+            "pressures", "tackles", "interceptions", "ball_recoveries",
+            "clearances", "blocks",
+        ),
+        "rate_metrics": (),
+        "context_metrics": (),
+        "description": "Recorded pressure, tackle-type duels, recoveries and defensive actions.",
+    },
+)
+
+
+def _is_fullback_position(position: Any) -> bool:
+    """Match full-back and wing-back labels without including centre-backs."""
+    if not isinstance(position, str):
+        return False
+    normalized = " ".join(position.casefold().split())
+    if not normalized or "center back" in normalized or "centre back" in normalized:
+        return False
+    return normalized.endswith("back") or normalized.endswith("fullback")
+
+
+def build_fullback_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Group observed full-back/wing-back events; this is not a player rating."""
+    fullbacks = []
+    for player in player_rows:
+        positions = player.get("positions_seen") or []
+        fullback_positions = sorted({
+            " ".join(position.split())
+            for position in positions
+            if _is_fullback_position(position)
+        }, key=str.casefold)
+        if not fullback_positions:
+            continue
+
+        metrics = player.get("metrics") or {}
+        per90 = player.get("per90_metrics") or {}
+        grouped_metrics = {}
+        for group in FB_METRIC_GROUPS:
+            count_fields = group["count_metrics"]
+            rate_fields = group["rate_metrics"]
+            context_fields = group["context_metrics"]
+            grouped_metrics[group["code"]] = {
+                "raw_counts": {key: metrics.get(key) for key in count_fields},
+                "per90_counts": {
+                    key: per90.get(key) for key in count_fields if key in per90
+                },
+                "raw_rate_totals": {key: metrics.get(key) for key in rate_fields},
+                "per90_rate_metrics": {
+                    key: per90.get(key) for key in rate_fields if key in per90
+                },
+                "context_metrics": {
+                    key: metrics.get(key) for key in context_fields
+                },
+            }
+
+        fullbacks.append({
+            "player_id": player.get("player_id"),
+            "player_name": player.get("player_name"),
+            "team_names": player.get("team_names") or [],
+            "positions_seen": positions,
+            "fullback_position_labels": fullback_positions,
+            "matches_listed_in_squads": player.get("matches_listed_in_squads", 0),
+            "matches_with_appearance_evidence": player.get(
+                "matches_with_appearance_evidence", 0
+            ),
+            "minutes_played": player.get("minutes_played"),
+            "per90_metrics": player.get("per90_metrics"),
+            "grouped_metrics": grouped_metrics,
+            "data_quality": player.get("data_quality"),
+            "data_consistency": player.get("data_consistency"),
+            "identity": player.get("identity"),
+            "metrics": {
+                key: metrics.get(key)
+                for key in (
+                    "crosses", "through_balls", "shot_assists", "assists",
+                    "shots", "goals", "xg", "passes_attempted",
+                    "passes_completed", "pass_completion_pct",
+                    "pass_length_mean", "carries", "dribbles",
+                    "pressures", "tackles", "interceptions",
+                    "ball_recoveries", "clearances", "blocks",
+                )
+            },
+        })
+
+    fullbacks.sort(key=lambda row: str(row.get("player_name") or "").casefold())
+    return {
+        "role_code": "FB",
+        "role_name": "Full-back / Wing-back",
+        "position_labels_included": [
+            "Left Back", "Right Back", "Left Wing Back", "Right Wing Back",
+        ],
+        "metric_mode": "grouped_raw_event_counts_with_verified_per90_rates",
+        "metric_groups": [
+            {
+                "code": group["code"],
+                "label": group["label"],
+                "count_metrics": list(group["count_metrics"]),
+                "rate_metrics": list(group["rate_metrics"]),
+                "context_metrics": list(group["context_metrics"]),
+                "description": group["description"],
+            }
+            for group in FB_METRIC_GROUPS
+        ],
+        "player_count": len(fullbacks),
+        "players": fullbacks,
+        "interpretation_limits": [
+            "No full-back rating or ranking is calculated.",
+            "Raw event counts depend on selected minutes, team possession, role, match state and opponent context.",
+            "Per-90 values are included only when derived from complete, positive verified minutes.",
+            "The profile groups recorded actions; it does not measure overlapping runs, defensive positioning, crossing quality or tactical responsibility.",
+            "Players with more than one observed position retain all source position labels; the profile does not infer a single primary role.",
+        ],
+    }
+
+
+
+
+WINGER_METRIC_GROUPS = (
+    {
+        "code": "chance_creation_finishing",
+        "label": "Chance creation and finishing",
+        "count_metrics": ("shot_assists", "assists", "shots", "goals"),
+        "rate_metrics": ("xg",),
+        "context_metrics": (),
+        "description": "Recorded shot creation, assists and shooting output.",
+    },
+    {
+        "code": "wide_delivery",
+        "label": "Wide delivery and passing",
+        "count_metrics": (
+            "crosses", "through_balls", "passes_attempted", "passes_completed",
+        ),
+        "rate_metrics": (),
+        "context_metrics": ("pass_completion_pct", "pass_length_mean"),
+        "description": "Recorded crosses, through balls and passing volume.",
+    },
+    {
+        "code": "one_v_one_progression",
+        "label": "One-v-one and ball progression",
+        "count_metrics": ("dribbles", "carries"),
+        "rate_metrics": (),
+        "context_metrics": (),
+        "description": "Recorded dribble actions and ball carries.",
+    },
+    {
+        "code": "defensive_contribution",
+        "label": "Pressing and defensive contribution",
+        "count_metrics": (
+            "pressures", "tackles", "interceptions", "ball_recoveries",
+        ),
+        "rate_metrics": (),
+        "context_metrics": (),
+        "description": "Recorded pressures, tackle-type duels, interceptions and recoveries.",
+    },
+)
+
+
+def _is_winger_position(position: Any) -> bool:
+    """Recognize explicit wing labels while excluding wing-back positions."""
+    if not isinstance(position, str):
+        return False
+    tokens = set(" ".join(position.casefold().split()).split())
+    return "wing" in tokens and not {"back", "fullback"}.intersection(tokens)
+
+
+def build_winger_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Group explicit winger position labels; this is not a player rating."""
+    wingers = []
+    for player in player_rows:
+        positions = player.get("positions_seen") or []
+        winger_positions = sorted({
+            " ".join(position.split())
+            for position in positions
+            if _is_winger_position(position)
+        }, key=str.casefold)
+        if not winger_positions:
+            continue
+
+        metrics = player.get("metrics") or {}
+        per90 = player.get("per90_metrics") or {}
+        grouped_metrics = {}
+        for group in WINGER_METRIC_GROUPS:
+            count_fields = group["count_metrics"]
+            rate_fields = group["rate_metrics"]
+            context_fields = group["context_metrics"]
+            grouped_metrics[group["code"]] = {
+                "raw_counts": {key: metrics.get(key) for key in count_fields},
+                "per90_counts": {
+                    key: per90.get(key) for key in count_fields if key in per90
+                },
+                "raw_rate_totals": {key: metrics.get(key) for key in rate_fields},
+                "per90_rate_metrics": {
+                    key: per90.get(key) for key in rate_fields if key in per90
+                },
+                "context_metrics": {
+                    key: metrics.get(key) for key in context_fields
+                },
+            }
+
+        wingers.append({
+            "player_id": player.get("player_id"),
+            "player_name": player.get("player_name"),
+            "team_names": player.get("team_names") or [],
+            "positions_seen": positions,
+            "winger_position_labels": winger_positions,
+            "matches_listed_in_squads": player.get("matches_listed_in_squads", 0),
+            "matches_with_appearance_evidence": player.get(
+                "matches_with_appearance_evidence", 0
+            ),
+            "minutes_played": player.get("minutes_played"),
+            "per90_metrics": player.get("per90_metrics"),
+            "grouped_metrics": grouped_metrics,
+            "data_quality": player.get("data_quality"),
+            "data_consistency": player.get("data_consistency"),
+            "identity": player.get("identity"),
+            "metrics": {
+                key: metrics.get(key)
+                for key in (
+                    "shot_assists", "assists", "shots", "goals", "xg",
+                    "crosses", "through_balls", "passes_attempted",
+                    "passes_completed", "pass_completion_pct",
+                    "pass_length_mean", "dribbles", "carries",
+                    "pressures", "tackles", "interceptions", "ball_recoveries",
+                )
+            },
+        })
+
+    wingers.sort(key=lambda row: str(row.get("player_name") or "").casefold())
+    return {
+        "role_code": "W",
+        "role_name": "Winger",
+        "position_labels_included": ["Left Wing", "Right Wing"],
+        "metric_mode": "grouped_raw_event_counts_with_verified_per90_rates",
+        "metric_groups": [
+            {
+                "code": group["code"],
+                "label": group["label"],
+                "count_metrics": list(group["count_metrics"]),
+                "rate_metrics": list(group["rate_metrics"]),
+                "context_metrics": list(group["context_metrics"]),
+                "description": group["description"],
+            }
+            for group in WINGER_METRIC_GROUPS
+        ],
+        "player_count": len(wingers),
+        "players": wingers,
+        "interpretation_limits": [
+            "No winger rating or ranking is calculated.",
+            "Raw event counts depend on selected minutes, team possession, role, match state and opponent context.",
+            "Per-90 values are included only when derived from complete, positive verified minutes.",
+            "The profile groups recorded actions; it does not measure successful take-on rate, crossing quality, off-ball runs, pressing triggers or tactical decision quality.",
+            "Players with more than one observed position retain all source position labels; the profile does not infer one primary wing.",
+            "Wing-back labels are deliberately excluded from this profile.",
+        ],
+    }
+
+
+
+
+STRIKER_METRIC_GROUPS = (
+    {
+        "code": "finishing_output",
+        "label": "Finishing and shot output",
+        "count_metrics": ("shots", "goals"),
+        "rate_metrics": ("xg",),
+        "context_metrics": (),
+        "description": "Recorded shots, goals and expected-goals total.",
+    },
+    {
+        "code": "chance_creation",
+        "label": "Chance creation and combination",
+        "count_metrics": ("shot_assists", "assists", "through_balls"),
+        "rate_metrics": (),
+        "context_metrics": (),
+        "description": "Recorded shot assists, assists and through balls.",
+    },
+    {
+        "code": "link_play",
+        "label": "Link play and ball retention",
+        "count_metrics": (
+            "passes_attempted", "passes_completed", "carries", "dribbles",
+        ),
+        "rate_metrics": (),
+        "context_metrics": ("pass_completion_pct", "pass_length_mean"),
+        "description": "Recorded passing, carries and dribbles.",
+    },
+    {
+        "code": "pressing_contribution",
+        "label": "Pressing and defensive contribution",
+        "count_metrics": (
+            "pressures", "tackles", "interceptions", "ball_recoveries",
+        ),
+        "rate_metrics": (),
+        "context_metrics": (),
+        "description": "Recorded pressures, tackle-type duels, interceptions and recoveries.",
+    },
+)
+
+
+def _is_centre_forward_position(position: Any) -> bool:
+    """Recognize central-forward and striker labels, excluding wide forwards."""
+    if not isinstance(position, str):
+        return False
+    normalized = " ".join(position.casefold().split())
+    if not normalized or "wing" in normalized:
+        return False
+    tokens = set(normalized.split())
+    if "striker" in tokens:
+        return True
+    return "forward" in tokens and bool({"center", "centre"} & tokens)
+
+
+def build_striker_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Group central-forward event metrics; this is not a finishing rating."""
+    strikers = []
+    for player in player_rows:
+        positions = player.get("positions_seen") or []
+        striker_positions = sorted({
+            " ".join(position.split())
+            for position in positions
+            if _is_centre_forward_position(position)
+        }, key=str.casefold)
+        if not striker_positions:
+            continue
+
+        metrics = player.get("metrics") or {}
+        per90 = player.get("per90_metrics") or {}
+        grouped_metrics = {}
+        for group in STRIKER_METRIC_GROUPS:
+            count_fields = group["count_metrics"]
+            rate_fields = group["rate_metrics"]
+            context_fields = group["context_metrics"]
+            grouped_metrics[group["code"]] = {
+                "raw_counts": {key: metrics.get(key) for key in count_fields},
+                "per90_counts": {
+                    key: per90.get(key) for key in count_fields if key in per90
+                },
+                "raw_rate_totals": {key: metrics.get(key) for key in rate_fields},
+                "per90_rate_metrics": {
+                    key: per90.get(key) for key in rate_fields if key in per90
+                },
+                "context_metrics": {
+                    key: metrics.get(key) for key in context_fields
+                },
+            }
+
+        strikers.append({
+            "player_id": player.get("player_id"),
+            "player_name": player.get("player_name"),
+            "team_names": player.get("team_names") or [],
+            "positions_seen": positions,
+            "striker_position_labels": striker_positions,
+            "matches_listed_in_squads": player.get("matches_listed_in_squads", 0),
+            "matches_with_appearance_evidence": player.get(
+                "matches_with_appearance_evidence", 0
+            ),
+            "minutes_played": player.get("minutes_played"),
+            "per90_metrics": player.get("per90_metrics"),
+            "grouped_metrics": grouped_metrics,
+            "data_quality": player.get("data_quality"),
+            "data_consistency": player.get("data_consistency"),
+            "identity": player.get("identity"),
+            "metrics": {
+                key: metrics.get(key)
+                for key in (
+                    "shots", "goals", "xg", "shot_assists", "assists",
+                    "through_balls", "passes_attempted", "passes_completed",
+                    "pass_completion_pct", "pass_length_mean", "carries",
+                    "dribbles", "pressures", "tackles", "interceptions",
+                    "ball_recoveries",
+                )
+            },
+        })
+
+    strikers.sort(key=lambda row: str(row.get("player_name") or "").casefold())
+    return {
+        "role_code": "ST",
+        "role_name": "Striker / Centre-forward",
+        "position_labels_included": [
+            "Center Forward", "Left Center Forward", "Right Center Forward",
+            "Striker", "Second Striker", "Secondary Striker",
+        ],
+        "metric_mode": "grouped_raw_event_counts_with_verified_per90_rates",
+        "metric_groups": [
+            {
+                "code": group["code"],
+                "label": group["label"],
+                "count_metrics": list(group["count_metrics"]),
+                "rate_metrics": list(group["rate_metrics"]),
+                "context_metrics": list(group["context_metrics"]),
+                "description": group["description"],
+            }
+            for group in STRIKER_METRIC_GROUPS
+        ],
+        "player_count": len(strikers),
+        "players": strikers,
+        "not_yet_available": [
+            {
+                "metric": "touches_in_box",
+                "reason": "The current importer does not calculate a validated penalty-area touch metric.",
+            },
+            {
+                "metric": "aerial_duel_success",
+                "reason": "Aerial-duel classification and outcomes have not been separately validated.",
+            },
+            {
+                "metric": "finishing_efficiency",
+                "reason": "Shots and xG are descriptive event totals; no calibrated finishing model is implemented.",
+            },
+        ],
+        "interpretation_limits": [
+            "No striker rating or ranking is calculated.",
+            "Raw event counts depend on selected minutes, team possession, role, match state and opponent context.",
+            "Per-90 values are included only when derived from complete, positive verified minutes.",
+            "Shots, goals and xG describe recorded output; they do not independently measure shot selection or finishing skill.",
+            "The groups do not measure off-ball movement, pressing triggers, hold-up quality, aerial timing or tactical decision quality.",
+            "Players with more than one observed position retain all source position labels; the profile does not infer one primary striker role.",
+        ],
+    }
+
+
+
+
+GOALKEEPER_METRIC_GROUPS = (
+    {
+        "code": "shot_stopping",
+        "label": "Shot stopping",
+        "count_metrics": (
+            "goalkeeper_saves", "goalkeeper_shots_faced",
+            "goalkeeper_goals_conceded", "goalkeeper_penalty_saves",
+            "goalkeeper_penalties_conceded",
+        ),
+        "context_metrics": (),
+        "description": "Recorded goalkeeper save, shot-faced and concession event types.",
+    },
+    {
+        "code": "area_control",
+        "label": "Area control",
+        "count_metrics": (
+            "goalkeeper_collections", "goalkeeper_punches",
+            "goalkeeper_sweeps", "goalkeeper_smotherings",
+        ),
+        "context_metrics": (),
+        "description": "Recorded collections, punches, sweeps and smother actions.",
+    },
+    {
+        "code": "distribution",
+        "label": "Distribution and restarts",
+        "count_metrics": (
+            "passes_attempted", "passes_completed", "goal_kicks",
+        ),
+        "context_metrics": ("pass_completion_pct", "pass_length_mean"),
+        "description": "Recorded passing volume, goal kicks and pass-length/completion context.",
+    },
+)
+
+
+def _is_goalkeeper_position(position: Any) -> bool:
+    """Match only explicit goalkeeper position labels."""
+    if not isinstance(position, str):
+        return False
+    normalized = " ".join(position.casefold().split())
+    return normalized in {"goalkeeper", "goal keeper", "keeper"}
+
+
+def build_goalkeeper_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Group recorded goalkeeper events and distribution; this is not a rating."""
+    goalkeepers = []
+    for player in player_rows:
+        positions = player.get("positions_seen") or []
+        goalkeeper_positions = sorted({
+            " ".join(position.split())
+            for position in positions
+            if _is_goalkeeper_position(position)
+        }, key=str.casefold)
+        if not goalkeeper_positions:
+            continue
+
+        metrics = player.get("metrics") or {}
+        per90 = player.get("per90_metrics") or {}
+        grouped_metrics = {}
+        for group in GOALKEEPER_METRIC_GROUPS:
+            count_fields = group["count_metrics"]
+            context_fields = group["context_metrics"]
+            grouped_metrics[group["code"]] = {
+                "raw_counts": {key: metrics.get(key) for key in count_fields},
+                "per90_counts": {
+                    key: per90.get(key) for key in count_fields if key in per90
+                },
+                "context_metrics": {
+                    key: metrics.get(key) for key in context_fields
+                },
+            }
+
+        goalkeepers.append({
+            "player_id": player.get("player_id"),
+            "player_name": player.get("player_name"),
+            "team_names": player.get("team_names") or [],
+            "positions_seen": positions,
+            "goalkeeper_position_labels": goalkeeper_positions,
+            "matches_listed_in_squads": player.get("matches_listed_in_squads", 0),
+            "matches_with_appearance_evidence": player.get(
+                "matches_with_appearance_evidence", 0
+            ),
+            "minutes_played": player.get("minutes_played"),
+            "per90_metrics": player.get("per90_metrics"),
+            "grouped_metrics": grouped_metrics,
+            "data_quality": player.get("data_quality"),
+            "data_consistency": player.get("data_consistency"),
+            "identity": player.get("identity"),
+            "metrics": {
+                key: metrics.get(key)
+                for key in (
+                    "goalkeeper_actions", "goalkeeper_saves",
+                    "goalkeeper_shots_faced", "goalkeeper_goals_conceded",
+                    "goalkeeper_collections", "goalkeeper_punches",
+                    "goalkeeper_sweeps", "goalkeeper_smotherings",
+                    "goalkeeper_penalty_saves", "goalkeeper_penalties_conceded",
+                    "goalkeeper_unclassified_actions", "passes_attempted",
+                    "passes_completed", "pass_completion_pct",
+                    "pass_length_mean", "goal_kicks",
+                )
+            },
+        })
+
+    goalkeepers.sort(key=lambda row: str(row.get("player_name") or "").casefold())
+    return {
+        "role_code": "GK",
+        "role_name": "Goalkeeper",
+        "position_labels_included": ["Goalkeeper"],
+        "metric_mode": "grouped_raw_event_counts_with_verified_per90_rates",
+        "metric_groups": [
+            {
+                "code": group["code"],
+                "label": group["label"],
+                "count_metrics": list(group["count_metrics"]),
+                "context_metrics": list(group["context_metrics"]),
+                "description": group["description"],
+            }
+            for group in GOALKEEPER_METRIC_GROUPS
+        ],
+        "player_count": len(goalkeepers),
+        "players": goalkeepers,
+        "not_yet_available": [
+            {
+                "metric": "save_percentage",
+                "reason": "A complete and validated shots-faced denominator has not been established for the current Open Data sample.",
+            },
+            {
+                "metric": "post_shot_xg_or_goals_prevented",
+                "reason": "The current importer does not calculate a validated post-shot expected-goals or goals-prevented model.",
+            },
+            {
+                "metric": "cross_claim_rate",
+                "reason": "Cross-claim opportunities and outcomes are not yet modelled as a validated denominator and numerator.",
+            },
+            {
+                "metric": "distribution_long_ball_accuracy",
+                "reason": "Pass length and completion are available, but a validated long-ball classification and accuracy metric is not yet implemented.",
+            },
+        ],
+        "interpretation_limits": [
+            "No goalkeeper rating or ranking is calculated.",
+            "StatsBomb Goal Keeper events are action records and can represent attempts; a recorded event does not always prove the action succeeded.",
+            "Per-90 event counts are included only when derived from complete, positive verified minutes.",
+            "Pass completion and average pass length describe recorded distribution only; they do not independently measure decision quality.",
+            "The profile does not measure positioning, reaction quality, starting position, communication or command of the penalty area.",
+        ],
+    }
+
+
+
+CM_METRIC_GROUPS = (
+    {
+        "code": "distribution_progression",
+        "label": "Passing and progression",
+        "count_metrics": (
+            "passes_attempted", "passes_completed", "through_balls",
+            "carries", "dribbles",
+        ),
+        "rate_metrics": (),
+        "context_metrics": ("pass_completion_pct", "pass_length_mean"),
+        "description": "Recorded passing volume, through balls, ball carries and dribbles.",
+    },
+    {
+        "code": "chance_creation",
+        "label": "Chance creation and attacking contribution",
+        "count_metrics": ("shot_assists", "assists", "crosses", "shots", "goals"),
+        "rate_metrics": ("xg",),
+        "context_metrics": (),
+        "description": "Recorded shot assists, assists, deliveries and shooting output.",
+    },
+    {
+        "code": "defensive_activity",
+        "label": "Defensive work",
+        "count_metrics": (
+            "pressures", "tackles", "interceptions", "ball_recoveries",
+            "clearances", "blocks",
+        ),
+        "rate_metrics": (),
+        "context_metrics": (),
+        "description": "Recorded pressure, tackle-type duels, recoveries and defensive actions.",
+    },
+)
+
+
+def _is_central_midfield_position(position: Any) -> bool:
+    """Recognize central midfield labels; leave wide midfield and wings out."""
+    if not isinstance(position, str):
+        return False
+    normalized = " ".join(position.casefold().split())
+    if not normalized or "midfield" not in normalized or "wide" in normalized:
+        return False
+    if normalized in {"defensive midfield", "attacking midfield", "central midfield"}:
+        return True
+    tokens = set(normalized.split())
+    return "center" in tokens or "centre" in tokens
+
+
+def build_central_midfield_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Group observed central-midfield actions; this is not a player rating."""
+    midfielders = []
+    for player in player_rows:
+        positions = player.get("positions_seen") or []
+        central_positions = sorted({
+            " ".join(position.split())
+            for position in positions
+            if _is_central_midfield_position(position)
+        }, key=str.casefold)
+        if not central_positions:
+            continue
+
+        metrics = player.get("metrics") or {}
+        per90 = player.get("per90_metrics") or {}
+        grouped_metrics = {}
+        for group in CM_METRIC_GROUPS:
+            count_fields = group["count_metrics"]
+            rate_fields = group["rate_metrics"]
+            context_fields = group["context_metrics"]
+            grouped_metrics[group["code"]] = {
+                "raw_counts": {key: metrics.get(key) for key in count_fields},
+                "per90_counts": {
+                    key: per90.get(key) for key in count_fields if key in per90
+                },
+                "raw_rate_totals": {key: metrics.get(key) for key in rate_fields},
+                "per90_rate_metrics": {
+                    key: per90.get(key) for key in rate_fields if key in per90
+                },
+                "context_metrics": {
+                    key: metrics.get(key) for key in context_fields
+                },
+            }
+
+        midfielders.append({
+            "player_id": player.get("player_id"),
+            "player_name": player.get("player_name"),
+            "team_names": player.get("team_names") or [],
+            "positions_seen": positions,
+            "central_midfield_position_labels": central_positions,
+            "matches_listed_in_squads": player.get("matches_listed_in_squads", 0),
+            "matches_with_appearance_evidence": player.get(
+                "matches_with_appearance_evidence", 0
+            ),
+            "minutes_played": player.get("minutes_played"),
+            "per90_metrics": player.get("per90_metrics"),
+            "grouped_metrics": grouped_metrics,
+            "data_quality": player.get("data_quality"),
+            "data_consistency": player.get("data_consistency"),
+            "identity": player.get("identity"),
+            "metrics": {
+                key: metrics.get(key)
+                for key in (
+                    "passes_attempted", "passes_completed", "pass_completion_pct",
+                    "pass_length_mean", "through_balls", "carries", "dribbles",
+                    "shot_assists", "assists", "crosses", "shots", "goals", "xg",
+                    "pressures", "tackles", "interceptions", "ball_recoveries",
+                    "clearances", "blocks",
+                )
+            },
+        })
+
+    midfielders.sort(key=lambda row: str(row.get("player_name") or "").casefold())
+    return {
+        "role_code": "CM",
+        "role_name": "Central Midfielder",
+        "position_labels_included": [
+            "Center Midfield", "Left Center Midfield", "Right Center Midfield",
+            "Center Defensive Midfield", "Center Attacking Midfield",
+            "Defensive Midfield", "Attacking Midfield",
+        ],
+        "metric_mode": "grouped_raw_event_counts_with_verified_per90_rates",
+        "metric_groups": [
+            {
+                "code": group["code"],
+                "label": group["label"],
+                "count_metrics": list(group["count_metrics"]),
+                "rate_metrics": list(group["rate_metrics"]),
+                "context_metrics": list(group["context_metrics"]),
+                "description": group["description"],
+            }
+            for group in CM_METRIC_GROUPS
+        ],
+        "player_count": len(midfielders),
+        "players": midfielders,
+        "interpretation_limits": [
+            "No central-midfielder rating or ranking is calculated.",
+            "Raw event counts depend on selected minutes, team possession, role, match state and opponent context.",
+            "Per-90 values are included only when derived from complete, positive verified minutes.",
+            "The groups organize recorded actions; they do not measure scanning, pressure resistance, positional discipline or tactical decision quality.",
+            "Players with more than one observed position retain all source position labels; the profile does not infer one primary midfield role.",
+        ],
+    }
+
+
+
 def build_cb_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Select event profiles with an explicit centre-back position label.
 
@@ -390,6 +1954,22 @@ def build_cb_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
         if not any("center back" in str(position).casefold() for position in positions):
             continue
         metrics = player.get("metrics") or {}
+        per90 = player.get("per90_metrics") or {}
+        grouped_metrics = {}
+        for group in CB_METRIC_GROUPS:
+            count_fields = group["count_metrics"]
+            context_fields = group["context_metrics"]
+            grouped_metrics[group["code"]] = {
+                "raw_counts": {key: metrics.get(key) for key in count_fields},
+                "per90_counts": {
+                    key: per90.get(key)
+                    for key in count_fields
+                    if key in per90
+                },
+                "context_metrics": {
+                    key: metrics.get(key) for key in context_fields
+                },
+            }
         centre_backs.append({
             "player_id": player.get("player_id"),
             "player_name": player.get("player_name"),
@@ -397,7 +1977,12 @@ def build_cb_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
             "positions_seen": positions,
             "matches_listed_in_squads": player.get("matches_listed_in_squads", 0),
             "matches_with_appearance_evidence": player.get("matches_with_appearance_evidence", 0),
-            "minutes_played": None,
+            "minutes_played": player.get("minutes_played"),
+            "per90_metrics": player.get("per90_metrics"),
+            "grouped_metrics": grouped_metrics,
+            "data_quality": player.get("data_quality"),
+            "data_consistency": player.get("data_consistency"),
+            "identity": player.get("identity"),
             "metrics": {key: metrics.get(key) for key in CB_PROFILE_METRICS},
         })
 
@@ -405,12 +1990,30 @@ def build_cb_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "role_code": "CB",
         "role_name": "Centre-back",
-        "metric_mode": "raw_event_counts_and_source_percentages",
+        "metric_mode": "grouped_raw_event_counts_with_verified_per90_rates",
+        "metric_groups": [
+            {
+                "code": group["code"],
+                "label": group["label"],
+                "count_metrics": list(group["count_metrics"]),
+                "context_metrics": list(group["context_metrics"]),
+                "description": group["description"],
+            }
+            for group in CB_METRIC_GROUPS
+        ],
         "player_count": len(centre_backs),
         "players": centre_backs,
+        "not_yet_available": [
+            {
+                "metric": "aerial_duel_success",
+                "reason": "Aerial-duel event classification and outcomes have not yet been separately validated against source records.",
+            }
+        ],
         "interpretation_limits": [
             "No defensive rating or ranking is calculated.",
             "Raw defensive-action counts are not adjusted for minutes, team possession, defensive opportunities, match state or opponent quality.",
+            "Per-90 counts are included only when verified positive minutes are available.",
+            "The groups organize recorded actions; they are not tactical evaluations or proof of action quality.",
             "Event data does not establish defensive line height, spacing, scanning, body orientation, aerial timing or communication.",
             "Pass completion and pass length describe recorded distribution only; they do not independently measure decision quality.",
         ],
@@ -484,14 +2087,27 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 "positions": set(),
                 "squad_listings": 0,
                 "matches_with_appearance_evidence": 0,
+                "minutes_played_seconds": 0.0,
+                "minutes_calculation_complete": True,
+                "minutes_matches_valid": 0,
                 "metrics": Counter(),
                 "pass_length_sum": 0.0,
                 "pass_length_observations": 0,
                 "xg_values": [],
+                "match_rows": [],
             })
+            aggregate["match_rows"].append(player)
             aggregate["squad_listings"] += 1
             if player.get("appearance_evidence"):
                 aggregate["matches_with_appearance_evidence"] += 1
+            if (
+                match_report["quality"]["minutes_calculation"]["status"] == "valid"
+                and player.get("minutes_played_seconds") is not None
+            ):
+                aggregate["minutes_played_seconds"] += player["minutes_played_seconds"]
+                aggregate["minutes_matches_valid"] += 1
+            else:
+                aggregate["minutes_calculation_complete"] = False
             if player.get("team_name"):
                 aggregate["team_names"].add(player["team_name"])
             aggregate["positions"].update(player.get("positions") or [])
@@ -517,18 +2133,58 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             ),
             "xg": round(sum(player["xg_values"]), 3) if player["xg_values"] else None,
         })
-        aggregate_rows.append({
+        aggregate_row = {
             "player_id": player["player_id"],
             "player_name": player["player_name"],
             "team_names": sorted(player["team_names"]),
             "positions_seen": sorted(player["positions"]),
             "matches_listed_in_squads": player["squad_listings"],
             "matches_with_appearance_evidence": player["matches_with_appearance_evidence"],
-            "minutes_played": None,
-            "per90_metrics": None,
+            "minutes_played": (
+                round(player["minutes_played_seconds"] / 60.0, 2)
+                if player["minutes_calculation_complete"] else None
+            ),
+            "minutes_calculation_complete": player["minutes_calculation_complete"],
+            "minutes_matches_valid": player["minutes_matches_valid"],
+            "per90_metrics": calculate_per90_metrics(
+                counts,
+                player["minutes_played_seconds"] if player["minutes_calculation_complete"] else None,
+            ),
             "metrics": counts,
-        })
+        }
+        aggregate_row["data_quality"] = calculate_player_data_quality(aggregate_row)
+        aggregate_row["data_consistency"] = calculate_player_data_consistency(
+            aggregate_row, player["match_rows"]
+        )
+        aggregate_row["identity"] = calculate_player_identity(
+            aggregate_row, player["match_rows"]
+        )
+        aggregate_rows.append(aggregate_row)
     aggregate_rows.sort(key=lambda row: row["player_name"].casefold())
+
+    name_collisions = find_player_name_collisions(aggregate_rows)
+    collision_ids_by_player: dict[str, set[str]] = defaultdict(set)
+    for collision in name_collisions:
+        collision_ids = {str(value) for value in collision["player_ids"]}
+        for player_id in collision_ids:
+            collision_ids_by_player[player_id].update(collision_ids - {player_id})
+    for player in aggregate_rows:
+        other_ids = sorted(collision_ids_by_player.get(str(player["player_id"]), set()))
+        player["identity"]["possible_same_name_collision"] = bool(other_ids)
+        player["identity"]["other_same_name_player_ids"] = other_ids
+
+    role_profiles = {
+        "CB": build_cb_profile(aggregate_rows),
+        "FB": build_fullback_profile(aggregate_rows),
+        "CM": build_central_midfield_profile(aggregate_rows),
+        "W": build_winger_profile(aggregate_rows),
+        "ST": build_striker_profile(aggregate_rows),
+        "GK": build_goalkeeper_profile(aggregate_rows),
+    }
+    role_benchmarks = build_role_benchmarks(role_profiles)
+    player_evaluation_readiness = build_player_evaluation_readiness(
+        role_profiles, role_benchmarks
+    )
 
     report = {
         "report_type": "statsbomb_import_quality_and_event_profile",
@@ -558,25 +2214,34 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "selected_match_ids": [row["match"]["match_id"] for row in analysed_matches],
             "event_count": sum(row["quality"]["event_count"] for row in analysed_matches),
             "unique_players_listed_or_seen": len(all_players),
+            "possible_same_name_collision_groups": len(name_collisions),
+            "players_in_possible_name_collisions": sum(
+                len(item["player_ids"]) for item in name_collisions
+            ),
             "event_players_missing_from_lineups": sum(
                 row["quality"]["event_player_not_in_lineup_count"] for row in analysed_matches
             ),
         },
         "metric_definitions": METRIC_DEFINITIONS,
         "limitations": [
-            "Minutes played are not calculated in this first importer; per-90 metrics are deliberately null.",
-            "Lineup/squad listings can include unused substitutes; matches_with_appearance_evidence uses position records or attributed player events and is not a minutes calculation.",
-            "Percentiles and peer rankings are not produced by this single-source ingestion proof.",
+            "Minutes are calculated from Starting XI, substitutions, Player Off/On, dismissal events and period-local timestamps. If period clocks or required state transitions are incomplete, minutes remain null; per-90 values are emitted only for complete, positive minute totals.",
+            "Lineup/squad listings can include unused substitutes; unused substitutes receive 0.00 minutes only when the match-level event clock passes validation.",
+            "Peer percentiles are emitted only when same-role, same-report cohorts meet the minimum verified-minute and peer-count requirements; they describe event frequency, not player quality.",
             "Event data cannot establish off-ball positioning, scanning, body orientation, communication or visual tactical behaviour.",
             "This is a selected research dataset, not complete coverage of all leagues, seasons or youth players.",
+            "Players are grouped only by the StatsBomb player_id; names are never used as a merge key. Name variants for one ID are exposed for review.",
             "The report is not a definitive scout verdict, potential rating or transfer recommendation.",
         ],
         "source_files": provenance,
         "matches": analysed_matches,
         "player_sample_totals": aggregate_rows,
-        "role_profiles": {
-            "CB": build_cb_profile(aggregate_rows),
+        "player_identity_review": {
+            "matching_rule": "case-insensitive exact name after whitespace normalization; source IDs remain separate",
+            "same_name_different_ids": name_collisions,
         },
+        "role_profiles": role_profiles,
+        "role_benchmarks": role_benchmarks,
+        "player_evaluation_readiness": player_evaluation_readiness,
     }
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -588,7 +2253,17 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
         fields = [
             "player_id", "player_name", "team_names", "positions_seen",
             "matches_listed_in_squads", "matches_with_appearance_evidence",
+            "minutes_played", "minutes_calculation_complete", "minutes_matches_valid",
+            "data_quality_status", "data_quality_reasons",
+            "data_quality_appearance_evidence", "data_quality_minutes_complete",
+            "data_quality_has_attributed_events",
+            "data_consistency_status", "data_consistency_reasons",
+            "data_consistency_match_records",
+            "player_identity_key", "player_identity_status",
+            "player_identity_reasons", "player_identity_name_variants",
+            "possible_same_name_collision", "other_same_name_player_ids",
             *COUNTER_FIELDS, "pass_completion_pct", "pass_length_mean", "xg",
+            *[f"per90_{field}" for field in (*COUNTER_FIELDS, "xg")],
         ]
         writer = csv.DictWriter(stream, fieldnames=fields)
         writer.writeheader()
@@ -600,7 +2275,28 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 "positions_seen": " | ".join(row["positions_seen"]),
                 "matches_listed_in_squads": row["matches_listed_in_squads"],
                 "matches_with_appearance_evidence": row["matches_with_appearance_evidence"],
+                "minutes_played": row["minutes_played"],
+                "minutes_calculation_complete": row["minutes_calculation_complete"],
+                "minutes_matches_valid": row["minutes_matches_valid"],
+                "data_quality_status": row["data_quality"]["status"],
+                "data_quality_reasons": " | ".join(row["data_quality"]["reasons"]),
+                "data_quality_appearance_evidence": row["data_quality"]["checks"]["appearance_evidence"],
+                "data_quality_minutes_complete": row["data_quality"]["checks"]["minutes_calculation_complete"],
+                "data_quality_has_attributed_events": row["data_quality"]["checks"]["attributed_events"],
+                "data_consistency_status": row["data_consistency"]["status"],
+                "data_consistency_reasons": " | ".join(row["data_consistency"]["reasons"]),
+                "data_consistency_match_records": row["data_consistency"]["checked_match_records"],
+                "player_identity_key": row["identity"]["key"],
+                "player_identity_status": row["identity"]["status"],
+                "player_identity_reasons": " | ".join(row["identity"]["reasons"]),
+                "player_identity_name_variants": " | ".join(row["identity"]["name_variants"]),
+                "possible_same_name_collision": row["identity"]["possible_same_name_collision"],
+                "other_same_name_player_ids": " | ".join(row["identity"]["other_same_name_player_ids"]),
                 **row["metrics"],
+                **{
+                    f"per90_{field}": (row.get("per90_metrics") or {}).get(field)
+                    for field in (*COUNTER_FIELDS, "xg")
+                },
             }
             writer.writerow(output)
 
@@ -615,6 +2311,323 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
     return report
 
 
+
+ROLE_BENCHMARK_METRICS = {
+    "CB": (
+        "passes_attempted", "passes_completed", "pressures", "tackles",
+        "interceptions", "ball_recoveries", "clearances", "blocks",
+    ),
+    "FB": (
+        "crosses", "shot_assists", "carries", "dribbles", "pressures",
+        "tackles", "interceptions", "ball_recoveries",
+    ),
+    "CM": (
+        "passes_attempted", "passes_completed", "through_balls", "carries",
+        "dribbles", "shot_assists", "assists", "pressures", "tackles",
+        "interceptions", "ball_recoveries",
+    ),
+    "W": (
+        "shots", "goals", "xg", "shot_assists", "crosses", "dribbles",
+        "carries", "pressures",
+    ),
+    "ST": (
+        "shots", "goals", "xg", "shot_assists", "assists", "through_balls",
+        "carries", "dribbles", "pressures",
+    ),
+    "GK": (
+        "goalkeeper_saves", "goalkeeper_shots_faced",
+        "goalkeeper_goals_conceded", "goalkeeper_collections",
+        "goalkeeper_punches", "goalkeeper_sweeps",
+        "goalkeeper_smotherings", "goalkeeper_penalty_saves",
+        "goal_kicks", "passes_attempted",
+    ),
+}
+
+
+def _peer_percentile(value: float, cohort: list[float]) -> float:
+    """Return a tie-aware midrank percentile within the supplied cohort."""
+    less = sum(item < value for item in cohort)
+    equal = sum(item == value for item in cohort)
+    return round(((less + 0.5 * equal) / len(cohort)) * 100.0, 1)
+
+
+def build_role_benchmarks(
+    role_profiles: dict[str, dict[str, Any]],
+    minimum_verified_minutes: float = 450.0,
+    minimum_cohort_size: int = 10,
+) -> dict[str, Any]:
+    """Build cautious same-report, same-role percentiles from verified per-90 data."""
+    if not _finite(minimum_verified_minutes) or float(minimum_verified_minutes) < 0:
+        raise ValueError("minimum_verified_minutes negatif veya geçersiz olamaz.")
+    if minimum_cohort_size < 2:
+        raise ValueError("minimum_cohort_size en az 2 olmalı.")
+
+    benchmarks: dict[str, Any] = {}
+    for role_code, metric_names in ROLE_BENCHMARK_METRICS.items():
+        profile = role_profiles.get(role_code) or {}
+        players = profile.get("players") or []
+        prepared = []
+        for player in players:
+            reasons = []
+            minutes = player.get("minutes_played")
+            if not _finite(minutes) or float(minutes) <= 0:
+                reasons.append("verified_minutes_unavailable")
+            elif float(minutes) < minimum_verified_minutes:
+                reasons.append("below_minimum_verified_minutes")
+            if (player.get("data_quality") or {}).get("status") != "complete":
+                reasons.append("data_quality_not_complete")
+            if (player.get("data_consistency") or {}).get("status") != "consistent":
+                reasons.append("data_consistency_not_consistent")
+            if (player.get("identity") or {}).get("status") != "consistent":
+                reasons.append("identity_not_consistent")
+            per90 = player.get("per90_metrics")
+            if not isinstance(per90, dict) or not per90:
+                reasons.append("per90_metrics_unavailable")
+            prepared.append({
+                "player": player,
+                "reasons": sorted(set(reasons)),
+                "eligible": not reasons,
+            })
+
+        eligible = [item for item in prepared if item["eligible"]]
+        metric_cohorts: dict[str, list[float]] = {}
+        metric_summaries = {}
+        for metric in metric_names:
+            values = sorted(
+                float(item["player"]["per90_metrics"][metric])
+                for item in eligible
+                if _finite((item["player"].get("per90_metrics") or {}).get(metric))
+            )
+            metric_cohorts[metric] = values
+            ready = len(values) >= minimum_cohort_size
+            metric_summaries[metric] = {
+                "status": "ready" if ready else "insufficient_sample",
+                "eligible_values": len(values),
+                "minimum_required": minimum_cohort_size,
+            }
+
+        player_results = []
+        for item in prepared:
+            player = item["player"]
+            per90 = player.get("per90_metrics") or {}
+            player_metrics = {}
+            for metric in metric_names:
+                value = per90.get(metric) if isinstance(per90, dict) else None
+                cohort = metric_cohorts[metric]
+                if item["eligible"] and _finite(value) and len(cohort) >= minimum_cohort_size:
+                    player_metrics[metric] = {
+                        "value_per90": round(float(value), 3),
+                        "cohort_size": len(cohort),
+                        "percentile": _peer_percentile(float(value), cohort),
+                        "status": "ready",
+                    }
+                else:
+                    if not item["eligible"]:
+                        status = "player_not_eligible"
+                    elif not _finite(value):
+                        status = "metric_unavailable"
+                    else:
+                        status = "insufficient_sample"
+                    player_metrics[metric] = {
+                        "value_per90": round(float(value), 3) if _finite(value) else None,
+                        "cohort_size": len(cohort),
+                        "percentile": None,
+                        "status": status,
+                    }
+            player_results.append({
+                "player_id": player.get("player_id"),
+                "player_name": player.get("player_name"),
+                "minutes_played": player.get("minutes_played"),
+                "eligible_for_peer_comparison": item["eligible"],
+                "eligibility_reasons": item["reasons"],
+                "metrics": player_metrics,
+            })
+
+        benchmarks[role_code] = {
+            "role_name": profile.get("role_name"),
+            "comparison_scope": "same competition, season report and role profile",
+            "minimum_verified_minutes": minimum_verified_minutes,
+            "minimum_cohort_size": minimum_cohort_size,
+            "profile_player_count": len(players),
+            "eligible_player_count": len(eligible),
+            "cohort_status": (
+                "ready"
+                if any(item["status"] == "ready" for item in metric_summaries.values())
+                else "insufficient_sample"
+            ),
+            "percentile_method": "midrank; ties share the middle rank",
+            "metric_summaries": metric_summaries,
+            "players": player_results,
+            "interpretation_limits": [
+                "Percentiles describe relative per-90 event frequency within this report's same-role cohort; they are not quality scores or player rankings.",
+                "A higher percentile is not always better; interpretation depends on the metric and tactical context.",
+                "Only players with complete data quality, consistent match reconciliation, consistent source identity and at least the minimum verified minutes enter a cohort.",
+                "Each metric requires its own minimum number of available peer values; otherwise its percentile remains unavailable.",
+                "The cohort is limited to this competition/season report and does not adjust for team style, possession, age, opposition strength or tactical role.",
+            ],
+        }
+
+    return {
+        "benchmark_version": "peer-percentiles-v1",
+        "minimum_verified_minutes": minimum_verified_minutes,
+        "minimum_cohort_size": minimum_cohort_size,
+        "comparison_scope": "same competition and season report; same role profile",
+        "roles": benchmarks,
+    }
+
+
+
+
+def build_player_evaluation_readiness(
+    role_profiles: dict[str, dict[str, Any]],
+    role_benchmarks: dict[str, Any],
+    minimum_verified_minutes: float = 450.0,
+    minimum_appearances: int = 5,
+) -> dict[str, Any]:
+    """Describe whether a player record is ready for human scouting review."""
+    if not _finite(minimum_verified_minutes) or float(minimum_verified_minutes) < 0:
+        raise ValueError("minimum_verified_minutes negatif veya geçersiz olamaz.")
+    if minimum_appearances < 1:
+        raise ValueError("minimum_appearances en az 1 olmalı.")
+
+    role_results = {}
+    all_results = []
+    for role_code in ROLE_BENCHMARK_METRICS:
+        profile = role_profiles.get(role_code) or {}
+        benchmark = (role_benchmarks.get("roles") or {}).get(role_code) or {}
+        benchmark_players = {
+            str(row.get("player_id")): row
+            for row in benchmark.get("players", [])
+        }
+        results = []
+        for player in profile.get("players") or []:
+            player_id = str(player.get("player_id"))
+            data_quality = (player.get("data_quality") or {}).get("status")
+            consistency = (player.get("data_consistency") or {}).get("status")
+            identity = player.get("identity") or {}
+            identity_status = identity.get("status")
+            metrics = player.get("metrics") or {}
+            quality_checks = (player.get("data_quality") or {}).get("checks") or {}
+            minutes = player.get("minutes_played")
+            appearances = int(player.get("matches_with_appearance_evidence") or 0)
+            has_attributed_events = (
+                quality_checks.get("attributed_events") is True
+                or int(metrics.get("events") or 0) > 0
+            )
+            reasons = []
+
+            if not has_attributed_events:
+                reasons.append("insufficient_event_evidence")
+            elif data_quality != "complete":
+                reasons.append("data_quality_not_complete")
+            if appearances == 0:
+                reasons.append("no_appearance_evidence")
+            if consistency != "consistent":
+                reasons.append("data_consistency_not_consistent")
+            if identity_status != "consistent":
+                reasons.append("identity_not_consistent")
+            if identity.get("possible_same_name_collision") is True:
+                reasons.append("possible_same_name_collision")
+            if not _finite(minutes) or float(minutes) <= 0:
+                reasons.append("verified_minutes_unavailable")
+            elif float(minutes) < minimum_verified_minutes:
+                reasons.append("below_minimum_verified_minutes")
+            if appearances < minimum_appearances:
+                reasons.append("insufficient_appearance_sample")
+
+            benchmark_player = benchmark_players.get(player_id) or {}
+            benchmark_metrics = benchmark_player.get("metrics") or {}
+            ready_metrics = sorted(
+                metric for metric, result in benchmark_metrics.items()
+                if result.get("status") == "ready"
+                and _finite(result.get("percentile"))
+            )
+            available_metrics = sorted(
+                metric for metric, result in benchmark_metrics.items()
+                if _finite(result.get("value_per90"))
+            )
+
+            if reasons:
+                status = (
+                    "insufficient_data"
+                    if "insufficient_event_evidence" in reasons
+                    and not has_attributed_events
+                    else "limited"
+                )
+            else:
+                status = "ready_for_scout_review"
+
+            if not benchmark_player.get("eligible_for_peer_comparison", False):
+                peer_context_status = "not_eligible"
+            elif ready_metrics:
+                peer_context_status = "available"
+            else:
+                peer_context_status = "insufficient_sample"
+
+            result = {
+                "player_id": player.get("player_id"),
+                "player_name": player.get("player_name"),
+                "role_code": role_code,
+                "readiness_status": status,
+                "reason_codes": sorted(set(reasons)),
+                "checks": {
+                    "data_quality_status": data_quality,
+                    "data_consistency_status": consistency,
+                    "identity_status": identity_status,
+                    "possible_same_name_collision": bool(
+                        identity.get("possible_same_name_collision")
+                    ),
+                    "verified_minutes": (
+                        round(float(minutes), 2) if _finite(minutes) else None
+                    ),
+                    "minimum_verified_minutes": minimum_verified_minutes,
+                    "appearance_matches": appearances,
+                    "minimum_appearances": minimum_appearances,
+                    "attributed_events_available": has_attributed_events,
+                },
+                "peer_context_status": peer_context_status,
+                "peer_metrics_available": available_metrics,
+                "peer_percentiles_available": ready_metrics,
+            }
+            results.append(result)
+            all_results.append(result)
+
+        role_results[role_code] = {
+            "role_name": profile.get("role_name"),
+            "player_count": len(results),
+            "readiness_counts": {
+                status: sum(row["readiness_status"] == status for row in results)
+                for status in ("ready_for_scout_review", "limited", "insufficient_data")
+            },
+            "players": results,
+        }
+
+    return {
+        "readiness_version": "scout-review-readiness-v1",
+        "purpose": "Data sufficiency and reliability gate before human scouting review; not a player rating.",
+        "minimum_verified_minutes": minimum_verified_minutes,
+        "minimum_appearances": minimum_appearances,
+        "roles": role_results,
+        "summary": {
+            "player_role_records": len(all_results),
+            "ready_for_scout_review": sum(
+                row["readiness_status"] == "ready_for_scout_review" for row in all_results
+            ),
+            "limited": sum(row["readiness_status"] == "limited" for row in all_results),
+            "insufficient_data": sum(
+                row["readiness_status"] == "insufficient_data" for row in all_results
+            ),
+        },
+        "interpretation_limits": [
+            "Ready means the selected data passes technical sample and quality gates; it does not mean that the player is good or recommended.",
+            "This first version uses minimum verified minutes and appearance count as simple sample gates; it does not yet adjust for age, competition strength, position-specific opportunity or match context.",
+            "Peer percentiles are contextual only and remain unavailable when metric cohorts are too small.",
+            "Video review and human scouting judgement are still required for tactical, technical and behavioural evaluation.",
+        ],
+    }
+
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="StatsBomb Open Data için küçük Vel Scout import/kalite prototipi."
@@ -626,6 +2639,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Belirli maç ID'si; tekrarlanabilir. Verilmezse --limit kadar maç seçilir.",
     )
     parser.add_argument("--limit", type=int, default=1)
+    parser.add_argument(
+        "--compare-report", action="append", default=[],
+        help="Aynı turnuvanın önceki sezon rapor yolu; birden fazla kez verilebilir.",
+    )
     parser.add_argument(
         "--data-root", default=".cache/statsbomb-open-data/raw",
         help="Ham JSON cache dizini (varsayılan .cache altında).",
@@ -642,6 +2659,31 @@ def main() -> int:
     args = build_parser().parse_args()
     try:
         report = run_import(args)
+        comparison_paths = getattr(args, "compare_report", []) or []
+        if comparison_paths:
+            comparison_reports = []
+            current_report_path = Path(report["output_files"]["json"]).resolve()
+            for comparison_path in comparison_paths:
+                path = Path(comparison_path)
+                if path.resolve() == current_report_path:
+                    raise ValueError(
+                        "--compare-report mevcut raporun çıktı yoluyla aynı olamaz."
+                    )
+                try:
+                    comparison_reports.append(
+                        json.loads(path.read_text(encoding="utf-8"))
+                    )
+                except (OSError, json.JSONDecodeError) as exc:
+                    raise ValueError(
+                        f"Karşılaştırma raporu okunamadı: {path}: {exc}"
+                    ) from exc
+            comparison_reports.append(report)
+            report["season_comparison"] = build_player_season_comparison(
+                comparison_reports
+            )
+            current_report_path.write_text(
+                json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
     except (ImportErrorWithContext, ValueError) as exc:
         print(f"HATA: {exc}")
         return 2
