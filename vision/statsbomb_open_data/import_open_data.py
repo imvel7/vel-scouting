@@ -1008,6 +1008,152 @@ def extract_match_context(match: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _score_state(score_for: int, score_against: int) -> str:
+    """Describe a team's state relative to its opponent."""
+    if score_for > score_against:
+        return "leading"
+    if score_for < score_against:
+        return "trailing"
+    return "drawing"
+
+
+def calculate_match_score_timeline(
+    match: dict[str, Any],
+    events: Any,
+) -> dict[str, Any]:
+    """Reconstruct goal-by-goal score state and reconcile it to the listed score.
+
+    Only Shot events with outcome Goal and Own Goal For events add to a score.
+    Own Goal Against is the conceding-side counterpart and is not counted as
+    a second goal. Period 5 penalty-shootout kicks are excluded.
+    """
+    result: dict[str, Any] = {
+        "status": "unavailable",
+        "reason_codes": [],
+        "goals": [],
+        "goal_count": 0,
+        "reconstructed_score": None,
+        "listed_score": None,
+        "score_reconciled": False,
+        "event_order": "period_then_index",
+        "penalty_shootout_excluded": True,
+        "interpretation_limit": (
+            "Goal-by-goal score state only. Player event states are not yet "
+            "classified, and no performance adjustment is calculated."
+        ),
+    }
+
+    if not isinstance(events, list):
+        result["reason_codes"] = ["events_not_a_list"]
+        return result
+
+    home = match.get("home_team") if isinstance(match, dict) else None
+    away = match.get("away_team") if isinstance(match, dict) else None
+    home = home if isinstance(home, dict) else {}
+    away = away if isinstance(away, dict) else {}
+    home_id = home.get("home_team_id")
+    away_id = away.get("away_team_id")
+    if home_id is None or away_id is None or str(home_id) == str(away_id):
+        result["reason_codes"] = ["match_team_ids_unavailable_or_ambiguous"]
+        return result
+
+    home_score = _non_negative_score(match.get("home_score"))
+    away_score = _non_negative_score(match.get("away_score"))
+    if home_score is None or away_score is None:
+        result["reason_codes"] = ["listed_final_score_unavailable_or_invalid"]
+        return result
+    result["listed_score"] = {"home": home_score, "away": away_score}
+
+    ordered_events = []
+    seen_indices: set[tuple[int, int]] = set()
+    for event in events:
+        if not isinstance(event, dict):
+            result["reason_codes"] = ["invalid_event_record"]
+            return result
+        period = event.get("period")
+        index = event.get("index")
+        if (
+            isinstance(period, bool) or not isinstance(period, int)
+            or period < 1 or period > 5
+            or isinstance(index, bool) or not isinstance(index, int)
+            or index < 1
+        ):
+            result["reason_codes"] = ["event_order_fields_unavailable_or_invalid"]
+            return result
+        key = (period, index)
+        if key in seen_indices:
+            result["reason_codes"] = ["duplicate_period_event_index"]
+            return result
+        seen_indices.add(key)
+        ordered_events.append((period, index, event))
+
+    ordered_events.sort(key=lambda row: (row[0], row[1]))
+    score = {str(home_id): 0, str(away_id): 0}
+    team_names = {
+        str(home_id): home.get("home_team_name"),
+        str(away_id): away.get("away_team_name"),
+    }
+
+    for period, index, event in ordered_events:
+        if period == 5:
+            continue
+        event_type = _name(event.get("type"))
+        scoring_team_id = None
+        if event_type == "Shot" and _name((event.get("shot") or {}).get("outcome")) == "Goal":
+            scoring_team_id = _id(event.get("team"))
+            goal_type = "shot_goal"
+        elif event_type == "Own Goal For":
+            scoring_team_id = _id(event.get("team"))
+            goal_type = "own_goal_for"
+        else:
+            # Own Goal Against describes the conceding-side record; the
+            # corresponding Own Goal For event credits the scoring team.
+            continue
+
+        if scoring_team_id is None or str(scoring_team_id) not in score:
+            result["reason_codes"] = ["goal_team_id_unavailable_or_unknown"]
+            result["goals"] = []
+            result["goal_count"] = 0
+            return result
+        timestamp = event.get("timestamp")
+        if not isinstance(timestamp, str) or not timestamp.strip():
+            result["reason_codes"] = ["goal_event_timestamp_unavailable"]
+            result["goals"] = []
+            result["goal_count"] = 0
+            return result
+
+        score[str(scoring_team_id)] += 1
+        home_after = score[str(home_id)]
+        away_after = score[str(away_id)]
+        result["goals"].append({
+            "period": period,
+            "event_index": index,
+            "timestamp": timestamp,
+            "goal_type": goal_type,
+            "scoring_team_id": scoring_team_id,
+            "scoring_team_name": team_names[str(scoring_team_id)],
+            "home_score_after": home_after,
+            "away_score_after": away_after,
+            "home_state_after": _score_state(home_after, away_after),
+            "away_state_after": _score_state(away_after, home_after),
+        })
+
+    result["goal_count"] = len(result["goals"])
+    result["reconstructed_score"] = {
+        "home": score[str(home_id)],
+        "away": score[str(away_id)],
+    }
+    if result["reconstructed_score"] != result["listed_score"]:
+        result["status"] = "reconciliation_mismatch"
+        result["reason_codes"] = ["reconstructed_score_does_not_match_listed_final_score"]
+        return result
+
+    result["status"] = "validated"
+    result["reason_codes"] = []
+    result["score_reconciled"] = True
+    return result
+
+
 def analyse_match(match: dict[str, Any], lineups: Any,
                   events: Any) -> dict[str, Any]:
     """Build a cautious single-match player event summary."""
@@ -1203,7 +1349,10 @@ def analyse_match(match: dict[str, Any], lineups: Any,
             "away_team": away.get("away_team_name"),
             "home_score": match.get("home_score"),
             "away_score": match.get("away_score"),
-            "match_context": extract_match_context(match),
+            "match_context": {
+                **extract_match_context(match),
+                "score_state_timeline": calculate_match_score_timeline(match, events),
+            },
         },
         "quality": {
             "event_count": len(events),
