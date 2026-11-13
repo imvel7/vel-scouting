@@ -45,6 +45,7 @@ METRIC_DEFINITIONS = {
     "tackles": "Duel events whose duel.type.name is Tackle.",
     "dribbles": "Count of Dribble events attributed to the player.",
     "per90_metrics": "Count metrics and total xG per 90 verified on-pitch minutes; null when minutes are unavailable or zero. Percentages and means are excluded.",
+    "data_quality": "Selected-sample availability checks for appearance evidence, attributed events and verified positive minutes; not a player rating.",
 }
 
 COUNTER_FIELDS = (
@@ -69,6 +70,47 @@ def calculate_per90_metrics(metrics: dict[str, Any], minutes_played_seconds: Any
     if _finite(metrics.get("xg")):
         per90["xg"] = round(float(metrics["xg"]) * scale, 3)
     return per90
+
+
+def calculate_player_data_quality(player: dict[str, Any]) -> dict[str, Any]:
+    """Describe data availability for a player's selected-match aggregate."""
+    metrics = player.get("metrics") or {}
+    appearance_matches = int(player.get("matches_with_appearance_evidence") or 0)
+    has_appearance_evidence = appearance_matches > 0
+    has_attributed_events = int(metrics.get("events") or 0) > 0
+    minutes_complete = player.get("minutes_calculation_complete") is True
+    minutes_played = player.get("minutes_played")
+    has_positive_minutes = _finite(minutes_played) and float(minutes_played) > 0
+
+    reasons = []
+    if not has_appearance_evidence:
+        reasons.append("no_appearance_evidence")
+    if not has_attributed_events:
+        reasons.append("no_attributed_events")
+    if not minutes_complete:
+        reasons.append("minutes_calculation_incomplete")
+    if not has_positive_minutes:
+        reasons.append("no_positive_verified_minutes")
+
+    if not has_appearance_evidence or not has_attributed_events:
+        status = "insufficient"
+    elif not minutes_complete or not has_positive_minutes:
+        status = "partial"
+    else:
+        status = "complete"
+
+    return {
+        "status": status,
+        "reasons": reasons,
+        "checks": {
+            "appearance_evidence": has_appearance_evidence,
+            "appearance_matches": appearance_matches,
+            "attributed_events": has_attributed_events,
+            "minutes_calculation_complete": minutes_complete,
+            "positive_verified_minutes": has_positive_minutes,
+            "per90_available": isinstance(player.get("per90_metrics"), dict),
+        },
+    }
 
 
 class ImportErrorWithContext(RuntimeError):
@@ -696,6 +738,7 @@ def build_cb_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
             "matches_with_appearance_evidence": player.get("matches_with_appearance_evidence", 0),
             "minutes_played": player.get("minutes_played"),
             "per90_metrics": player.get("per90_metrics"),
+            "data_quality": player.get("data_quality"),
             "metrics": {key: metrics.get(key) for key in CB_PROFILE_METRICS},
         })
 
@@ -826,7 +869,7 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             ),
             "xg": round(sum(player["xg_values"]), 3) if player["xg_values"] else None,
         })
-        aggregate_rows.append({
+        aggregate_row = {
             "player_id": player["player_id"],
             "player_name": player["player_name"],
             "team_names": sorted(player["team_names"]),
@@ -844,7 +887,9 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 player["minutes_played_seconds"] if player["minutes_calculation_complete"] else None,
             ),
             "metrics": counts,
-        })
+        }
+        aggregate_row["data_quality"] = calculate_player_data_quality(aggregate_row)
+        aggregate_rows.append(aggregate_row)
     aggregate_rows.sort(key=lambda row: row["player_name"].casefold())
 
     report = {
@@ -906,6 +951,9 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "player_id", "player_name", "team_names", "positions_seen",
             "matches_listed_in_squads", "matches_with_appearance_evidence",
             "minutes_played", "minutes_calculation_complete", "minutes_matches_valid",
+            "data_quality_status", "data_quality_reasons",
+            "data_quality_appearance_evidence", "data_quality_minutes_complete",
+            "data_quality_has_attributed_events",
             *COUNTER_FIELDS, "pass_completion_pct", "pass_length_mean", "xg",
             *[f"per90_{field}" for field in (*COUNTER_FIELDS, "xg")],
         ]
@@ -922,6 +970,11 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 "minutes_played": row["minutes_played"],
                 "minutes_calculation_complete": row["minutes_calculation_complete"],
                 "minutes_matches_valid": row["minutes_matches_valid"],
+                "data_quality_status": row["data_quality"]["status"],
+                "data_quality_reasons": " | ".join(row["data_quality"]["reasons"]),
+                "data_quality_appearance_evidence": row["data_quality"]["checks"]["appearance_evidence"],
+                "data_quality_minutes_complete": row["data_quality"]["checks"]["minutes_calculation_complete"],
+                "data_quality_has_attributed_events": row["data_quality"]["checks"]["attributed_events"],
                 **row["metrics"],
                 **{
                     f"per90_{field}": (row.get("per90_metrics") or {}).get(field)
