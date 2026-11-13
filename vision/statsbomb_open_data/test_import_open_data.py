@@ -1098,6 +1098,9 @@ class StatsBombImportTests(unittest.TestCase):
             "drawing": {"events": 1, "passes_attempted": 0, "xg": 0.2},
             "trailing": {"events": 0, "passes_attempted": 0, "xg": 0.0},
         }
+        aggregate_states = {
+            state: dict(values) for state, values in states.items()
+        }
         player = {
             "matches_listed_in_squads": 1,
             "matches_with_appearance_evidence": 1,
@@ -1112,7 +1115,7 @@ class StatsBombImportTests(unittest.TestCase):
                     "partial": 0,
                     "unavailable": 0,
                 },
-                "metrics_by_state": states,
+                "metrics_by_state": aggregate_states,
             },
         }
         match_rows = [{
