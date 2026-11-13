@@ -196,6 +196,35 @@ age, role variation, opposition strength and selected-sample coverage are not
 adjusted in this first version. Small datasets will correctly return
 `insufficient_sample` rather than manufacture a comparison.
 
+## Player scouting-review readiness gate
+
+The report includes `player_evaluation_readiness`, a technical gate before a
+human scout reviews a player. It does not assign a player score or declare
+whether a player is good.
+
+The initial statuses are:
+
+- `ready_for_scout_review`: complete selected-sample data quality,
+  consistent match reconciliation and source identity, at least **450
+  verified minutes**, at least **5 appearance-evidence matches**, and
+  attributed event evidence.
+- `limited`: some useful data exists, but one or more sample, quality,
+  reconciliation, identity or name-collision checks needs review.
+- `insufficient_data`: attributed event evidence is absent or the selected
+  sample is explicitly marked insufficient.
+
+Each player-role record includes reason codes, checked sample values,
+available per-90 metrics and whether same-role peer percentiles are available.
+A player can be ready for a human video/scouting review while peer percentiles
+remain unavailable because the role cohort is too small. This is deliberate:
+peer comparison is supporting context, not a gate that blocks all human review.
+
+The 450-minute and 5-appearance thresholds are initial engineering defaults,
+not universal scouting standards. Age, competition strength, team style,
+positional opportunity, opposition level, match state and video evidence are
+not yet adjusted. A readiness status is not a quality grade, potential
+assessment or transfer recommendation.
+
 ## Rules
 
 1. Produce per-90 values only from validated, positive on-pitch minutes; otherwise leave them unavailable.
