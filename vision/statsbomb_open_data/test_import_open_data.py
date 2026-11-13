@@ -1745,6 +1745,32 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertEqual(target["metrics"]["passes_attempted"]["percentile"], 50.0)
         self.assertEqual(target["metrics"]["passes_attempted"]["cohort_size"], 4)
         self.assertEqual(target["metrics"]["passes_attempted"]["status"], "ready")
+        self.assertEqual(
+            cb["metric_summaries"]["passes_attempted"]["distribution"],
+            {
+                "minimum": 1.0,
+                "p25": 1.75,
+                "median": 2.0,
+                "p75": 2.25,
+                "maximum": 3.0,
+                "quartile_method": "linear interpolation over sorted observations",
+            },
+        )
+        self.assertEqual(
+            target["metrics"]["passes_attempted"]["difference_from_median_per90"],
+            0.0,
+        )
+        self.assertTrue(
+            target["metrics"]["passes_attempted"]["within_cohort_middle_50_percent"]
+        )
+        lowest = next(row for row in cb["players"] if row["player_id"] == 1)
+        self.assertEqual(
+            lowest["metrics"]["passes_attempted"]["difference_from_median_per90"],
+            -1.0,
+        )
+        self.assertFalse(
+            lowest["metrics"]["passes_attempted"]["within_cohort_middle_50_percent"]
+        )
 
         excluded = next(row for row in cb["players"] if row["player_id"] == 5)
         self.assertFalse(excluded["eligible_for_peer_comparison"])
@@ -1790,6 +1816,7 @@ class StatsBombImportTests(unittest.TestCase):
             cm["metric_summaries"]["passes_attempted"]["status"],
             "insufficient_sample",
         )
+        self.assertIsNone(cm["metric_summaries"]["passes_attempted"]["distribution"])
         for player in cm["players"]:
             metric = player["metrics"]["passes_attempted"]
             self.assertIsNone(metric["percentile"])
@@ -1798,6 +1825,16 @@ class StatsBombImportTests(unittest.TestCase):
                 self.assertEqual(metric["status"], "metric_unavailable")
             else:
                 self.assertEqual(metric["status"], "insufficient_sample")
+
+    def test_linear_quantile_uses_interpolation_and_rejects_invalid_probability(self):
+        from import_open_data import _linear_quantile
+
+        self.assertEqual(_linear_quantile([1.0, 2.0, 2.0, 3.0], 0.25), 1.75)
+        self.assertEqual(_linear_quantile([1.0, 2.0, 2.0, 3.0], 0.50), 2.0)
+        self.assertEqual(_linear_quantile([1.0, 2.0, 2.0, 3.0], 0.75), 2.25)
+        self.assertIsNone(_linear_quantile([], 0.5))
+        with self.assertRaisesRegex(ValueError, "0 ile 1"):
+            _linear_quantile([1.0, 2.0], 1.5)
 
     def test_role_benchmarks_reject_players_with_unreliable_data_statuses(self):
         players = [
