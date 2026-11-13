@@ -1348,6 +1348,158 @@ def _serialise_score_state_metrics(
     return output
 
 
+def calculate_score_state_durations(
+    match: dict[str, Any],
+    events: Any,
+    score_timeline: dict[str, Any],
+) -> dict[str, Any]:
+    """Calculate team seconds in each score state using validated period clocks."""
+    result: dict[str, Any] = {
+        "status": "unavailable",
+        "reason_codes": [],
+        "total_seconds": None,
+        "home_team_seconds_by_state": None,
+        "away_team_seconds_by_state": None,
+        "clock_precision": "whole_seconds",
+        "periods_included": [],
+        "penalty_shootout_excluded": True,
+    }
+    if score_timeline.get("status") != "validated":
+        result["reason_codes"] = ["score_timeline_not_validated"]
+        return result
+    if not isinstance(events, list):
+        result["reason_codes"] = ["events_not_a_list"]
+        return result
+
+    minute_validation = calculate_minutes_played(events)
+    if not minute_validation["valid"]:
+        result["reason_codes"] = ["match_clock_validation_failed"]
+        result["clock_errors"] = minute_validation["errors"]
+        return result
+
+    home = match.get("home_team") if isinstance(match, dict) else None
+    away = match.get("away_team") if isinstance(match, dict) else None
+    home = home if isinstance(home, dict) else {}
+    away = away if isinstance(away, dict) else {}
+    home_id, away_id = home.get("home_team_id"), away.get("away_team_id")
+    if home_id is None or away_id is None or str(home_id) == str(away_id):
+        result["reason_codes"] = ["match_team_ids_unavailable_or_ambiguous"]
+        return result
+
+    ordered_by_period: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for event in events:
+        if not isinstance(event, dict):
+            result["reason_codes"] = ["invalid_event_record"]
+            return result
+        period = event.get("period")
+        index = event.get("index")
+        if (
+            isinstance(period, bool) or not isinstance(period, int)
+            or period < 1 or period > 5
+            or isinstance(index, bool) or not isinstance(index, int)
+            or index < 1
+        ):
+            result["reason_codes"] = ["event_order_fields_unavailable_or_invalid"]
+            return result
+        if period == 5:
+            continue
+        ordered_by_period[period].append(event)
+
+    goal_keys = {
+        (int(goal["period"]), int(goal["event_index"]))
+        for goal in score_timeline.get("goals", [])
+    }
+    home_seconds = Counter({state: 0 for state in SCORE_STATES})
+    away_seconds = Counter({state: 0 for state in SCORE_STATES})
+    score = {str(home_id): 0, str(away_id): 0}
+    total_seconds = 0
+    included_periods = []
+
+    for period in sorted(ordered_by_period):
+        period_events = sorted(ordered_by_period[period], key=lambda event: event["index"])
+        starts = [i for i, event in enumerate(period_events)
+                  if _name(event.get("type")) == "Half Start"]
+        ends = [i for i, event in enumerate(period_events)
+                if _name(event.get("type")) == "Half End"]
+        if len(starts) != 1 or len(ends) != 1 or ends[0] <= starts[0]:
+            result["reason_codes"] = ["period_start_or_end_boundary_ambiguous"]
+            return result
+        start_index, end_index = starts[0], ends[0]
+        pre_start_events = period_events[:start_index]
+        if any(_name(event.get("type")) != "Starting XI" for event in pre_start_events):
+            result["reason_codes"] = ["unexpected_events_before_period_start"]
+            return result
+
+        start_time = _match_clock_seconds(period_events[start_index])
+        if start_time is None:
+            result["reason_codes"] = ["period_start_clock_unavailable"]
+            return result
+        last_time = start_time
+        last_event_type = _name(period_events[start_index].get("type"))
+        last_event_id = (
+            str(period_events[start_index].get("id"))
+            if period_events[start_index].get("id") is not None else None
+        )
+
+        for event in period_events[start_index + 1:end_index + 1]:
+            event_time = _match_clock_seconds(event)
+            if event_time is None:
+                result["reason_codes"] = ["event_clock_unavailable"]
+                return result
+            event_type = _name(event.get("type")) or "Unknown"
+            linked_receipt_clock_anomaly = (
+                event_time < last_time
+                and event_type == "Ball Receipt*"
+                and last_event_type == "Pass"
+                and last_event_id in (event.get("related_events") or [])
+            )
+            if event_time < last_time and linked_receipt_clock_anomaly:
+                event_time = last_time
+            elif event_time < last_time:
+                result["reason_codes"] = ["event_clock_regression"]
+                return result
+
+            delta = event_time - last_time
+            if delta:
+                home_state = _score_state(score[str(home_id)], score[str(away_id)])
+                away_state = _score_state(score[str(away_id)], score[str(home_id)])
+                home_seconds[home_state] += delta
+                away_seconds[away_state] += delta
+                total_seconds += delta
+            last_time = event_time
+
+            key = (period, int(event["index"]))
+            if key in goal_keys:
+                scoring_team_id = next(
+                    str(goal["scoring_team_id"])
+                    for goal in score_timeline["goals"]
+                    if int(goal["period"]) == period
+                    and int(goal["event_index"]) == key[1]
+                )
+                score[scoring_team_id] += 1
+
+            last_event_type = event_type
+            last_event_id = str(event.get("id")) if event.get("id") is not None else None
+
+        included_periods.append(period)
+
+    home_total = sum(home_seconds.values())
+    away_total = sum(away_seconds.values())
+    if total_seconds <= 0 or home_total != total_seconds or away_total != total_seconds:
+        result["reason_codes"] = ["score_state_duration_total_mismatch"]
+        return result
+
+    result.update({
+        "status": "validated",
+        "reason_codes": [],
+        "total_seconds": total_seconds,
+        "home_team_seconds_by_state": dict(home_seconds),
+        "away_team_seconds_by_state": dict(away_seconds),
+        "periods_included": included_periods,
+    })
+    return result
+
+
 def analyse_match(match: dict[str, Any], lineups: Any,
                   events: Any) -> dict[str, Any]:
     """Build a cautious single-match player event summary."""
@@ -1357,6 +1509,9 @@ def analyse_match(match: dict[str, Any], lineups: Any,
     players, warnings = _lineup_players(lineups)
     minutes_result = calculate_minutes_played(events)
     score_state_timeline = calculate_match_score_timeline(match, events)
+    score_state_timeline["durations"] = calculate_score_state_durations(
+        match, events, score_state_timeline
+    )
     score_state_lookup = _build_event_score_state_lookup(
         match, events, score_state_timeline
     )
