@@ -58,7 +58,8 @@ METRIC_DEFINITIONS = {
     "goal_kicks": "Pass events whose pass.type.name is Goal Kick.",
     "per90_metrics": "Count metrics and total xG per 90 verified on-pitch minutes; null when minutes are unavailable or zero. Percentages and means are excluded.",
     "data_quality": "Selected-sample availability checks for appearance evidence, attributed events and verified positive minutes; not a player rating.",
-    "data_consistency": "Reconciliation of selected-match records against aggregate counts, xG, minutes and per-90 calculations.",
+    "data_consistency": "Reconciliation of selected-match records against aggregate counts, xG, minutes, per-90 calculations and score-state totals.",
+    "score_state_analysis": "Raw player event counts and summed source xG split by leading/drawing/trailing state, only where the match score timeline is validated; no score-state minutes or per-90 rates.",
 }
 
 COUNTER_FIELDS = (
@@ -2754,6 +2755,8 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "This is a selected research dataset, not complete coverage of all leagues, seasons or youth players.",
             "Players are grouped only by the StatsBomb player_id; names are never used as a merge key. Name variants for one ID are exposed for review.",
             "The report is not a definitive scout verdict, potential rating or transfer recommendation.",
+            "Score-state player counts are raw event totals, not rates. They are available only when the match score timeline reconciles to the listed final score and the event team maps to the match home/away team.",
+            "No minutes by score state or score-state per-90 metrics are calculated; raw counts across different state durations must not be compared as performance rates.",
         ],
         "source_files": provenance,
         "matches": analysed_matches,
@@ -2785,6 +2788,14 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "player_identity_key", "player_identity_status",
             "player_identity_reasons", "player_identity_name_variants",
             "possible_same_name_collision", "other_same_name_player_ids",
+            "score_state_analysis_status",
+            "score_state_matches_validated", "score_state_matches_partial",
+            "score_state_matches_unavailable",
+            "score_state_classified_player_events",
+            "score_state_unclassified_player_events",
+            "score_state_leading_metrics_json",
+            "score_state_drawing_metrics_json",
+            "score_state_trailing_metrics_json",
             *COUNTER_FIELDS, "pass_completion_pct", "pass_length_mean", "xg",
             *[f"per90_{field}" for field in (*COUNTER_FIELDS, "xg")],
         ]
@@ -2815,6 +2826,24 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 "player_identity_name_variants": " | ".join(row["identity"]["name_variants"]),
                 "possible_same_name_collision": row["identity"]["possible_same_name_collision"],
                 "other_same_name_player_ids": " | ".join(row["identity"]["other_same_name_player_ids"]),
+                "score_state_analysis_status": row["score_state_analysis"]["status"],
+                "score_state_matches_validated": row["score_state_analysis"]["match_status_counts"]["validated"],
+                "score_state_matches_partial": row["score_state_analysis"]["match_status_counts"]["partial"],
+                "score_state_matches_unavailable": row["score_state_analysis"]["match_status_counts"]["unavailable"],
+                "score_state_classified_player_events": row["score_state_analysis"]["classified_player_events"],
+                "score_state_unclassified_player_events": row["score_state_analysis"]["unclassified_player_events"],
+                "score_state_leading_metrics_json": (
+                    json.dumps(row["score_state_analysis"]["metrics_by_state"]["leading"], ensure_ascii=False, sort_keys=True)
+                    if row["score_state_analysis"]["metrics_by_state"] is not None else ""
+                ),
+                "score_state_drawing_metrics_json": (
+                    json.dumps(row["score_state_analysis"]["metrics_by_state"]["drawing"], ensure_ascii=False, sort_keys=True)
+                    if row["score_state_analysis"]["metrics_by_state"] is not None else ""
+                ),
+                "score_state_trailing_metrics_json": (
+                    json.dumps(row["score_state_analysis"]["metrics_by_state"]["trailing"], ensure_ascii=False, sort_keys=True)
+                    if row["score_state_analysis"]["metrics_by_state"] is not None else ""
+                ),
                 **row["metrics"],
                 **{
                     f"per90_{field}": (row.get("per90_metrics") or {}).get(field)
