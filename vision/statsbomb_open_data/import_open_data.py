@@ -257,43 +257,37 @@ def build_player_season_comparison(
                             changes[metric] = round(float(after) - float(before), decimals)
                 previous_season = previous["season_name"]
 
-            position_status = "unavailable"
-            shared_positions = []
-            if previous is not None:
-                previous_positions = {
-                    value.casefold() for value in previous.get("positions_seen", [])
-                }
-                current_positions = {
-                    value.casefold() for value in record.get("positions_seen", [])
-                }
-                if previous_positions and current_positions:
-                    position_status = (
-                        "same" if previous_positions == current_positions else "changed"
-                    )
-                    shared_positions = sorted(
-                        previous_positions & current_positions
-                    )
-
             current_positions = record["positions_seen"]
-            previous_positions = previous.get("positions_seen") if previous else None
-            if previous is None:
-                position_comparison = "no_previous_season"
-            elif not current_positions or not previous_positions:
-                position_comparison = "unavailable"
-            else:
-                current_position_keys = {value.casefold() for value in current_positions}
-                previous_position_keys = {value.casefold() for value in previous_positions}
-                position_comparison = (
-                    "unchanged"
-                    if current_position_keys == previous_position_keys
-                    else "changed"
-                )
-
+            previous_positions = previous.get("positions_seen", []) if previous else []
+            position_comparison = None
+            if previous is not None:
+                if not current_positions or not previous_positions:
+                    position_status = "unavailable"
+                    shared_positions = []
+                else:
+                    previous_by_key = {
+                        value.casefold(): value for value in previous_positions
+                    }
+                    current_by_key = {
+                        value.casefold(): value for value in current_positions
+                    }
+                    position_status = (
+                        "same"
+                        if set(previous_by_key) == set(current_by_key)
+                        else "changed"
+                    )
+                    shared_positions = [
+                        current_by_key[key]
+                        for key in sorted(set(previous_by_key) & set(current_by_key))
+                    ]
+                position_comparison = {
+                    "status": position_status,
+                    "shared_positions": shared_positions,
+                    "previous_positions": previous_positions,
+                    "current_positions": current_positions,
+                }
             season_results.append({
                 "player_name": record["player_name"],
-                "positions_seen": current_positions,
-                "previous_season_positions": previous_positions,
-                "position_comparison": position_comparison,
                 "season_id": record["season_id"],
                 "season_name": record["season_name"],
                 "selected_match_count": record["selected_match_count"],
@@ -302,17 +296,8 @@ def build_player_season_comparison(
                     "matches_with_appearance_evidence"
                 ],
                 "minutes_played": record["minutes_played"],
-                "positions_seen": record.get("positions_seen", []),
-                "position_comparison_from_previous": (
-                    {
-                        "status": position_status,
-                        "shared_positions": shared_positions,
-                        "previous_positions": (
-                            previous.get("positions_seen", []) if previous else []
-                        ),
-                        "current_positions": record.get("positions_seen", []),
-                    } if previous is not None else None
-                ),
+                "positions_seen": current_positions,
+                "position_comparison_from_previous": position_comparison,
                 "per90_metrics": per90_values,
                 "previous_season": previous_season,
                 "per90_change_from_previous": changes,
@@ -324,15 +309,16 @@ def build_player_season_comparison(
 
         latest_name = records[-1]["player_name"]
         position_states = [
-            row["position_comparison"] for row in season_results
-            if row["position_comparison"] != "no_previous_season"
+            row["position_comparison_from_previous"]["status"]
+            for row in season_results
+            if row["position_comparison_from_previous"] is not None
         ]
         if "changed" in position_states:
             position_status = "changed"
-        elif "unavailable" in position_states and "unchanged" in position_states:
+        elif "unavailable" in position_states and "same" in position_states:
             position_status = "partially_comparable"
-        elif "unchanged" in position_states:
-            position_status = "unchanged"
+        elif "same" in position_states:
+            position_status = "same"
         else:
             position_status = "unavailable"
         all_positions = sorted({
