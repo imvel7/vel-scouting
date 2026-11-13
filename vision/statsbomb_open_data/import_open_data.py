@@ -171,6 +171,8 @@ def build_player_season_comparison(
     player_rows: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
 
     for report in reports:
+        if not isinstance(report, dict):
+            raise ValueError("Sezon raporunun kökü JSON nesnesi olmalı.")
         competition = report.get("competition_season") or {}
         competition_id = competition.get("competition_id")
         season_id = competition.get("season_id")
@@ -246,6 +248,7 @@ def build_player_season_comparison(
                 previous_season = previous["season_name"]
 
             season_results.append({
+                "player_name": record["player_name"],
                 "season_id": record["season_id"],
                 "season_name": record["season_name"],
                 "selected_match_count": record["selected_match_count"],
