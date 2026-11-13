@@ -1973,6 +1973,39 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertEqual(readiness["summary"]["limited"], 1)
         self.assertEqual(readiness["summary"]["insufficient_data"], 1)
 
+    def test_readiness_distinguishes_missing_appearance_from_missing_events(self):
+        role_profiles = {
+            "CB": {
+                "role_name": "Centre-back",
+                "players": [{
+                    "player_id": 20,
+                    "player_name": "Event Without Appearance Evidence",
+                    "minutes_played": 500.0,
+                    "matches_with_appearance_evidence": 0,
+                    "metrics": {"events": 4},
+                    "per90_metrics": {"events": 0.72},
+                    "data_quality": {
+                        "status": "insufficient",
+                        "checks": {
+                            "appearance_evidence": False,
+                            "attributed_events": True,
+                        },
+                    },
+                    "data_consistency": {"status": "consistent"},
+                    "identity": {
+                        "status": "consistent",
+                        "possible_same_name_collision": False,
+                    },
+                }],
+            }
+        }
+        readiness = build_player_evaluation_readiness(role_profiles, {"roles": {}})
+        player = readiness["roles"]["CB"]["players"][0]
+
+        self.assertEqual(player["readiness_status"], "limited")
+        self.assertIn("no_appearance_evidence", player["reason_codes"])
+        self.assertNotIn("insufficient_event_evidence", player["reason_codes"])
+
     def test_player_can_be_ready_for_human_review_without_peer_percentiles(self):
         role_profiles = {
             "ST": {
