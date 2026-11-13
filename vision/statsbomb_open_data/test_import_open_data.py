@@ -365,6 +365,7 @@ class StatsBombImportTests(unittest.TestCase):
                 "player_sample_totals": [{
                     "player_id": 10,
                     "player_name": "Example Player",
+                    "positions_seen": ["Center Back"],
                     "matches_listed_in_squads": 3,
                     "matches_with_appearance_evidence": 3,
                     "minutes_played": 270.0,
@@ -385,6 +386,7 @@ class StatsBombImportTests(unittest.TestCase):
                 "player_sample_totals": [{
                     "player_id": 10,
                     "player_name": "Example Player",
+                    "positions_seen": ["Defensive Midfield"],
                     "matches_listed_in_squads": 4,
                     "matches_with_appearance_evidence": 4,
                     "minutes_played": 360.0,
@@ -403,8 +405,52 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertEqual(player["seasons"][0]["player_name"], "Example Player")
         self.assertEqual(player["seasons"][1]["player_name"], "Example Player")
         self.assertEqual(player["seasons"][1]["previous_season"], "2022")
+        self.assertEqual(
+            player["seasons"][1]["position_comparison_from_previous"]["status"],
+            "changed",
+        )
+        self.assertEqual(
+            player["seasons"][1]["position_comparison_from_previous"]["shared_positions"],
+            [],
+        )
         self.assertEqual(player["seasons"][1]["per90_change_from_previous"]["events"], 10.0)
         self.assertEqual(player["seasons"][1]["per90_change_from_previous"]["xg"], 0.1)
+
+    def test_season_comparison_marks_same_positions_when_labels_match(self):
+        reports = [
+            {
+                "competition_season": {"competition_id": 43, "season_id": 106, "season_name": "2022"},
+                "sample": {"selected_match_count": 1},
+                "player_sample_totals": [{"player_id": 10, "player_name": "Player", "positions_seen": ["Center Back"]}],
+            },
+            {
+                "competition_season": {"competition_id": 43, "season_id": 107, "season_name": "2023"},
+                "sample": {"selected_match_count": 1},
+                "player_sample_totals": [{"player_id": 10, "player_name": "Player", "positions_seen": ["Center Back"]}],
+            },
+        ]
+        comparison = build_player_season_comparison(reports)
+        role = comparison["players"][0]["seasons"][1]["position_comparison_from_previous"]
+        self.assertEqual(role["status"], "same")
+        self.assertEqual(role["shared_positions"], ["center back"])
+
+    def test_season_comparison_marks_position_as_unavailable_when_missing(self):
+        reports = [
+            {
+                "competition_season": {"competition_id": 43, "season_id": 106, "season_name": "2022"},
+                "sample": {"selected_match_count": 1},
+                "player_sample_totals": [{"player_id": 10, "player_name": "Player", "positions_seen": []}],
+            },
+            {
+                "competition_season": {"competition_id": 43, "season_id": 107, "season_name": "2023"},
+                "sample": {"selected_match_count": 1},
+                "player_sample_totals": [{"player_id": 10, "player_name": "Player", "positions_seen": ["Center Back"]}],
+            },
+        ]
+        comparison = build_player_season_comparison(reports)
+        role = comparison["players"][0]["seasons"][1]["position_comparison_from_previous"]
+        self.assertEqual(role["status"], "unavailable")
+        self.assertEqual(role["shared_positions"], [])
 
     def test_season_comparison_omits_players_not_found_in_both_seasons(self):
         reports = [
