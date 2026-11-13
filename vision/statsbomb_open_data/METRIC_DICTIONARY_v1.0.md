@@ -491,6 +491,28 @@ separately validated event-level logic and must not be inferred from the final
 score alone.
 
 
+
+### Player actions by match score state
+
+For matches whose event-time score timeline is validated against the listed final
+score, player-attributed events are grouped by the player's own team's state
+immediately before the event: `leading`, `drawing` or `trailing`. The goal
+event itself is assigned to the state that existed immediately before that
+goal; subsequent events use the updated score.
+
+The `score_state_analysis` object is available on each match-level player row
+and on selected-sample player totals. It includes raw event counters and summed
+source xG for each state, plus classified/unclassified event counts and match
+coverage statuses. An event is not classified when its team cannot be mapped to
+the match's home/away team, its event order cannot be resolved, or the match
+score timeline is not validated.
+
+These values are raw totals, not rates or scores. They are not adjusted for
+minutes spent in each state, possession, opponent, game phase or role. A player
+may spend very different amounts of time leading, drawing and trailing, so raw
+counts across states must not be interpreted as a per-minute performance
+comparison. Score-state minutes and per-90 comparisons are not yet calculated.
+
 ### Event-time score-state timeline
 
 Each match report now includes a `match_context.score_state_timeline` block.
