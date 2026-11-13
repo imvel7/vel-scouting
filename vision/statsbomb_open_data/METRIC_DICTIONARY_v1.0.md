@@ -70,6 +70,36 @@ A `complete` status means only that these core checks passed for this selected
 sample. It does not mean that the sample is large, that every event type is
 captured, or that the player has been evaluated fairly against peers.
 
+## Match-to-aggregate consistency check
+
+Each selected-sample player total is reconciled against the player's individual
+match records. The check compares:
+
+- Number of match records and appearance-evidence match count.
+- Every exported raw event-count total.
+- Total available xG.
+- Number of match records with valid minutes and, when all minutes are valid,
+  the summed minutes played.
+- The exported per-90 values against a fresh calculation from the aggregate
+  counts and verified seconds.
+
+The JSON output exposes `data_consistency.status`:
+
+| Status | Meaning |
+|---|---|
+| `consistent` | All applicable comparisons match. Minute/per-90 checks are marked not applicable when minute data is incomplete. |
+| `review` | At least one comparable field differs between match records and the aggregate. |
+
+The `data_consistency.reasons` array identifies a failed comparison, for
+example `metric_total_mismatch:passes_attempted` or
+`minutes_total_mismatch`. Supporting boolean checks and the number of checked
+match records are included. CSV exports include the status, reason codes and
+record count.
+
+A `review` result is a data-reconciliation warning, not a judgement about the
+player or proof that the source match record is wrong. The underlying match
+records should be inspected before using the affected aggregate.
+
 ## Rules
 
 1. Produce per-90 values only from validated, positive on-pitch minutes; otherwise leave them unavailable.
