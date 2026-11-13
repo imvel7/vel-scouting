@@ -254,6 +254,7 @@ def calculate_minutes_played(events: Any) -> dict[str, Any]:
     last_time = 0.0
     last_event_index: Any = None
     last_event_type: str | None = None
+    last_event_id: str | None = None
     starting_xi_count = 0
 
     def remember_player(player: Any) -> str | None:
@@ -307,7 +308,19 @@ def calculate_minutes_played(events: Any) -> dict[str, Any]:
 
         if period in periods_closed and event_type != "Half End":
             errors.append(f"Period {period}, Half End sonrasında yeni event içeriyor.")
-        if event_time < last_time:
+        linked_receipt_clock_anomaly = (
+            event_time < last_time
+            and event_type == "Ball Receipt*"
+            and last_event_type == "Pass"
+            and last_event_id in (event.get("related_events") or [])
+        )
+        if event_time < last_time and linked_receipt_clock_anomaly:
+            warnings.append(
+                f"Linked Ball Receipt* timestamp ignored for clock continuity "
+                f"(event index {event.get('index')}, related pass {last_event_id})."
+            )
+            event_time = last_time
+        elif event_time < last_time:
             errors.append(
                 f"Period {period} maç saati geriye gidiyor: "
                 f"event index={event.get('index')} type={event_type} "
@@ -323,6 +336,7 @@ def calculate_minutes_played(events: Any) -> dict[str, Any]:
         last_time = event_time
         last_event_index = event.get("index")
         last_event_type = event_type
+        last_event_id = str(event.get("id")) if event.get("id") is not None else None
 
         if event_type == "Starting XI":
             tactics = event.get("tactics") or {}
