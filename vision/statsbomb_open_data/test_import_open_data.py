@@ -872,6 +872,9 @@ class StatsBombImportTests(unittest.TestCase):
                     "events": 40,
                     "passes_attempted": 30,
                     "passes_completed": 27,
+                    "crosses": 3,
+                    "through_balls": 2,
+                    "shot_assists": 1,
                     "pass_completion_pct": 90.0,
                     "pass_length_mean": 22.4,
                     "carries": 6,
@@ -881,6 +884,20 @@ class StatsBombImportTests(unittest.TestCase):
                     "clearances": 7,
                     "blocks": 2,
                     "tackles": 3,
+                },
+                "per90_metrics": {
+                    "passes_attempted": 20.0,
+                    "passes_completed": 18.0,
+                    "crosses": 2.0,
+                    "through_balls": 1.3,
+                    "shot_assists": 0.7,
+                    "carries": 4.0,
+                    "pressures": 6.0,
+                    "interceptions": 2.7,
+                    "ball_recoveries": 3.3,
+                    "clearances": 4.7,
+                    "blocks": 1.3,
+                    "tackles": 2.0,
                 },
             },
             {
@@ -901,6 +918,23 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertEqual(selected["matches_with_appearance_evidence"], 3)
         self.assertEqual(selected["metrics"]["events"], 40)
         self.assertIsNone(selected["minutes_played"])
+        self.assertEqual(
+            [group["code"] for group in profile["metric_groups"]],
+            ["distribution_progression", "defensive_activity", "box_protection"],
+        )
+        distribution = selected["grouped_metrics"]["distribution_progression"]
+        self.assertEqual(distribution["raw_counts"]["passes_attempted"], 30)
+        self.assertEqual(distribution["per90_counts"]["passes_attempted"], 20.0)
+        self.assertEqual(distribution["context_metrics"]["pass_completion_pct"], 90.0)
+        defence = selected["grouped_metrics"]["defensive_activity"]
+        self.assertEqual(defence["raw_counts"]["interceptions"], 4)
+        self.assertEqual(defence["per90_counts"]["ball_recoveries"], 3.3)
+        box = selected["grouped_metrics"]["box_protection"]
+        self.assertEqual(box["raw_counts"]["clearances"], 7)
+        self.assertNotIn("aerial_duels", selected["grouped_metrics"])
+        self.assertEqual(
+            profile["not_yet_available"][0]["metric"], "aerial_duel_success"
+        )
         self.assertNotIn("rating", selected)
         self.assertIn("defensive rating or ranking", profile["interpretation_limits"][0])
 
