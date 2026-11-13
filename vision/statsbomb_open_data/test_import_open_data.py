@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import analyse_match, build_cb_profile, build_fullback_profile, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
+from import_open_data import analyse_match, build_cb_profile, build_central_midfield_profile, build_fullback_profile, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
 
 
 MATCH = {
@@ -1063,6 +1063,154 @@ class StatsBombImportTests(unittest.TestCase):
         ])
         self.assertEqual(profile["player_count"], 1)
         self.assertEqual(profile["players"][0]["player_id"], 3)
+
+    def test_central_midfield_profile_groups_metrics_and_selects_central_roles(self):
+        players = [
+            {
+                "player_id": 10,
+                "player_name": "Central Midfielder",
+                "team_names": ["Example FC"],
+                "positions_seen": ["Left Center Midfield", "Center Defensive Midfield"],
+                "matches_listed_in_squads": 5,
+                "matches_with_appearance_evidence": 5,
+                "minutes_played": 420.0,
+                "per90_metrics": {
+                    "passes_attempted": 55.0,
+                    "through_balls": 1.4,
+                    "carries": 6.0,
+                    "dribbles": 2.0,
+                    "shot_assists": 0.8,
+                    "shots": 1.2,
+                    "xg": 0.15,
+                    "pressures": 12.0,
+                    "tackles": 2.1,
+                    "interceptions": 1.7,
+                    "ball_recoveries": 3.5,
+                },
+                "metrics": {
+                    "passes_attempted": 256,
+                    "passes_completed": 220,
+                    "pass_completion_pct": 85.94,
+                    "pass_length_mean": 18.7,
+                    "through_balls": 7,
+                    "carries": 28,
+                    "dribbles": 9,
+                    "shot_assists": 4,
+                    "assists": 2,
+                    "crosses": 3,
+                    "shots": 6,
+                    "goals": 1,
+                    "xg": 0.7,
+                    "pressures": 56,
+                    "tackles": 10,
+                    "interceptions": 8,
+                    "ball_recoveries": 16,
+                    "clearances": 3,
+                    "blocks": 1,
+                },
+            },
+            {
+                "player_id": 11,
+                "player_name": "Defensive Midfielder",
+                "positions_seen": ["Defensive Midfield"],
+                "metrics": {"interceptions": 7},
+            },
+            {
+                "player_id": 12,
+                "player_name": "Attacking Midfielder",
+                "positions_seen": ["Center Attacking Midfield"],
+                "metrics": {"shot_assists": 4},
+            },
+            {
+                "player_id": 13,
+                "player_name": "Wide Midfielder",
+                "positions_seen": ["Left Midfield"],
+                "metrics": {"crosses": 9},
+            },
+            {
+                "player_id": 14,
+                "player_name": "Centre Back",
+                "positions_seen": ["Right Center Back"],
+                "metrics": {"clearances": 12},
+            },
+            {
+                "player_id": 15,
+                "player_name": "Winger",
+                "positions_seen": ["Left Wing"],
+                "metrics": {"dribbles": 8},
+            },
+        ]
+
+        profile = build_central_midfield_profile(players)
+        self.assertEqual(profile["role_code"], "CM")
+        self.assertEqual(profile["player_count"], 3)
+        self.assertEqual(
+            [row["player_id"] for row in profile["players"]],
+            [12, 10, 11],
+        )
+
+        selected = next(row for row in profile["players"] if row["player_id"] == 10)
+        self.assertEqual(
+            selected["central_midfield_position_labels"],
+            ["Center Defensive Midfield", "Left Center Midfield"],
+        )
+        self.assertEqual(
+            [group["code"] for group in profile["metric_groups"]],
+            ["distribution_progression", "chance_creation", "defensive_activity"],
+        )
+        passing = selected["grouped_metrics"]["distribution_progression"]
+        self.assertEqual(passing["raw_counts"]["passes_attempted"], 256)
+        self.assertEqual(passing["per90_counts"]["passes_attempted"], 55.0)
+        self.assertEqual(passing["context_metrics"]["pass_completion_pct"], 85.94)
+
+        chance = selected["grouped_metrics"]["chance_creation"]
+        self.assertEqual(chance["raw_counts"]["shot_assists"], 4)
+        self.assertEqual(chance["per90_counts"]["shots"], 1.2)
+        self.assertEqual(chance["raw_rate_totals"]["xg"], 0.7)
+        self.assertEqual(chance["per90_rate_metrics"]["xg"], 0.15)
+
+        defence = selected["grouped_metrics"]["defensive_activity"]
+        self.assertEqual(defence["raw_counts"]["interceptions"], 8)
+        self.assertEqual(defence["per90_counts"]["ball_recoveries"], 3.5)
+        self.assertNotIn("rating", selected)
+        self.assertIn("No central-midfielder rating or ranking", profile["interpretation_limits"][0])
+
+    def test_central_midfield_profile_does_not_fabricate_rates(self):
+        profile = build_central_midfield_profile([{
+            "player_id": 20,
+            "player_name": "Unverified Midfielder",
+            "positions_seen": ["Center Midfield"],
+            "metrics": {"passes_attempted": 40, "shots": 3, "pressures": 12, "xg": 0.2},
+            "per90_metrics": None,
+        }])
+        player = profile["players"][0]
+        self.assertEqual(
+            player["grouped_metrics"]["distribution_progression"]["raw_counts"]["passes_attempted"],
+            40,
+        )
+        self.assertEqual(
+            player["grouped_metrics"]["distribution_progression"]["per90_counts"],
+            {},
+        )
+        self.assertEqual(
+            player["grouped_metrics"]["chance_creation"]["per90_rate_metrics"],
+            {},
+        )
+
+    def test_central_midfield_position_filter_handles_labels_without_wide_midfield(self):
+        profile = build_central_midfield_profile([
+            {"player_id": 1, "player_name": "Center", "positions_seen": ["Center Midfield"]},
+            {"player_id": 2, "player_name": "Right Center", "positions_seen": ["Right Center Midfield"]},
+            {"player_id": 3, "player_name": "Left Midfield", "positions_seen": ["Left Midfield"]},
+            {"player_id": 4, "player_name": "Wide Midfield", "positions_seen": ["Wide Midfield"]},
+            {"player_id": 5, "player_name": "Center Back", "positions_seen": ["Center Back"]},
+            {"player_id": 6, "player_name": "Central", "positions_seen": ["Central Midfield"]},
+        ])
+        self.assertEqual(profile["player_count"], 3)
+        self.assertEqual(
+            {row["player_id"] for row in profile["players"]},
+            {1, 2, 6},
+        )
 
     def test_cache_json_records_content_hash(self):
         with tempfile.TemporaryDirectory() as directory:
