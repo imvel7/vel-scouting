@@ -196,6 +196,35 @@ age, role variation, opposition strength and selected-sample coverage are not
 adjusted in this first version. Small datasets will correctly return
 `insufficient_sample` rather than manufacture a comparison.
 
+## Benchmark metric interpretation guidance
+
+The `role_benchmarks.metric_guidance` object documents every metric used by
+the six same-role benchmark profiles. Each entry contains a display label,
+unit, what the metric counts, an interpretation note and an explicit list of
+what the metric does not measure.
+
+The `directionality` field is deliberately cautious:
+
+- `context_dependent`: the event frequency is not intrinsically positive or
+  negative. A high value can reflect role, possession, team style, opportunity
+  or workload rather than better performance.
+- `adverse_outcome_context_dependent`: the counted event is an adverse
+  outcome, but it cannot be attributed to one player without context. The
+  current example is goalkeeper goals conceded.
+
+Examples:
+- Passes completed per 90 is a count, not pass-completion percentage.
+- Dribbles per 90 describes recorded dribble activity, not dribble success.
+- Saves per 90 can reflect more shots faced; it is not save percentage.
+- Goals conceded per 90 is an adverse team outcome, not a goalkeeper rating.
+- xG per 90 combines shot volume and source-model shot probabilities; it is
+  not finishing above or below expectation.
+
+No metric is labelled simply "higher is better" or "lower is better". These
+notes are guardrails for interpretation, not a calibrated evaluation model.
+They do not yet adjust metrics for age, league strength, team possession,
+opponent quality, tactical role, match state or opportunity.
+
 ## Player scouting-review readiness gate
 
 The report includes `player_evaluation_readiness`, a technical gate before a
