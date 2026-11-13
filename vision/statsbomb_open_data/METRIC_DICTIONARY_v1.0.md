@@ -188,6 +188,19 @@ the status is `insufficient_sample`. The percentile uses the tie-aware
 midrank method: equal values share their middle rank. Each metric has its own
 eligible cohort size, so one metric can be comparable while another is not.
 
+Each metric summary also includes a descriptive cohort distribution when
+the minimum cohort size is met: minimum, 25th percentile, median, 75th
+percentile and maximum. Quartiles use linear interpolation over sorted
+observations. When the cohort is too small, the distribution is null rather
+than presented as if it were reliable.
+
+For each eligible player/metric with a valid peer comparison, the report also
+shows the difference between the player's per-90 value and the cohort median,
+and whether the value falls inside the cohort's middle 50% (between p25 and
+p75). These are descriptive comparisons within the same cohort, not adjusted
+performance effects or evidence of player quality. The distribution includes
+the player being compared.
+
 These percentiles describe relative per-90 event frequency, not action quality,
 player ability, a player ranking or a transfer recommendation. A higher
 percentile is not necessarily better: for example, a high value for goals
@@ -195,6 +208,35 @@ conceded is not a positive goalkeeper outcome. Team style, possession, player
 age, role variation, opposition strength and selected-sample coverage are not
 adjusted in this first version. Small datasets will correctly return
 `insufficient_sample` rather than manufacture a comparison.
+
+## Benchmark metric interpretation guidance
+
+The `role_benchmarks.metric_guidance` object documents every metric used by
+the six same-role benchmark profiles. Each entry contains a display label,
+unit, what the metric counts, an interpretation note and an explicit list of
+what the metric does not measure.
+
+The `directionality` field is deliberately cautious:
+
+- `context_dependent`: the event frequency is not intrinsically positive or
+  negative. A high value can reflect role, possession, team style, opportunity
+  or workload rather than better performance.
+- `adverse_outcome_context_dependent`: the counted event is an adverse
+  outcome, but it cannot be attributed to one player without context. The
+  current example is goalkeeper goals conceded.
+
+Examples:
+- Passes completed per 90 is a count, not pass-completion percentage.
+- Dribbles per 90 describes recorded dribble activity, not dribble success.
+- Saves per 90 can reflect more shots faced; it is not save percentage.
+- Goals conceded per 90 is an adverse team outcome, not a goalkeeper rating.
+- xG per 90 combines shot volume and source-model shot probabilities; it is
+  not finishing above or below expectation.
+
+No metric is labelled simply "higher is better" or "lower is better". These
+notes are guardrails for interpretation, not a calibrated evaluation model.
+They do not yet adjust metrics for age, league strength, team possession,
+opponent quality, tactical role, match state or opportunity.
 
 ## Player scouting-review readiness gate
 

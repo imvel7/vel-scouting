@@ -2312,6 +2312,218 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
 
 
 
+BENCHMARK_METRIC_GUIDANCE = {
+    "passes_attempted": {
+        "display_name": "Passes attempted",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded pass attempts.",
+        "interpretation_note": "Higher volume can reflect possession, team build-up patterns or the player's role rather than better passing.",
+        "does_not_measure": "Pass accuracy, difficulty, progression value or decision quality.",
+    },
+    "passes_completed": {
+        "display_name": "Passes completed",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded completed passes.",
+        "interpretation_note": "Read alongside attempts, pass difficulty, direction and team possession; a high count alone is not passing quality.",
+        "does_not_measure": "Completion percentage, progressive value or execution difficulty.",
+    },
+    "pressures": {
+        "display_name": "Pressures",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded pressure actions.",
+        "interpretation_note": "High volume may reflect pressing role, opponent possession or team pressing strategy.",
+        "does_not_measure": "Pressure success, coordination, intensity or whether possession was regained.",
+    },
+    "tackles": {
+        "display_name": "Tackles",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded tackle-type duel events.",
+        "interpretation_note": "Interpret with defensive opportunities, duel outcomes and team context.",
+        "does_not_measure": "Tackle success rate, foul risk or overall defensive quality.",
+    },
+    "interceptions": {
+        "display_name": "Interceptions",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded interception events.",
+        "interpretation_note": "Affected by opponent passing volume, team block and the player's defensive role.",
+        "does_not_measure": "All passing lanes denied, anticipation quality or total defensive contribution.",
+    },
+    "ball_recoveries": {
+        "display_name": "Ball recoveries",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded ball-recovery events.",
+        "interpretation_note": "Affected by loose-ball opportunities, possession patterns and team pressure.",
+        "does_not_measure": "Recovery difficulty, territorial value or whether the recovery created an advantage.",
+    },
+    "clearances": {
+        "display_name": "Clearances",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded clearances.",
+        "interpretation_note": "High volume can reflect defensive workload or sustained pressure rather than superior defending.",
+        "does_not_measure": "Clearance quality, danger removed or ability to prevent the preceding attack.",
+    },
+    "blocks": {
+        "display_name": "Blocks",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded blocks.",
+        "interpretation_note": "Depends on shots and passing lanes faced, defensive positioning and team shape.",
+        "does_not_measure": "Block success beyond the recorded event, shot danger prevented or positioning quality.",
+    },
+    "crosses": {
+        "display_name": "Crosses",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded cross attempts.",
+        "interpretation_note": "Interpret with crossing opportunities, target movement and team attacking structure.",
+        "does_not_measure": "Cross accuracy, delivery quality or chance created.",
+    },
+    "shot_assists": {
+        "display_name": "Shot assists",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded actions credited as leading to a teammate's shot.",
+        "interpretation_note": "The resulting shot's quality and the teammate's execution matter; volume alone is incomplete.",
+        "does_not_measure": "Chance quality, expected assists or creation value independent of the shot outcome.",
+    },
+    "carries": {
+        "display_name": "Carries",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded ball-carry events.",
+        "interpretation_note": "Affected by role, possession and available space; pair with progression and outcome measures when validated.",
+        "does_not_measure": "Progressive distance, pressure resistance or value gained by the carry.",
+    },
+    "dribbles": {
+        "display_name": "Dribbles",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded dribble events.",
+        "interpretation_note": "Treat as activity volume until outcome and success handling are separately validated.",
+        "does_not_measure": "Dribble success rate, opponent beaten or possession retained.",
+    },
+    "through_balls": {
+        "display_name": "Through balls",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded through-ball pass events.",
+        "interpretation_note": "Interpret with completion, receiver movement, defensive line and resulting chance.",
+        "does_not_measure": "Pass accuracy, defensive-line break value or chance quality.",
+    },
+    "assists": {
+        "display_name": "Assists",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of goals with a recorded assist attribution to the player.",
+        "interpretation_note": "Sensitive to teammate finishing and small samples; use alongside chance-creation context.",
+        "does_not_measure": "All creative contribution, expected assists or repeatable chance quality.",
+    },
+    "shots": {
+        "display_name": "Shots",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded shot attempts.",
+        "interpretation_note": "High volume can reflect role and team chance supply; assess locations and shot quality separately.",
+        "does_not_measure": "Finishing skill, shot quality or conversion rate.",
+    },
+    "goals": {
+        "display_name": "Goals",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded goals credited to the player.",
+        "interpretation_note": "A useful outcome count, but strongly affected by opportunity, teammates and sample size.",
+        "does_not_measure": "Finishing sustainability, conversion above expectation or overall attacking value.",
+    },
+    "xg": {
+        "display_name": "Expected goals (xG)",
+        "unit": "xG per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Sum of source-provided expected-goal values for the player's shots, normalized per 90.",
+        "interpretation_note": "Combines chance volume and shot-level probability; interpret with role, shot locations and the source model.",
+        "does_not_measure": "Goals scored, finishing above expectation or a model-independent measure of chance quality.",
+    },
+    "goalkeeper_saves": {
+        "display_name": "Goalkeeper saves",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded goalkeeper save events.",
+        "interpretation_note": "More saves can mean more shots faced; compare with shot quality and a validated denominator.",
+        "does_not_measure": "Save percentage, goals prevented or shot-stopping quality.",
+    },
+    "goalkeeper_shots_faced": {
+        "display_name": "Shots faced",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded shots faced by the goalkeeper.",
+        "interpretation_note": "Primarily describes defensive workload and opponent shot volume.",
+        "does_not_measure": "Shot danger, goalkeeper responsibility or defensive quality.",
+    },
+    "goalkeeper_goals_conceded": {
+        "display_name": "Goals conceded",
+        "unit": "events per 90 verified minutes",
+        "directionality": "adverse_outcome_context_dependent",
+        "what_it_measures": "Volume of recorded goals conceded in the goalkeeper event data.",
+        "interpretation_note": "A higher count is an adverse team outcome, but attribution requires shot quality, defensive errors, minutes and context.",
+        "does_not_measure": "Goals caused by the goalkeeper, goals prevented or goalkeeper quality.",
+    },
+    "goalkeeper_collections": {
+        "display_name": "Goalkeeper collections",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded goalkeeper collection events.",
+        "interpretation_note": "Depends on delivery volume, defensive structure and the goalkeeper's role.",
+        "does_not_measure": "Collection success rate, claim difficulty or command of the area.",
+    },
+    "goalkeeper_punches": {
+        "display_name": "Goalkeeper punches",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded goalkeeper punch events.",
+        "interpretation_note": "Interpret with cross and set-piece exposure, traffic and alternative handling choices.",
+        "does_not_measure": "Punch accuracy, decision quality or overall aerial command.",
+    },
+    "goalkeeper_sweeps": {
+        "display_name": "Goalkeeper sweeps",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded goalkeeper sweeping actions.",
+        "interpretation_note": "Affected by defensive line height, through-ball exposure and team tactics.",
+        "does_not_measure": "Sweeping success, starting position quality or space controlled.",
+    },
+    "goalkeeper_smotherings": {
+        "display_name": "Goalkeeper smotherings",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded goalkeeper smothering events.",
+        "interpretation_note": "Depends on one-on-one and loose-ball opportunities; sample size is often small.",
+        "does_not_measure": "Smothering success rate or all close-range threat management.",
+    },
+    "goalkeeper_penalty_saves": {
+        "display_name": "Penalty saves",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded penalty-save events.",
+        "interpretation_note": "Penalty samples are usually sparse; do not infer a stable skill level from a few events.",
+        "does_not_measure": "Penalty-save percentage or repeatable penalty-stopping ability.",
+    },
+    "goal_kicks": {
+        "display_name": "Goal kicks",
+        "unit": "events per 90 verified minutes",
+        "directionality": "context_dependent",
+        "what_it_measures": "Volume of recorded goal-kick restarts.",
+        "interpretation_note": "Influenced by match state, opposition pressure and team restart strategy.",
+        "does_not_measure": "Goal-kick accuracy, distance, possession retained or distribution quality.",
+    },
+}
+
+
 ROLE_BENCHMARK_METRICS = {
     "CB": (
         "passes_attempted", "passes_completed", "pressures", "tackles",
@@ -2349,6 +2561,40 @@ def _peer_percentile(value: float, cohort: list[float]) -> float:
     less = sum(item < value for item in cohort)
     equal = sum(item == value for item in cohort)
     return round(((less + 0.5 * equal) / len(cohort)) * 100.0, 1)
+
+
+def _linear_quantile(sorted_values: list[float], quantile: float) -> float | None:
+    """Calculate a linearly interpolated quantile from sorted observations."""
+    if not _finite(quantile) or not 0.0 <= float(quantile) <= 1.0:
+        raise ValueError("quantile 0 ile 1 arasında olmalı.")
+    if not sorted_values:
+        return None
+    position = (len(sorted_values) - 1) * float(quantile)
+    lower_index = math.floor(position)
+    upper_index = math.ceil(position)
+    if lower_index == upper_index:
+        return float(sorted_values[lower_index])
+    fraction = position - lower_index
+    lower = float(sorted_values[lower_index])
+    upper = float(sorted_values[upper_index])
+    return lower + ((upper - lower) * fraction)
+
+
+def _cohort_distribution(sorted_values: list[float]) -> dict[str, Any] | None:
+    """Describe a peer cohort with min, quartiles, median and max."""
+    if not sorted_values:
+        return None
+    p25 = _linear_quantile(sorted_values, 0.25)
+    median = _linear_quantile(sorted_values, 0.50)
+    p75 = _linear_quantile(sorted_values, 0.75)
+    return {
+        "minimum": round(float(sorted_values[0]), 3),
+        "p25": round(float(p25), 3),
+        "median": round(float(median), 3),
+        "p75": round(float(p75), 3),
+        "maximum": round(float(sorted_values[-1]), 3),
+        "quartile_method": "linear interpolation over sorted observations",
+    }
 
 
 def build_role_benchmarks(
@@ -2404,6 +2650,7 @@ def build_role_benchmarks(
                 "status": "ready" if ready else "insufficient_sample",
                 "eligible_values": len(values),
                 "minimum_required": minimum_cohort_size,
+                "distribution": _cohort_distribution(values) if ready else None,
             }
 
         player_results = []
@@ -2415,10 +2662,20 @@ def build_role_benchmarks(
                 value = per90.get(metric) if isinstance(per90, dict) else None
                 cohort = metric_cohorts[metric]
                 if item["eligible"] and _finite(value) and len(cohort) >= minimum_cohort_size:
+                    distribution = metric_summaries[metric]["distribution"]
+                    cohort_median = _linear_quantile(cohort, 0.50)
+                    cohort_p25 = _linear_quantile(cohort, 0.25)
+                    cohort_p75 = _linear_quantile(cohort, 0.75)
                     player_metrics[metric] = {
                         "value_per90": round(float(value), 3),
                         "cohort_size": len(cohort),
                         "percentile": _peer_percentile(float(value), cohort),
+                        "difference_from_median_per90": round(
+                            float(value) - float(cohort_median), 3
+                        ),
+                        "within_cohort_middle_50_percent": (
+                            float(cohort_p25) <= float(value) <= float(cohort_p75)
+                        ),
                         "status": "ready",
                     }
                 else:
@@ -2432,6 +2689,8 @@ def build_role_benchmarks(
                         "value_per90": round(float(value), 3) if _finite(value) else None,
                         "cohort_size": len(cohort),
                         "percentile": None,
+                        "difference_from_median_per90": None,
+                        "within_cohort_middle_50_percent": None,
                         "status": status,
                     }
             player_results.append({
@@ -2472,6 +2731,12 @@ def build_role_benchmarks(
         "minimum_verified_minutes": minimum_verified_minutes,
         "minimum_cohort_size": minimum_cohort_size,
         "comparison_scope": "same competition and season report; same role profile",
+        "metric_guidance": {
+            metric: BENCHMARK_METRIC_GUIDANCE[metric]
+            for metric in sorted({
+                name for names in ROLE_BENCHMARK_METRICS.values() for name in names
+            })
+        },
         "roles": benchmarks,
     }
 

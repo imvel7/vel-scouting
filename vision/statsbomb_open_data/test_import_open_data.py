@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import analyse_match, build_cb_profile, build_goalkeeper_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_striker_profile, build_role_benchmarks, build_player_evaluation_readiness, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
+from import_open_data import analyse_match, build_cb_profile, build_goalkeeper_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_striker_profile, build_role_benchmarks, BENCHMARK_METRIC_GUIDANCE, ROLE_BENCHMARK_METRICS, build_player_evaluation_readiness, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
 
 
 MATCH = {
@@ -1745,6 +1745,32 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertEqual(target["metrics"]["passes_attempted"]["percentile"], 50.0)
         self.assertEqual(target["metrics"]["passes_attempted"]["cohort_size"], 4)
         self.assertEqual(target["metrics"]["passes_attempted"]["status"], "ready")
+        self.assertEqual(
+            cb["metric_summaries"]["passes_attempted"]["distribution"],
+            {
+                "minimum": 1.0,
+                "p25": 1.75,
+                "median": 2.0,
+                "p75": 2.25,
+                "maximum": 3.0,
+                "quartile_method": "linear interpolation over sorted observations",
+            },
+        )
+        self.assertEqual(
+            target["metrics"]["passes_attempted"]["difference_from_median_per90"],
+            0.0,
+        )
+        self.assertTrue(
+            target["metrics"]["passes_attempted"]["within_cohort_middle_50_percent"]
+        )
+        lowest = next(row for row in cb["players"] if row["player_id"] == 1)
+        self.assertEqual(
+            lowest["metrics"]["passes_attempted"]["difference_from_median_per90"],
+            -1.0,
+        )
+        self.assertFalse(
+            lowest["metrics"]["passes_attempted"]["within_cohort_middle_50_percent"]
+        )
 
         excluded = next(row for row in cb["players"] if row["player_id"] == 5)
         self.assertFalse(excluded["eligible_for_peer_comparison"])
@@ -1790,14 +1816,27 @@ class StatsBombImportTests(unittest.TestCase):
             cm["metric_summaries"]["passes_attempted"]["status"],
             "insufficient_sample",
         )
+        self.assertIsNone(cm["metric_summaries"]["passes_attempted"]["distribution"])
         for player in cm["players"]:
             metric = player["metrics"]["passes_attempted"]
             self.assertIsNone(metric["percentile"])
+            self.assertIsNone(metric["difference_from_median_per90"])
+            self.assertIsNone(metric["within_cohort_middle_50_percent"])
             self.assertEqual(metric["cohort_size"], 2)
             if player["player_id"] == 3:
                 self.assertEqual(metric["status"], "metric_unavailable")
             else:
                 self.assertEqual(metric["status"], "insufficient_sample")
+
+    def test_linear_quantile_uses_interpolation_and_rejects_invalid_probability(self):
+        from import_open_data import _linear_quantile
+
+        self.assertEqual(_linear_quantile([1.0, 2.0, 2.0, 3.0], 0.25), 1.75)
+        self.assertEqual(_linear_quantile([1.0, 2.0, 2.0, 3.0], 0.50), 2.0)
+        self.assertEqual(_linear_quantile([1.0, 2.0, 2.0, 3.0], 0.75), 2.25)
+        self.assertIsNone(_linear_quantile([], 0.5))
+        with self.assertRaisesRegex(ValueError, "0 ile 1"):
+            _linear_quantile([1.0, 2.0], 1.5)
 
     def test_role_benchmarks_reject_players_with_unreliable_data_statuses(self):
         players = [
@@ -1849,6 +1888,43 @@ class StatsBombImportTests(unittest.TestCase):
             build_role_benchmarks({}, minimum_verified_minutes=-1)
         with self.assertRaisesRegex(ValueError, "en az 2"):
             build_role_benchmarks({}, minimum_cohort_size=1)
+
+    def test_benchmark_metric_guidance_covers_all_metrics_without_assuming_higher_is_better(self):
+        expected_metrics = {
+            metric
+            for metrics in ROLE_BENCHMARK_METRICS.values()
+            for metric in metrics
+        }
+        self.assertEqual(set(BENCHMARK_METRIC_GUIDANCE), expected_metrics)
+
+        required_fields = {
+            "display_name", "unit", "directionality", "what_it_measures",
+            "interpretation_note", "does_not_measure",
+        }
+        for metric, guidance in BENCHMARK_METRIC_GUIDANCE.items():
+            with self.subTest(metric=metric):
+                self.assertEqual(set(guidance), required_fields)
+                self.assertTrue(all(
+                    isinstance(value, str) and value.strip()
+                    for value in guidance.values()
+                ))
+                self.assertIn(
+                    guidance["directionality"],
+                    {"context_dependent", "adverse_outcome_context_dependent"},
+                )
+
+        self.assertEqual(
+            BENCHMARK_METRIC_GUIDANCE["goalkeeper_goals_conceded"]["directionality"],
+            "adverse_outcome_context_dependent",
+        )
+        self.assertEqual(
+            BENCHMARK_METRIC_GUIDANCE["goalkeeper_saves"]["directionality"],
+            "context_dependent",
+        )
+        report = build_role_benchmarks({
+            role: {"players": []} for role in ROLE_BENCHMARK_METRICS
+        })
+        self.assertEqual(report["metric_guidance"], BENCHMARK_METRIC_GUIDANCE)
 
     def test_player_evaluation_readiness_requires_core_evidence_and_reports_peer_context(self):
         role_profiles = {
