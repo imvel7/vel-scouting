@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import analyse_match, build_cb_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
+from import_open_data import analyse_match, build_cb_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_striker_profile, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
 
 
 MATCH = {
@@ -1368,6 +1368,172 @@ class StatsBombImportTests(unittest.TestCase):
         mixed = next(row for row in profile["players"] if row["player_id"] == 6)
         self.assertEqual(mixed["winger_position_labels"], ["Left Wing"])
         self.assertEqual(mixed["positions_seen"], ["Left Wing", "Left Wing Back"])
+
+    def test_striker_profile_groups_finishing_chance_creation_and_link_play(self):
+        players = [
+            {
+                "player_id": 50,
+                "player_name": "Centre Forward",
+                "team_names": ["Example FC"],
+                "positions_seen": ["Center Forward", "Left Center Forward"],
+                "matches_listed_in_squads": 5,
+                "matches_with_appearance_evidence": 5,
+                "minutes_played": 405.0,
+                "per90_metrics": {
+                    "shots": 3.1,
+                    "goals": 0.8,
+                    "xg": 0.62,
+                    "shot_assists": 0.7,
+                    "assists": 0.2,
+                    "through_balls": 0.4,
+                    "passes_attempted": 22.0,
+                    "passes_completed": 15.0,
+                    "carries": 3.5,
+                    "dribbles": 1.1,
+                    "pressures": 8.5,
+                    "tackles": 0.7,
+                    "interceptions": 0.3,
+                    "ball_recoveries": 1.4,
+                },
+                "metrics": {
+                    "shots": 14,
+                    "goals": 4,
+                    "xg": 2.8,
+                    "shot_assists": 3,
+                    "assists": 1,
+                    "through_balls": 2,
+                    "passes_attempted": 99,
+                    "passes_completed": 68,
+                    "pass_completion_pct": 68.69,
+                    "pass_length_mean": 14.1,
+                    "carries": 16,
+                    "dribbles": 5,
+                    "pressures": 38,
+                    "tackles": 3,
+                    "interceptions": 1,
+                    "ball_recoveries": 6,
+                },
+            },
+            {
+                "player_id": 51,
+                "player_name": "Striker",
+                "positions_seen": ["Striker"],
+                "metrics": {"goals": 3},
+            },
+            {
+                "player_id": 52,
+                "player_name": "Secondary Striker",
+                "positions_seen": ["Secondary Striker"],
+                "metrics": {"shots": 2},
+            },
+            {
+                "player_id": 53,
+                "player_name": "Left Winger",
+                "positions_seen": ["Left Wing"],
+                "metrics": {"shots": 9},
+            },
+            {
+                "player_id": 54,
+                "player_name": "Right Wing",
+                "positions_seen": ["Right Wing"],
+                "metrics": {"crosses": 4},
+            },
+            {
+                "player_id": 55,
+                "player_name": "Centre Midfielder",
+                "positions_seen": ["Center Midfield"],
+                "metrics": {"passes_attempted": 20},
+            },
+        ]
+
+        profile = build_striker_profile(players)
+        self.assertEqual(profile["role_code"], "ST")
+        self.assertEqual(profile["player_count"], 3)
+        selected = next(row for row in profile["players"] if row["player_id"] == 50)
+        self.assertEqual(
+            selected["striker_position_labels"],
+            ["Center Forward", "Left Center Forward"],
+        )
+        self.assertEqual(
+            [group["code"] for group in profile["metric_groups"]],
+            [
+                "finishing_output",
+                "chance_creation",
+                "link_play",
+                "pressing_contribution",
+            ],
+        )
+
+        finishing = selected["grouped_metrics"]["finishing_output"]
+        self.assertEqual(finishing["raw_counts"]["shots"], 14)
+        self.assertEqual(finishing["per90_counts"]["goals"], 0.8)
+        self.assertEqual(finishing["raw_rate_totals"]["xg"], 2.8)
+        self.assertEqual(finishing["per90_rate_metrics"]["xg"], 0.62)
+
+        creation = selected["grouped_metrics"]["chance_creation"]
+        self.assertEqual(creation["raw_counts"]["shot_assists"], 3)
+        self.assertEqual(creation["per90_counts"]["through_balls"], 0.4)
+
+        link_play = selected["grouped_metrics"]["link_play"]
+        self.assertEqual(link_play["raw_counts"]["passes_attempted"], 99)
+        self.assertEqual(link_play["context_metrics"]["pass_completion_pct"], 68.69)
+
+        pressing = selected["grouped_metrics"]["pressing_contribution"]
+        self.assertEqual(pressing["raw_counts"]["pressures"], 38)
+        self.assertEqual(pressing["per90_counts"]["ball_recoveries"], 1.4)
+
+        self.assertEqual(
+            {item["metric"] for item in profile["not_yet_available"]},
+            {"touches_in_box", "aerial_duel_success", "finishing_efficiency"},
+        )
+        self.assertNotIn("rating", selected)
+        self.assertIn("No striker rating or ranking", profile["interpretation_limits"][0])
+
+    def test_striker_profile_does_not_fabricate_per90_or_finishing_metrics(self):
+        profile = build_striker_profile([{
+            "player_id": 60,
+            "player_name": "Unverified Striker",
+            "positions_seen": ["Right Center Forward"],
+            "metrics": {"shots": 5, "goals": 1, "xg": 0.8, "pressures": 12},
+            "per90_metrics": None,
+        }])
+        player = profile["players"][0]
+        self.assertEqual(
+            player["grouped_metrics"]["finishing_output"]["raw_counts"]["shots"],
+            5,
+        )
+        self.assertEqual(
+            player["grouped_metrics"]["finishing_output"]["per90_counts"],
+            {},
+        )
+        self.assertEqual(
+            player["grouped_metrics"]["finishing_output"]["per90_rate_metrics"],
+            {},
+        )
+        self.assertEqual(
+            {item["metric"] for item in profile["not_yet_available"]},
+            {"touches_in_box", "aerial_duel_success", "finishing_efficiency"},
+        )
+
+    def test_striker_position_filter_excludes_wingers_and_midfielders(self):
+        profile = build_striker_profile([
+            {"player_id": 1, "player_name": "Center Forward", "positions_seen": ["Center Forward"]},
+            {"player_id": 2, "player_name": "Left Center Forward", "positions_seen": ["Left Center Forward"]},
+            {"player_id": 3, "player_name": "Right Center Forward", "positions_seen": ["Right Center Forward"]},
+            {"player_id": 4, "player_name": "Striker", "positions_seen": ["Striker"]},
+            {"player_id": 5, "player_name": "Left Winger", "positions_seen": ["Left Wing"]},
+            {"player_id": 6, "player_name": "Attacking Midfielder", "positions_seen": ["Center Attacking Midfield"]},
+            {"player_id": 7, "player_name": "Mixed Role", "positions_seen": ["Center Forward", "Right Wing"]},
+            {"player_id": 8, "player_name": "Wide Forward", "positions_seen": ["Left Forward"]},
+        ])
+        self.assertEqual(profile["player_count"], 5)
+        self.assertEqual(
+            {row["player_id"] for row in profile["players"]},
+            {1, 2, 3, 4, 7},
+        )
+        mixed = next(row for row in profile["players"] if row["player_id"] == 7)
+        self.assertEqual(mixed["striker_position_labels"], ["Center Forward"])
+        self.assertEqual(mixed["positions_seen"], ["Center Forward", "Right Wing"])
 
     def test_cache_json_records_content_hash(self):
         with tempfile.TemporaryDirectory() as directory:
