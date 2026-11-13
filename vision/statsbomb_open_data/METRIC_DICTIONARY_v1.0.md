@@ -47,6 +47,29 @@ These rates describe recorded event volume per 90 minutes. They are not
 percentiles, peer rankings, role-adjusted measures, player ratings or scout
 verdicts.
 
+## Player-level data quality indicator
+
+The aggregate player record and CSV include a transparent `data_quality_status`
+with supporting reason codes and boolean checks. It describes data availability
+inside the selected sample; it is not a measure of player ability, scouting
+confidence or sample representativeness.
+
+| Status | Rule |
+|---|---|
+| `complete` | At least one appearance-evidence match, at least one attributed event, and verified positive minutes across all player match records in the selected sample |
+| `partial` | Appearance evidence and attributed events exist, but minutes are incomplete or no positive verified total is available |
+| `insufficient` | No appearance evidence or no attributed events are available for the player in the selected sample |
+
+Possible reason codes are `no_appearance_evidence`, `no_attributed_events`,
+`minutes_calculation_incomplete` and `no_positive_verified_minutes`.
+The JSON `data_quality.checks` object also records whether per-90 values are
+available. CSV exports flatten the status, reason codes and core checks into
+separate columns.
+
+A `complete` status means only that these core checks passed for this selected
+sample. It does not mean that the sample is large, that every event type is
+captured, or that the player has been evaluated fairly against peers.
+
 ## Rules
 
 1. Produce per-90 values only from validated, positive on-pitch minutes; otherwise leave them unavailable.
