@@ -490,3 +490,29 @@ pressing opportunities, or score effects on player actions. Those require
 separately validated event-level logic and must not be inferred from the final
 score alone.
 
+
+### Event-time score-state timeline
+
+Each match report now includes a `match_context.score_state_timeline` block.
+The timeline reads goal events in `period` then `index` order and records
+the score and each team's leading/drawing/trailing state immediately after
+each goal. The listed final score is used as a reconciliation check, not as a
+source for inventing missing goal events.
+
+A scoring event is counted when it is a `Shot` with `shot.outcome = Goal`,
+or an `Own Goal For` event. The corresponding `Own Goal Against` record is
+not counted as a second goal. Period 5 penalty-shootout events are excluded
+from the match score timeline.
+
+The timeline is marked `validated` only when event ordering fields are
+usable, scoring teams can be resolved to the match's home/away teams, and the
+reconstructed score equals the listed final score. Missing/ambiguous fields
+produce `unavailable`; a score disagreement produces
+`reconciliation_mismatch`. Consumers must not use an unvalidated timeline
+to classify player actions.
+
+This first step provides goal-by-goal match state only. It does not yet label
+each player event as occurring while their team was leading, drawing or
+trailing, and it does not calculate possession-adjusted or score-adjusted
+performance metrics.
+
