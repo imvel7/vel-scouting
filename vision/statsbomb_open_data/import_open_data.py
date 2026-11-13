@@ -123,6 +123,42 @@ def _normalise_player_name(value: Any) -> str | None:
     return normalised
 
 
+def find_player_name_collisions(
+    players: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Find exact normalized names associated with multiple source player IDs."""
+    grouped: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
+    for player in players:
+        normalised = _normalise_player_name(player.get("player_name"))
+        player_id = player.get("player_id")
+        if normalised is None or player_id is None:
+            continue
+        grouped[normalised].setdefault(str(player_id), player)
+
+    collisions = []
+    for normalised, by_id in grouped.items():
+        if len(by_id) < 2:
+            continue
+        entries = []
+        for player_id in sorted(by_id):
+            player = by_id[player_id]
+            entries.append({
+                "player_id": player.get("player_id"),
+                "identity_key": f"statsbomb:{player_id}",
+                "player_name": player.get("player_name"),
+                "team_names": player.get("team_names") or [],
+                "matches_listed_in_squads": player.get("matches_listed_in_squads", 0),
+            })
+        collisions.append({
+            "normalized_name": normalised,
+            "display_name": entries[0]["player_name"],
+            "player_ids": [entry["player_id"] for entry in entries],
+            "players": entries,
+        })
+
+    return sorted(collisions, key=lambda item: item["normalized_name"])
+
+
 def calculate_player_identity(
     player: dict[str, Any],
     match_rows: list[dict[str, Any]],
@@ -1073,6 +1109,17 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
         aggregate_rows.append(aggregate_row)
     aggregate_rows.sort(key=lambda row: row["player_name"].casefold())
 
+    name_collisions = find_player_name_collisions(aggregate_rows)
+    collision_ids_by_player: dict[str, set[str]] = defaultdict(set)
+    for collision in name_collisions:
+        collision_ids = {str(value) for value in collision["player_ids"]}
+        for player_id in collision_ids:
+            collision_ids_by_player[player_id].update(collision_ids - {player_id})
+    for player in aggregate_rows:
+        other_ids = sorted(collision_ids_by_player.get(str(player["player_id"]), set()))
+        player["identity"]["possible_same_name_collision"] = bool(other_ids)
+        player["identity"]["other_same_name_player_ids"] = other_ids
+
     report = {
         "report_type": "statsbomb_import_quality_and_event_profile",
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -1101,6 +1148,10 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "selected_match_ids": [row["match"]["match_id"] for row in analysed_matches],
             "event_count": sum(row["quality"]["event_count"] for row in analysed_matches),
             "unique_players_listed_or_seen": len(all_players),
+            "possible_same_name_collision_groups": len(name_collisions),
+            "players_in_possible_name_collisions": sum(
+                len(item["player_ids"]) for item in name_collisions
+            ),
             "event_players_missing_from_lineups": sum(
                 row["quality"]["event_player_not_in_lineup_count"] for row in analysed_matches
             ),
@@ -1118,6 +1169,10 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
         "source_files": provenance,
         "matches": analysed_matches,
         "player_sample_totals": aggregate_rows,
+        "player_identity_review": {
+            "matching_rule": "case-insensitive exact name after whitespace normalization; source IDs remain separate",
+            "same_name_different_ids": name_collisions,
+        },
         "role_profiles": {
             "CB": build_cb_profile(aggregate_rows),
         },
@@ -1140,6 +1195,7 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "data_consistency_match_records",
             "player_identity_key", "player_identity_status",
             "player_identity_reasons", "player_identity_name_variants",
+            "possible_same_name_collision", "other_same_name_player_ids",
             *COUNTER_FIELDS, "pass_completion_pct", "pass_length_mean", "xg",
             *[f"per90_{field}" for field in (*COUNTER_FIELDS, "xg")],
         ]
@@ -1168,6 +1224,8 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 "player_identity_status": row["identity"]["status"],
                 "player_identity_reasons": " | ".join(row["identity"]["reasons"]),
                 "player_identity_name_variants": " | ".join(row["identity"]["name_variants"]),
+                "possible_same_name_collision": row["identity"]["possible_same_name_collision"],
+                "other_same_name_player_ids": " | ".join(row["identity"]["other_same_name_player_ids"]),
                 **row["metrics"],
                 **{
                     f"per90_{field}": (row.get("per90_metrics") or {}).get(field)
