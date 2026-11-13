@@ -252,6 +252,8 @@ def calculate_minutes_played(events: Any) -> dict[str, Any]:
     periods_closed: set[int] = set()
     current_period: int | None = None
     last_time = 0.0
+    last_event_index: Any = None
+    last_event_type: str | None = None
     starting_xi_count = 0
 
     def remember_player(player: Any) -> str | None:
@@ -307,7 +309,10 @@ def calculate_minutes_played(events: Any) -> dict[str, Any]:
             errors.append(f"Period {period}, Half End sonrasında yeni event içeriyor.")
         if event_time < last_time:
             errors.append(
-                f"Period {period} maç saati geriye gidiyor: {event_time} < {last_time}."
+                f"Period {period} maç saati geriye gidiyor: "
+                f"event index={event.get('index')} type={event_type} "
+                f"clock={event_time}; previous index={last_event_index} "
+                f"type={last_event_type} clock={last_time}."
             )
             continue
 
@@ -316,6 +321,8 @@ def calculate_minutes_played(events: Any) -> dict[str, Any]:
             for player_id in active:
                 seconds_by_player[player_id] += delta
         last_time = event_time
+        last_event_index = event.get("index")
+        last_event_type = event_type
 
         if event_type == "Starting XI":
             tactics = event.get("tactics") or {}
