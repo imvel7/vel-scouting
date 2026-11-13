@@ -495,6 +495,33 @@ class StatsBombImportTests(unittest.TestCase):
             durations["total_seconds"],
         )
 
+    def test_score_state_durations_accept_paired_team_period_boundaries(self):
+        match = {
+            **MATCH,
+            "home_team": {**MATCH["home_team"], "home_team_id": 1},
+            "away_team": {**MATCH["away_team"], "away_team_id": 2},
+            "home_score": 0,
+            "away_score": 0,
+        }
+        events = [
+            self._starting_xi(1, 1, [10]),
+            self._starting_xi(2, 2, [20]),
+            self._clock_event(3, 1, "00:00:00.000", "Half Start"),
+            self._clock_event(4, 1, "00:00:00.000", "Half Start"),
+            self._clock_event(5, 1, "00:45:00.000", "Half End"),
+            self._clock_event(6, 1, "00:45:00.000", "Half End"),
+            self._clock_event(7, 2, "00:00:00.000", "Half Start"),
+            self._clock_event(8, 2, "00:00:00.000", "Half Start"),
+            self._clock_event(9, 2, "00:45:00.000", "Half End"),
+            self._clock_event(10, 2, "00:45:00.000", "Half End"),
+        ]
+        timeline = calculate_match_score_timeline(match, events)
+        result = calculate_score_state_durations(match, events, timeline)
+        self.assertEqual(result["status"], "validated")
+        self.assertEqual(result["total_seconds"], 90 * 60)
+        self.assertEqual(result["home_team_seconds_by_state"]["drawing"], 90 * 60)
+        self.assertEqual(result["away_team_seconds_by_state"]["drawing"], 90 * 60)
+
     def test_score_state_durations_fail_closed_without_period_boundaries(self):
         match = {
             **MATCH,
