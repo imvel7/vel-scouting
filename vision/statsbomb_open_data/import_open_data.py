@@ -44,6 +44,18 @@ METRIC_DEFINITIONS = {
     "blocks": "Count of Block events attributed to the player.",
     "tackles": "Duel events whose duel.type.name is Tackle.",
     "dribbles": "Count of Dribble events attributed to the player.",
+    "goalkeeper_actions": "Count of Goal Keeper events; StatsBomb records attempts, not only successful actions.",
+    "goalkeeper_saves": "Goal Keeper events with type Penalty Saved, Penalty Saved to Post, Shot Saved, Shot Saved Off Target or Shot Saved to Post.",
+    "goalkeeper_shots_faced": "Goal Keeper events with type Shot Faced.",
+    "goalkeeper_goals_conceded": "Goal Keeper events with type Goal Conceded.",
+    "goalkeeper_collections": "Goal Keeper events with type Collected.",
+    "goalkeeper_punches": "Goal Keeper events with type Punch.",
+    "goalkeeper_sweeps": "Goal Keeper events with type Keeper Sweeper or Keeper Sweep.",
+    "goalkeeper_smotherings": "Goal Keeper events with type Smother.",
+    "goalkeeper_penalty_saves": "Goal Keeper events with type Penalty Saved or Penalty Saved to Post.",
+    "goalkeeper_penalties_conceded": "Goal Keeper events with type Penalty Conceded.",
+    "goalkeeper_unclassified_actions": "Goal Keeper events with a missing or unrecognized goalkeeper type.",
+    "goal_kicks": "Pass events whose pass.type.name is Goal Kick.",
     "per90_metrics": "Count metrics and total xG per 90 verified on-pitch minutes; null when minutes are unavailable or zero. Percentages and means are excluded.",
     "data_quality": "Selected-sample availability checks for appearance evidence, attributed events and verified positive minutes; not a player rating.",
     "data_consistency": "Reconciliation of selected-match records against aggregate counts, xG, minutes and per-90 calculations.",
@@ -54,6 +66,11 @@ COUNTER_FIELDS = (
     "through_balls", "assists", "shot_assists", "carries", "shots",
     "goals", "pressures", "interceptions", "ball_recoveries",
     "clearances", "blocks", "tackles", "dribbles",
+    "goalkeeper_actions", "goalkeeper_saves", "goalkeeper_shots_faced",
+    "goalkeeper_goals_conceded", "goalkeeper_collections",
+    "goalkeeper_punches", "goalkeeper_sweeps", "goalkeeper_smotherings",
+    "goalkeeper_penalty_saves", "goalkeeper_penalties_conceded",
+    "goalkeeper_unclassified_actions", "goal_kicks",
 )
 
 
@@ -990,6 +1007,8 @@ def analyse_match(match: dict[str, Any], lineups: Any,
                 row["assists"] += 1
             if pass_data.get("shot_assist") is True:
                 row["shot_assists"] += 1
+            if _name(pass_data.get("type")) == "Goal Kick":
+                row["goal_kicks"] += 1
         elif event_type == "Carry":
             row["carries"] += 1
         elif event_type == "Shot":
@@ -999,6 +1018,37 @@ def analyse_match(match: dict[str, Any], lineups: Any,
                 row["goals"] += 1
             if _finite(shot.get("statsbomb_xg")):
                 xg_values[player_key].append(float(shot["statsbomb_xg"]))
+        elif event_type == "Goal Keeper":
+            goalkeeper = event.get("goalkeeper") or {}
+            goalkeeper_type = _name(goalkeeper.get("type"))
+            normalized_type = goalkeeper_type.casefold() if goalkeeper_type else ""
+            row["goalkeeper_actions"] += 1
+            if normalized_type in {
+                "penalty saved", "penalty saved to post", "shot saved",
+                "shot saved off target", "shot saved to post",
+            }:
+                row["goalkeeper_saves"] += 1
+            if normalized_type in {"penalty saved", "penalty saved to post"}:
+                row["goalkeeper_penalty_saves"] += 1
+            if normalized_type == "shot faced":
+                row["goalkeeper_shots_faced"] += 1
+            elif normalized_type == "goal conceded":
+                row["goalkeeper_goals_conceded"] += 1
+            elif normalized_type == "collected":
+                row["goalkeeper_collections"] += 1
+            elif normalized_type == "punch":
+                row["goalkeeper_punches"] += 1
+            elif normalized_type in {"keeper sweeper", "keeper sweep", "keeper pick-up", "keeper pick up"}:
+                row["goalkeeper_sweeps"] += 1
+            elif normalized_type == "smother":
+                row["goalkeeper_smotherings"] += 1
+            elif normalized_type == "penalty conceded":
+                row["goalkeeper_penalties_conceded"] += 1
+            elif normalized_type not in {
+                "penalty saved", "penalty saved to post", "shot saved",
+                "shot saved off target", "shot saved to post",
+            }:
+                row["goalkeeper_unclassified_actions"] += 1
         elif event_type == "Pressure":
             row["pressures"] += 1
         elif event_type == "Interception":
@@ -1598,6 +1648,156 @@ def build_striker_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 
+
+GOALKEEPER_METRIC_GROUPS = (
+    {
+        "code": "shot_stopping",
+        "label": "Shot stopping",
+        "count_metrics": (
+            "goalkeeper_saves", "goalkeeper_shots_faced",
+            "goalkeeper_goals_conceded", "goalkeeper_penalty_saves",
+            "goalkeeper_penalties_conceded",
+        ),
+        "context_metrics": (),
+        "description": "Recorded goalkeeper save, shot-faced and concession event types.",
+    },
+    {
+        "code": "area_control",
+        "label": "Area control",
+        "count_metrics": (
+            "goalkeeper_collections", "goalkeeper_punches",
+            "goalkeeper_sweeps", "goalkeeper_smotherings",
+        ),
+        "context_metrics": (),
+        "description": "Recorded collections, punches, sweeps and smother actions.",
+    },
+    {
+        "code": "distribution",
+        "label": "Distribution and restarts",
+        "count_metrics": (
+            "passes_attempted", "passes_completed", "goal_kicks",
+        ),
+        "context_metrics": ("pass_completion_pct", "pass_length_mean"),
+        "description": "Recorded passing volume, goal kicks and pass-length/completion context.",
+    },
+)
+
+
+def _is_goalkeeper_position(position: Any) -> bool:
+    """Match only explicit goalkeeper position labels."""
+    if not isinstance(position, str):
+        return False
+    normalized = " ".join(position.casefold().split())
+    return normalized in {"goalkeeper", "goal keeper", "keeper"}
+
+
+def build_goalkeeper_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Group recorded goalkeeper events and distribution; this is not a rating."""
+    goalkeepers = []
+    for player in player_rows:
+        positions = player.get("positions_seen") or []
+        goalkeeper_positions = sorted({
+            " ".join(position.split())
+            for position in positions
+            if _is_goalkeeper_position(position)
+        }, key=str.casefold)
+        if not goalkeeper_positions:
+            continue
+
+        metrics = player.get("metrics") or {}
+        per90 = player.get("per90_metrics") or {}
+        grouped_metrics = {}
+        for group in GOALKEEPER_METRIC_GROUPS:
+            count_fields = group["count_metrics"]
+            context_fields = group["context_metrics"]
+            grouped_metrics[group["code"]] = {
+                "raw_counts": {key: metrics.get(key) for key in count_fields},
+                "per90_counts": {
+                    key: per90.get(key) for key in count_fields if key in per90
+                },
+                "context_metrics": {
+                    key: metrics.get(key) for key in context_fields
+                },
+            }
+
+        goalkeepers.append({
+            "player_id": player.get("player_id"),
+            "player_name": player.get("player_name"),
+            "team_names": player.get("team_names") or [],
+            "positions_seen": positions,
+            "goalkeeper_position_labels": goalkeeper_positions,
+            "matches_listed_in_squads": player.get("matches_listed_in_squads", 0),
+            "matches_with_appearance_evidence": player.get(
+                "matches_with_appearance_evidence", 0
+            ),
+            "minutes_played": player.get("minutes_played"),
+            "per90_metrics": player.get("per90_metrics"),
+            "grouped_metrics": grouped_metrics,
+            "data_quality": player.get("data_quality"),
+            "data_consistency": player.get("data_consistency"),
+            "identity": player.get("identity"),
+            "metrics": {
+                key: metrics.get(key)
+                for key in (
+                    "goalkeeper_actions", "goalkeeper_saves",
+                    "goalkeeper_shots_faced", "goalkeeper_goals_conceded",
+                    "goalkeeper_collections", "goalkeeper_punches",
+                    "goalkeeper_sweeps", "goalkeeper_smotherings",
+                    "goalkeeper_penalty_saves", "goalkeeper_penalties_conceded",
+                    "goalkeeper_unclassified_actions", "passes_attempted",
+                    "passes_completed", "pass_completion_pct",
+                    "pass_length_mean", "goal_kicks",
+                )
+            },
+        })
+
+    goalkeepers.sort(key=lambda row: str(row.get("player_name") or "").casefold())
+    return {
+        "role_code": "GK",
+        "role_name": "Goalkeeper",
+        "position_labels_included": ["Goalkeeper"],
+        "metric_mode": "grouped_raw_event_counts_with_verified_per90_rates",
+        "metric_groups": [
+            {
+                "code": group["code"],
+                "label": group["label"],
+                "count_metrics": list(group["count_metrics"]),
+                "context_metrics": list(group["context_metrics"]),
+                "description": group["description"],
+            }
+            for group in GOALKEEPER_METRIC_GROUPS
+        ],
+        "player_count": len(goalkeepers),
+        "players": goalkeepers,
+        "not_yet_available": [
+            {
+                "metric": "save_percentage",
+                "reason": "A complete and validated shots-faced denominator has not been established for the current Open Data sample.",
+            },
+            {
+                "metric": "post_shot_xg_or_goals_prevented",
+                "reason": "The current importer does not calculate a validated post-shot expected-goals or goals-prevented model.",
+            },
+            {
+                "metric": "cross_claim_rate",
+                "reason": "Cross-claim opportunities and outcomes are not yet modelled as a validated denominator and numerator.",
+            },
+            {
+                "metric": "distribution_long_ball_accuracy",
+                "reason": "Pass length and completion are available, but a validated long-ball classification and accuracy metric is not yet implemented.",
+            },
+        ],
+        "interpretation_limits": [
+            "No goalkeeper rating or ranking is calculated.",
+            "StatsBomb Goal Keeper events are action records and can represent attempts; a recorded event does not always prove the action succeeded.",
+            "Per-90 event counts are included only when derived from complete, positive verified minutes.",
+            "Pass completion and average pass length describe recorded distribution only; they do not independently measure decision quality.",
+            "The profile does not measure positioning, reaction quality, starting position, communication or command of the penalty area.",
+        ],
+    }
+
+
+
 CM_METRIC_GROUPS = (
     {
         "code": "distribution_progression",
@@ -2032,6 +2232,7 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "CM": build_central_midfield_profile(aggregate_rows),
             "W": build_winger_profile(aggregate_rows),
             "ST": build_striker_profile(aggregate_rows),
+            "GK": build_goalkeeper_profile(aggregate_rows),
         },
     }
 
