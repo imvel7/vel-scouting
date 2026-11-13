@@ -1434,6 +1434,170 @@ def build_winger_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 
+
+STRIKER_METRIC_GROUPS = (
+    {
+        "code": "finishing_output",
+        "label": "Finishing and shot output",
+        "count_metrics": ("shots", "goals"),
+        "rate_metrics": ("xg",),
+        "context_metrics": (),
+        "description": "Recorded shots, goals and expected-goals total.",
+    },
+    {
+        "code": "chance_creation",
+        "label": "Chance creation and combination",
+        "count_metrics": ("shot_assists", "assists", "through_balls"),
+        "rate_metrics": (),
+        "context_metrics": (),
+        "description": "Recorded shot assists, assists and through balls.",
+    },
+    {
+        "code": "link_play",
+        "label": "Link play and ball retention",
+        "count_metrics": (
+            "passes_attempted", "passes_completed", "carries", "dribbles",
+        ),
+        "rate_metrics": (),
+        "context_metrics": ("pass_completion_pct", "pass_length_mean"),
+        "description": "Recorded passing, carries and dribbles.",
+    },
+    {
+        "code": "pressing_contribution",
+        "label": "Pressing and defensive contribution",
+        "count_metrics": (
+            "pressures", "tackles", "interceptions", "ball_recoveries",
+        ),
+        "rate_metrics": (),
+        "context_metrics": (),
+        "description": "Recorded pressures, tackle-type duels, interceptions and recoveries.",
+    },
+)
+
+
+def _is_centre_forward_position(position: Any) -> bool:
+    """Recognize central-forward and striker labels, excluding wide forwards."""
+    if not isinstance(position, str):
+        return False
+    normalized = " ".join(position.casefold().split())
+    if not normalized or "wing" in normalized:
+        return False
+    tokens = set(normalized.split())
+    if "striker" in tokens:
+        return True
+    return "forward" in tokens and bool({"center", "centre"} & tokens)
+
+
+def build_striker_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Group central-forward event metrics; this is not a finishing rating."""
+    strikers = []
+    for player in player_rows:
+        positions = player.get("positions_seen") or []
+        striker_positions = sorted({
+            " ".join(position.split())
+            for position in positions
+            if _is_centre_forward_position(position)
+        }, key=str.casefold)
+        if not striker_positions:
+            continue
+
+        metrics = player.get("metrics") or {}
+        per90 = player.get("per90_metrics") or {}
+        grouped_metrics = {}
+        for group in STRIKER_METRIC_GROUPS:
+            count_fields = group["count_metrics"]
+            rate_fields = group["rate_metrics"]
+            context_fields = group["context_metrics"]
+            grouped_metrics[group["code"]] = {
+                "raw_counts": {key: metrics.get(key) for key in count_fields},
+                "per90_counts": {
+                    key: per90.get(key) for key in count_fields if key in per90
+                },
+                "raw_rate_totals": {key: metrics.get(key) for key in rate_fields},
+                "per90_rate_metrics": {
+                    key: per90.get(key) for key in rate_fields if key in per90
+                },
+                "context_metrics": {
+                    key: metrics.get(key) for key in context_fields
+                },
+            }
+
+        strikers.append({
+            "player_id": player.get("player_id"),
+            "player_name": player.get("player_name"),
+            "team_names": player.get("team_names") or [],
+            "positions_seen": positions,
+            "striker_position_labels": striker_positions,
+            "matches_listed_in_squads": player.get("matches_listed_in_squads", 0),
+            "matches_with_appearance_evidence": player.get(
+                "matches_with_appearance_evidence", 0
+            ),
+            "minutes_played": player.get("minutes_played"),
+            "per90_metrics": player.get("per90_metrics"),
+            "grouped_metrics": grouped_metrics,
+            "data_quality": player.get("data_quality"),
+            "data_consistency": player.get("data_consistency"),
+            "identity": player.get("identity"),
+            "metrics": {
+                key: metrics.get(key)
+                for key in (
+                    "shots", "goals", "xg", "shot_assists", "assists",
+                    "through_balls", "passes_attempted", "passes_completed",
+                    "pass_completion_pct", "pass_length_mean", "carries",
+                    "dribbles", "pressures", "tackles", "interceptions",
+                    "ball_recoveries",
+                )
+            },
+        })
+
+    strikers.sort(key=lambda row: str(row.get("player_name") or "").casefold())
+    return {
+        "role_code": "ST",
+        "role_name": "Striker / Centre-forward",
+        "position_labels_included": [
+            "Center Forward", "Left Center Forward", "Right Center Forward",
+            "Striker", "Second Striker", "Secondary Striker",
+        ],
+        "metric_mode": "grouped_raw_event_counts_with_verified_per90_rates",
+        "metric_groups": [
+            {
+                "code": group["code"],
+                "label": group["label"],
+                "count_metrics": list(group["count_metrics"]),
+                "rate_metrics": list(group["rate_metrics"]),
+                "context_metrics": list(group["context_metrics"]),
+                "description": group["description"],
+            }
+            for group in STRIKER_METRIC_GROUPS
+        ],
+        "player_count": len(strikers),
+        "players": strikers,
+        "not_yet_available": [
+            {
+                "metric": "touches_in_box",
+                "reason": "The current importer does not calculate a validated penalty-area touch metric.",
+            },
+            {
+                "metric": "aerial_duel_success",
+                "reason": "Aerial-duel classification and outcomes have not been separately validated.",
+            },
+            {
+                "metric": "finishing_efficiency",
+                "reason": "Shots and xG are descriptive event totals; no calibrated finishing model is implemented.",
+            },
+        ],
+        "interpretation_limits": [
+            "No striker rating or ranking is calculated.",
+            "Raw event counts depend on selected minutes, team possession, role, match state and opponent context.",
+            "Per-90 values are included only when derived from complete, positive verified minutes.",
+            "Shots, goals and xG describe recorded output; they do not independently measure shot selection or finishing skill.",
+            "The groups do not measure off-ball movement, pressing triggers, hold-up quality, aerial timing or tactical decision quality.",
+            "Players with more than one observed position retain all source position labels; the profile does not infer one primary striker role.",
+        ],
+    }
+
+
+
 CM_METRIC_GROUPS = (
     {
         "code": "distribution_progression",
@@ -1867,6 +2031,7 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "FB": build_fullback_profile(aggregate_rows),
             "CM": build_central_midfield_profile(aggregate_rows),
             "W": build_winger_profile(aggregate_rows),
+            "ST": build_striker_profile(aggregate_rows),
         },
     }
 
