@@ -400,6 +400,8 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertEqual(comparison["player_count"], 1)
         player = comparison["players"][0]
         self.assertEqual(player["identity_key"], "statsbomb:10")
+        self.assertEqual(player["seasons"][0]["player_name"], "Example Player")
+        self.assertEqual(player["seasons"][1]["player_name"], "Example Player")
         self.assertEqual(player["seasons"][1]["previous_season"], "2022")
         self.assertEqual(player["seasons"][1]["per90_change_from_previous"]["events"], 10.0)
         self.assertEqual(player["seasons"][1]["per90_change_from_previous"]["xg"], 0.1)
@@ -437,6 +439,8 @@ class StatsBombImportTests(unittest.TestCase):
             "sample": {"selected_match_count": 1},
             "player_sample_totals": [],
         }
+        with self.assertRaisesRegex(ValueError, "nesnesi"):
+            build_player_season_comparison([None, base])
         with self.assertRaisesRegex(ValueError, "tek bir turnuva"):
             build_player_season_comparison([base, mixed])
         with self.assertRaisesRegex(ValueError, "birden fazla"):
