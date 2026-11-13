@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import analyse_match, build_cb_profile, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, fetch_json, run_import, ImportErrorWithContext
+from import_open_data import analyse_match, build_cb_profile, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, ImportErrorWithContext
 
 
 MATCH = {
@@ -351,6 +351,120 @@ class StatsBombImportTests(unittest.TestCase):
             {"player_id": 22, "player_name": "Unknown player 22"},
         ])
         self.assertEqual(collisions, [])
+
+    def test_season_comparison_matches_same_source_player_across_seasons(self):
+        reports = [
+            {
+                "competition_season": {
+                    "competition_id": 43,
+                    "competition_name": "FIFA World Cup",
+                    "season_id": 106,
+                    "season_name": "2022",
+                },
+                "sample": {"selected_match_count": 3},
+                "player_sample_totals": [{
+                    "player_id": 10,
+                    "player_name": "Example Player",
+                    "matches_listed_in_squads": 3,
+                    "matches_with_appearance_evidence": 3,
+                    "minutes_played": 270.0,
+                    "per90_metrics": {"events": 80.0, "passes_attempted": 40.0, "xg": 0.2},
+                    "data_quality": {"status": "complete"},
+                    "data_consistency": {"status": "consistent"},
+                    "identity": {"status": "consistent"},
+                }],
+            },
+            {
+                "competition_season": {
+                    "competition_id": 43,
+                    "competition_name": "FIFA World Cup",
+                    "season_id": 107,
+                    "season_name": "2023",
+                },
+                "sample": {"selected_match_count": 4},
+                "player_sample_totals": [{
+                    "player_id": 10,
+                    "player_name": "Example Player",
+                    "matches_listed_in_squads": 4,
+                    "matches_with_appearance_evidence": 4,
+                    "minutes_played": 360.0,
+                    "per90_metrics": {"events": 90.0, "passes_attempted": 45.0, "xg": 0.3},
+                    "data_quality": {"status": "complete"},
+                    "data_consistency": {"status": "consistent"},
+                    "identity": {"status": "consistent"},
+                }],
+            },
+        ]
+        comparison = build_player_season_comparison(reports)
+        self.assertEqual(comparison["season_count"], 2)
+        self.assertEqual(comparison["player_count"], 1)
+        player = comparison["players"][0]
+        self.assertEqual(player["identity_key"], "statsbomb:10")
+        self.assertEqual(player["seasons"][1]["previous_season"], "2022")
+        self.assertEqual(player["seasons"][1]["per90_change_from_previous"]["events"], 10.0)
+        self.assertEqual(player["seasons"][1]["per90_change_from_previous"]["xg"], 0.1)
+
+    def test_season_comparison_omits_players_not_found_in_both_seasons(self):
+        reports = [
+            {
+                "competition_season": {"competition_id": 43, "season_id": 106, "season_name": "2022"},
+                "sample": {"selected_match_count": 1},
+                "player_sample_totals": [{"player_id": 10, "player_name": "Returning Player", "per90_metrics": {"events": 80}}],
+            },
+            {
+                "competition_season": {"competition_id": 43, "season_id": 107, "season_name": "2023"},
+                "sample": {"selected_match_count": 1},
+                "player_sample_totals": [{"player_id": 20, "player_name": "New Player", "per90_metrics": {"events": 90}}],
+            },
+        ]
+        comparison = build_player_season_comparison(reports)
+        self.assertEqual(comparison["player_count"], 0)
+        self.assertEqual(comparison["players"], [])
+
+    def test_season_comparison_rejects_mixed_competitions_and_duplicate_seasons(self):
+        base = {
+            "competition_season": {"competition_id": 43, "season_id": 106, "season_name": "2022"},
+            "sample": {"selected_match_count": 1},
+            "player_sample_totals": [],
+        }
+        mixed = {
+            "competition_season": {"competition_id": 44, "season_id": 107, "season_name": "2023"},
+            "sample": {"selected_match_count": 1},
+            "player_sample_totals": [],
+        }
+        duplicate = {
+            "competition_season": {"competition_id": 43, "season_id": 106, "season_name": "2022"},
+            "sample": {"selected_match_count": 1},
+            "player_sample_totals": [],
+        }
+        with self.assertRaisesRegex(ValueError, "tek bir turnuva"):
+            build_player_season_comparison([base, mixed])
+        with self.assertRaisesRegex(ValueError, "birden fazla"):
+            build_player_season_comparison([base, duplicate])
+
+    def test_season_comparison_leaves_per90_changes_unavailable_when_minutes_missing(self):
+        reports = [
+            {
+                "competition_season": {"competition_id": 43, "season_id": 106, "season_name": "2022"},
+                "sample": {"selected_match_count": 1},
+                "player_sample_totals": [{"player_id": 10, "player_name": "Player", "per90_metrics": None}],
+            },
+            {
+                "competition_season": {"competition_id": 43, "season_id": 107, "season_name": "2023"},
+                "sample": {"selected_match_count": 1},
+                "player_sample_totals": [{"player_id": 10, "player_name": "Player", "per90_metrics": {"events": 75.0}}],
+            },
+        ]
+        comparison = build_player_season_comparison(reports)
+        latest = comparison["players"][0]["seasons"][1]
+        self.assertIsNone(latest["per90_change_from_previous"])
+
+    def test_cli_accepts_multiple_comparison_report_paths(self):
+        args = build_parser().parse_args([
+            "--compare-report", "season-2022.json",
+            "--compare-report", "season-2023.json",
+        ])
+        self.assertEqual(args.compare_report, ["season-2022.json", "season-2023.json"])
 
     def test_player_data_consistency_accepts_matching_match_totals(self):
         metrics = {
