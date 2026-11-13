@@ -470,3 +470,23 @@ identified with a centre-back role label and appearance evidence across all
 three sample matches, and that the CB profile contained attributed passing
 events. This validates the technical path only. It is not a scouting evaluation
 of Romero and not evidence of contemporary youth-player data coverage.
+
+
+### Match context metadata
+
+Each match report now exposes the source-provided context fields when present:
+kick-off time, competition stage, match week, match status, stadium, referee,
+and home/away group labels. The `source_field_availability` map indicates
+which of these fields were actually supplied for that match.
+
+The listed home/away score is validated as a pair of non-negative integers
+before a result label and home goal difference are derived. Incomplete or
+invalid score data leaves the derived result and goal difference unavailable;
+the importer does not fill missing values.
+
+This is match-level metadata, not a player-performance adjustment. It does
+not reconstruct event-time score state, possession, opponent strength,
+pressing opportunities, or score effects on player actions. Those require
+separately validated event-level logic and must not be inferred from the final
+score alone.
+

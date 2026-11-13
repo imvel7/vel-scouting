@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import analyse_match, build_cb_profile, build_goalkeeper_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_striker_profile, build_role_benchmarks, BENCHMARK_METRIC_GUIDANCE, ROLE_BENCHMARK_METRICS, build_player_evaluation_readiness, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
+from import_open_data import extract_match_context, analyse_match, build_cb_profile, build_goalkeeper_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_striker_profile, build_role_benchmarks, BENCHMARK_METRIC_GUIDANCE, ROLE_BENCHMARK_METRICS, build_player_evaluation_readiness, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
 
 
 MATCH = {
@@ -224,6 +224,68 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertFalse(result["valid"])
         self.assertEqual(result["seconds_by_player"], {})
         self.assertTrue(any("Half End" in error for error in result["errors"]))
+
+    def test_extract_match_context_includes_source_metadata_and_scoreline_result(self):
+        match = {
+            **MATCH,
+            "kick_off": "17:00:00.000",
+            "competition_stage": {"id": 26, "name": "Final"},
+            "match_week": 7,
+            "match_status": "available",
+            "stadium": {"id": 1001114, "name": "Lusail Stadium"},
+            "referee": {"id": 367, "name": "Szymon Marciniak"},
+            "home_team": {
+                **MATCH["home_team"],
+                "home_team_group": None,
+            },
+            "away_team": {
+                **MATCH["away_team"],
+                "away_team_group": None,
+            },
+        }
+        context = extract_match_context(match)
+        self.assertEqual(context["kick_off"], "17:00:00.000")
+        self.assertEqual(context["competition_stage"], "Final")
+        self.assertEqual(context["match_week"], 7)
+        self.assertEqual(context["match_status"], "available")
+        self.assertEqual(context["stadium"], "Lusail Stadium")
+        self.assertEqual(context["referee"], "Szymon Marciniak")
+        self.assertEqual(context["scoreline_status"], "complete")
+        self.assertEqual(context["listed_result"], "draw")
+        self.assertEqual(context["home_goal_difference"], 0)
+        self.assertTrue(context["source_field_availability"]["scoreline"])
+        self.assertIn("event-time score state", context["interpretation_limit"])
+
+        report = analyse_match(match, LINEUPS, EVENTS)
+        self.assertEqual(
+            report["match"]["match_context"]["listed_result"],
+            "draw",
+        )
+
+    def test_extract_match_context_derives_home_and_away_results(self):
+        home_win = extract_match_context({**MATCH, "home_score": 2, "away_score": 1})
+        away_win = extract_match_context({**MATCH, "home_score": 0, "away_score": 3})
+        self.assertEqual(home_win["listed_result"], "home_win")
+        self.assertEqual(home_win["home_goal_difference"], 1)
+        self.assertEqual(away_win["listed_result"], "away_win")
+        self.assertEqual(away_win["home_goal_difference"], -3)
+
+    def test_extract_match_context_does_not_guess_incomplete_or_invalid_scores(self):
+        partial = extract_match_context({**MATCH, "home_score": 1, "away_score": None})
+        invalid = extract_match_context({**MATCH, "home_score": True, "away_score": -1})
+        fractional = extract_match_context({**MATCH, "home_score": 1.5, "away_score": 0})
+        missing_metadata = extract_match_context({"match_id": 456})
+
+        self.assertEqual(partial["scoreline_status"], "partial")
+        self.assertIsNone(partial["listed_result"])
+        self.assertIsNone(partial["home_goal_difference"])
+        self.assertEqual(invalid["scoreline_status"], "unavailable")
+        self.assertIsNone(invalid["listed_result"])
+        self.assertEqual(fractional["scoreline_status"], "partial")
+        self.assertEqual(missing_metadata["scoreline_status"], "unavailable")
+        self.assertIsNone(missing_metadata["competition_stage"])
+        self.assertFalse(missing_metadata["source_field_availability"]["stadium"])
+        self.assertFalse(missing_metadata["source_field_availability"]["scoreline"])
 
     def test_counts_events_and_pass_success_using_statsbomb_rule(self):
         report = analyse_match(MATCH, LINEUPS, EVENTS)
