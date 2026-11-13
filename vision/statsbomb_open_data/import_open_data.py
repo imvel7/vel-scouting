@@ -1291,6 +1291,150 @@ def build_fullback_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+
+CM_METRIC_GROUPS = (
+    {
+        "code": "distribution_progression",
+        "label": "Passing and progression",
+        "count_metrics": (
+            "passes_attempted", "passes_completed", "through_balls",
+            "carries", "dribbles",
+        ),
+        "rate_metrics": (),
+        "context_metrics": ("pass_completion_pct", "pass_length_mean"),
+        "description": "Recorded passing volume, through balls, ball carries and dribbles.",
+    },
+    {
+        "code": "chance_creation",
+        "label": "Chance creation and attacking contribution",
+        "count_metrics": ("shot_assists", "assists", "crosses", "shots", "goals"),
+        "rate_metrics": ("xg",),
+        "context_metrics": (),
+        "description": "Recorded shot assists, assists, deliveries and shooting output.",
+    },
+    {
+        "code": "defensive_activity",
+        "label": "Defensive work",
+        "count_metrics": (
+            "pressures", "tackles", "interceptions", "ball_recoveries",
+            "clearances", "blocks",
+        ),
+        "rate_metrics": (),
+        "context_metrics": (),
+        "description": "Recorded pressure, tackle-type duels, recoveries and defensive actions.",
+    },
+)
+
+
+def _is_central_midfield_position(position: Any) -> bool:
+    """Recognize central midfield labels; leave wide midfield and wings out."""
+    if not isinstance(position, str):
+        return False
+    normalized = " ".join(position.casefold().split())
+    if not normalized or "midfield" not in normalized or "wide" in normalized:
+        return False
+    if normalized in {"defensive midfield", "attacking midfield", "central midfield"}:
+        return True
+    tokens = set(normalized.split())
+    return "center" in tokens or "centre" in tokens
+
+
+def build_central_midfield_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Group observed central-midfield actions; this is not a player rating."""
+    midfielders = []
+    for player in player_rows:
+        positions = player.get("positions_seen") or []
+        central_positions = sorted({
+            " ".join(position.split())
+            for position in positions
+            if _is_central_midfield_position(position)
+        }, key=str.casefold)
+        if not central_positions:
+            continue
+
+        metrics = player.get("metrics") or {}
+        per90 = player.get("per90_metrics") or {}
+        grouped_metrics = {}
+        for group in CM_METRIC_GROUPS:
+            count_fields = group["count_metrics"]
+            rate_fields = group["rate_metrics"]
+            context_fields = group["context_metrics"]
+            grouped_metrics[group["code"]] = {
+                "raw_counts": {key: metrics.get(key) for key in count_fields},
+                "per90_counts": {
+                    key: per90.get(key) for key in count_fields if key in per90
+                },
+                "raw_rate_totals": {key: metrics.get(key) for key in rate_fields},
+                "per90_rate_metrics": {
+                    key: per90.get(key) for key in rate_fields if key in per90
+                },
+                "context_metrics": {
+                    key: metrics.get(key) for key in context_fields
+                },
+            }
+
+        midfielders.append({
+            "player_id": player.get("player_id"),
+            "player_name": player.get("player_name"),
+            "team_names": player.get("team_names") or [],
+            "positions_seen": positions,
+            "central_midfield_position_labels": central_positions,
+            "matches_listed_in_squads": player.get("matches_listed_in_squads", 0),
+            "matches_with_appearance_evidence": player.get(
+                "matches_with_appearance_evidence", 0
+            ),
+            "minutes_played": player.get("minutes_played"),
+            "per90_metrics": player.get("per90_metrics"),
+            "grouped_metrics": grouped_metrics,
+            "data_quality": player.get("data_quality"),
+            "data_consistency": player.get("data_consistency"),
+            "identity": player.get("identity"),
+            "metrics": {
+                key: metrics.get(key)
+                for key in (
+                    "passes_attempted", "passes_completed", "pass_completion_pct",
+                    "pass_length_mean", "through_balls", "carries", "dribbles",
+                    "shot_assists", "assists", "crosses", "shots", "goals", "xg",
+                    "pressures", "tackles", "interceptions", "ball_recoveries",
+                    "clearances", "blocks",
+                )
+            },
+        })
+
+    midfielders.sort(key=lambda row: str(row.get("player_name") or "").casefold())
+    return {
+        "role_code": "CM",
+        "role_name": "Central Midfielder",
+        "position_labels_included": [
+            "Center Midfield", "Left Center Midfield", "Right Center Midfield",
+            "Center Defensive Midfield", "Center Attacking Midfield",
+            "Defensive Midfield", "Attacking Midfield",
+        ],
+        "metric_mode": "grouped_raw_event_counts_with_verified_per90_rates",
+        "metric_groups": [
+            {
+                "code": group["code"],
+                "label": group["label"],
+                "count_metrics": list(group["count_metrics"]),
+                "rate_metrics": list(group["rate_metrics"]),
+                "context_metrics": list(group["context_metrics"]),
+                "description": group["description"],
+            }
+            for group in CM_METRIC_GROUPS
+        ],
+        "player_count": len(midfielders),
+        "players": midfielders,
+        "interpretation_limits": [
+            "No central-midfielder rating or ranking is calculated.",
+            "Raw event counts depend on selected minutes, team possession, role, match state and opponent context.",
+            "Per-90 values are included only when derived from complete, positive verified minutes.",
+            "The groups organize recorded actions; they do not measure scanning, pressure resistance, positional discipline or tactical decision quality.",
+            "Players with more than one observed position retain all source position labels; the profile does not infer one primary midfield role.",
+        ],
+    }
+
+
+
 def build_cb_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Select event profiles with an explicit centre-back position label.
 
@@ -1579,6 +1723,7 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
         "role_profiles": {
             "CB": build_cb_profile(aggregate_rows),
             "FB": build_fullback_profile(aggregate_rows),
+            "CM": build_central_midfield_profile(aggregate_rows),
         },
     }
 
