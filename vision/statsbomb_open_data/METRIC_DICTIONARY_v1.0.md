@@ -199,6 +199,27 @@ The importer selects players whose observed lineup/event position labels contain
 
 ### CB profile safeguards
 
+### CB profile metric groups
+
+The centre-back profile now groups the existing event metrics into three
+descriptive sections:
+
+- **Distribution and progression:** pass attempts/completions, crosses,
+  through balls, shot assists and carries. Pass completion percentage and
+  mean pass length remain contextual fields, not per-90 rates.
+- **Defensive activity:** pressures, tackle-type duels, interceptions and
+  ball recoveries.
+- **Box protection:** clearances and blocks.
+
+Each group exposes raw counts and includes per-90 counts only when the source
+player record contains per-90 values derived from complete, positive verified
+minutes. The grouping is a presentation aid; it does not calculate a role
+score, rank or action-quality grade.
+
+Aerial-duel success remains explicitly unavailable until duel event
+classification and outcomes have been separately validated against the source
+records. It must not be inferred from generic duel counts.
+
 - Values are raw totals or source percentages over the selected sample.
 - A player must have a centre-back position label to enter `role_profiles.CB`.
 - `matches_with_appearance_evidence` is based on position records or attributed
