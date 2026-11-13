@@ -1820,6 +1820,8 @@ class StatsBombImportTests(unittest.TestCase):
         for player in cm["players"]:
             metric = player["metrics"]["passes_attempted"]
             self.assertIsNone(metric["percentile"])
+            self.assertIsNone(metric["difference_from_median_per90"])
+            self.assertIsNone(metric["within_cohort_middle_50_percent"])
             self.assertEqual(metric["cohort_size"], 2)
             if player["player_id"] == 3:
                 self.assertEqual(metric["status"], "metric_unavailable")
