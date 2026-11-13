@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import analyse_match, build_cb_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_striker_profile, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
+from import_open_data import analyse_match, build_cb_profile, build_goalkeeper_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_striker_profile, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
 
 
 MATCH = {
@@ -241,6 +241,53 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertEqual(metrics["goals"], 1)
         self.assertEqual(metrics["xg"], 0.42)
         self.assertEqual(metrics["pressures"], 1)
+
+    def test_counts_goalkeeper_actions_and_goal_kicks_from_source_types(self):
+        goalkeeper_events = [
+            ("Shot Saved", None),
+            ("Shot Faced", None),
+            ("Goal Conceded", None),
+            ("Collected", None),
+            ("Punch", None),
+            ("Keeper Sweeper", None),
+            ("Smother", None),
+            ("Penalty Saved to Post", None),
+            ("Shot Saved Off Target", None),
+            ("Penalty Conceded", None),
+            ("New Source Type", None),
+        ]
+        events = list(EVENTS)
+        for index, (action_type, _) in enumerate(goalkeeper_events, start=7):
+            events.append({
+                "id": str(index),
+                "type": {"name": "Goal Keeper"},
+                "player": {"id": 10, "name": "Example Player"},
+                "team": {"id": 1, "name": "Argentina"},
+                "goalkeeper": {"type": {"name": action_type}},
+            })
+        events.append({
+            "id": "18",
+            "type": {"name": "Pass"},
+            "player": {"id": 10, "name": "Example Player"},
+            "team": {"id": 1, "name": "Argentina"},
+            "pass": {"type": {"name": "Goal Kick"}, "length": 55.0},
+        })
+
+        report = analyse_match(MATCH, LINEUPS, events)
+        player = next(row for row in report["player_metrics"] if row["player_id"] == 10)
+        metrics = player["metrics"]
+        self.assertEqual(metrics["goalkeeper_actions"], 11)
+        self.assertEqual(metrics["goalkeeper_saves"], 3)
+        self.assertEqual(metrics["goalkeeper_shots_faced"], 1)
+        self.assertEqual(metrics["goalkeeper_goals_conceded"], 1)
+        self.assertEqual(metrics["goalkeeper_collections"], 1)
+        self.assertEqual(metrics["goalkeeper_punches"], 1)
+        self.assertEqual(metrics["goalkeeper_sweeps"], 1)
+        self.assertEqual(metrics["goalkeeper_smotherings"], 1)
+        self.assertEqual(metrics["goalkeeper_penalty_saves"], 1)
+        self.assertEqual(metrics["goalkeeper_penalties_conceded"], 1)
+        self.assertEqual(metrics["goalkeeper_unclassified_actions"], 1)
+        self.assertEqual(metrics["goal_kicks"], 1)
 
     def test_player_data_quality_is_complete_when_core_checks_pass(self):
         quality = calculate_player_data_quality({
@@ -1534,6 +1581,128 @@ class StatsBombImportTests(unittest.TestCase):
         mixed = next(row for row in profile["players"] if row["player_id"] == 7)
         self.assertEqual(mixed["striker_position_labels"], ["Center Forward"])
         self.assertEqual(mixed["positions_seen"], ["Center Forward", "Right Wing"])
+
+    def test_goalkeeper_profile_groups_shot_stopping_area_control_and_distribution(self):
+        players = [
+            {
+                "player_id": 90,
+                "player_name": "Example Goalkeeper",
+                "team_names": ["Example FC"],
+                "positions_seen": ["Goalkeeper"],
+                "matches_listed_in_squads": 4,
+                "matches_with_appearance_evidence": 4,
+                "minutes_played": 360.0,
+                "per90_metrics": {
+                    "goalkeeper_saves": 3.5,
+                    "goalkeeper_shots_faced": 5.0,
+                    "goalkeeper_goals_conceded": 1.0,
+                    "goalkeeper_penalty_saves": 0.25,
+                    "goalkeeper_collections": 1.5,
+                    "goalkeeper_punches": 0.25,
+                    "goalkeeper_sweeps": 0.5,
+                    "goalkeeper_smotherings": 0.25,
+                    "passes_attempted": 24.0,
+                    "passes_completed": 17.0,
+                    "goal_kicks": 4.0,
+                },
+                "metrics": {
+                    "goalkeeper_actions": 30,
+                    "goalkeeper_saves": 14,
+                    "goalkeeper_shots_faced": 20,
+                    "goalkeeper_goals_conceded": 4,
+                    "goalkeeper_collections": 6,
+                    "goalkeeper_punches": 1,
+                    "goalkeeper_sweeps": 2,
+                    "goalkeeper_smotherings": 1,
+                    "goalkeeper_penalty_saves": 1,
+                    "goalkeeper_penalties_conceded": 1,
+                    "goalkeeper_unclassified_actions": 0,
+                    "passes_attempted": 96,
+                    "passes_completed": 68,
+                    "pass_completion_pct": 70.83,
+                    "pass_length_mean": 35.4,
+                    "goal_kicks": 16,
+                },
+            },
+            {
+                "player_id": 91,
+                "player_name": "Outfield Player",
+                "positions_seen": ["Center Back"],
+                "metrics": {"goalkeeper_saves": 4},
+            },
+        ]
+
+        profile = build_goalkeeper_profile(players)
+        self.assertEqual(profile["role_code"], "GK")
+        self.assertEqual(profile["player_count"], 1)
+        selected = profile["players"][0]
+        self.assertEqual(selected["goalkeeper_position_labels"], ["Goalkeeper"])
+        self.assertEqual(
+            [group["code"] for group in profile["metric_groups"]],
+            ["shot_stopping", "area_control", "distribution"],
+        )
+
+        stopping = selected["grouped_metrics"]["shot_stopping"]
+        self.assertEqual(stopping["raw_counts"]["goalkeeper_saves"], 14)
+        self.assertEqual(stopping["per90_counts"]["goalkeeper_saves"], 3.5)
+        self.assertEqual(stopping["raw_counts"]["goalkeeper_goals_conceded"], 4)
+
+        area = selected["grouped_metrics"]["area_control"]
+        self.assertEqual(area["raw_counts"]["goalkeeper_collections"], 6)
+        self.assertEqual(area["per90_counts"]["goalkeeper_sweeps"], 0.5)
+
+        distribution = selected["grouped_metrics"]["distribution"]
+        self.assertEqual(distribution["raw_counts"]["passes_attempted"], 96)
+        self.assertEqual(distribution["per90_counts"]["goal_kicks"], 4.0)
+        self.assertEqual(distribution["context_metrics"]["pass_completion_pct"], 70.83)
+
+        self.assertEqual(
+            {item["metric"] for item in profile["not_yet_available"]},
+            {
+                "save_percentage",
+                "post_shot_xg_or_goals_prevented",
+                "cross_claim_rate",
+                "distribution_long_ball_accuracy",
+            },
+        )
+        self.assertNotIn("rating", selected)
+        self.assertIn("No goalkeeper rating or ranking", profile["interpretation_limits"][0])
+
+    def test_goalkeeper_profile_does_not_fabricate_per90_metrics(self):
+        profile = build_goalkeeper_profile([{
+            "player_id": 92,
+            "player_name": "Unverified Goalkeeper",
+            "positions_seen": ["Goalkeeper"],
+            "metrics": {"goalkeeper_saves": 7, "passes_attempted": 25},
+            "per90_metrics": None,
+        }])
+        selected = profile["players"][0]
+        self.assertEqual(
+            selected["grouped_metrics"]["shot_stopping"]["raw_counts"]["goalkeeper_saves"],
+            7,
+        )
+        self.assertEqual(
+            selected["grouped_metrics"]["shot_stopping"]["per90_counts"],
+            {},
+        )
+        self.assertEqual(
+            selected["grouped_metrics"]["distribution"]["per90_counts"],
+            {},
+        )
+
+    def test_goalkeeper_profile_selects_only_explicit_goalkeeper_positions(self):
+        profile = build_goalkeeper_profile([
+            {"player_id": 1, "player_name": "GK", "positions_seen": ["Goalkeeper"]},
+            {"player_id": 2, "player_name": "Goal Keeper", "positions_seen": ["Goal Keeper"]},
+            {"player_id": 3, "player_name": "CB", "positions_seen": ["Center Back"]},
+            {"player_id": 4, "player_name": "Sweeper", "positions_seen": ["Keeper Sweeper"]},
+            {"player_id": 5, "player_name": "Midfielder", "positions_seen": ["Center Midfield"]},
+        ])
+        self.assertEqual(profile["player_count"], 2)
+        self.assertEqual(
+            {row["player_id"] for row in profile["players"]},
+            {1, 2},
+        )
 
     def test_cache_json_records_content_hash(self):
         with tempfile.TemporaryDirectory() as directory:
