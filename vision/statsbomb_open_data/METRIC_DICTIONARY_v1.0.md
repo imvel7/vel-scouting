@@ -149,13 +149,19 @@ unavailable rather than being estimated. Percentages and averages are not
 included in this first comparison foundation.
 
 The comparison accepts only reports for one competition and rejects duplicate
-season IDs. Each season row also preserves the source position labels seen in
-that sample. Position comparison is marked `same` when both seasons have the
-same non-empty set of labels (case-insensitive), `changed` when both sets exist
-but differ, and `unavailable` when either season has no position labels. This
-is a source-label comparison, not a validated tactical-role classification;
-it does not establish whether a player's responsibilities changed within a
-position label.
+season IDs. Each season row preserves the source position labels seen in that
+sample and a single `position_comparison_from_previous` result. Position
+comparison is marked `same` when both seasons have the same non-empty set of
+labels (case-insensitive), `changed` when both sets exist but differ, and
+`unavailable` when either season has no position labels. Shared labels retain
+the display form recorded in the later season. The player-level summary exposes
+`position_comparison_status`, `position_change_count` and
+`position_data_gaps`.
+
+These are positions recorded in the selected lineups, not a minutes-weighted
+primary role or a validated tactical-role classification. They do not establish
+how long the player operated in each role or whether responsibilities changed
+within a position label.
 
 It does not yet adjust for competition strength, age, team context, minutes
 thresholds or sample representativeness. A positive per-90 change is not
