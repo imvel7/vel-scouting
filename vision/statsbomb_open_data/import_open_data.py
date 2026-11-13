@@ -2507,12 +2507,16 @@ def build_player_evaluation_readiness(
             identity = player.get("identity") or {}
             identity_status = identity.get("status")
             metrics = player.get("metrics") or {}
+            quality_checks = (player.get("data_quality") or {}).get("checks") or {}
             minutes = player.get("minutes_played")
             appearances = int(player.get("matches_with_appearance_evidence") or 0)
-            event_count = int(metrics.get("events") or 0)
+            has_attributed_events = (
+                quality_checks.get("attributed_events") is True
+                or int(metrics.get("events") or 0) > 0
+            )
             reasons = []
 
-            if data_quality == "insufficient" or event_count <= 0:
+            if data_quality == "insufficient" or not has_attributed_events:
                 reasons.append("insufficient_event_evidence")
             elif data_quality != "complete":
                 reasons.append("data_quality_not_complete")
@@ -2545,7 +2549,7 @@ def build_player_evaluation_readiness(
                 status = (
                     "insufficient_data"
                     if "insufficient_event_evidence" in reasons
-                    and event_count <= 0
+                    and not has_attributed_events
                     else "limited"
                 )
             else:
@@ -2577,7 +2581,7 @@ def build_player_evaluation_readiness(
                     "minimum_verified_minutes": minimum_verified_minutes,
                     "appearance_matches": appearances,
                     "minimum_appearances": minimum_appearances,
-                    "attributed_events": event_count,
+                    "attributed_events_available": has_attributed_events,
                 },
                 "peer_context_status": peer_context_status,
                 "peer_metrics_available": available_metrics,
