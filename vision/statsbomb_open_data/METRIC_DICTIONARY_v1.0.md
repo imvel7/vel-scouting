@@ -208,10 +208,9 @@ The initial statuses are:
   consistent match reconciliation and source identity, at least **450
   verified minutes**, at least **5 appearance-evidence matches**, and
   attributed event evidence.
-- `limited`: some useful data exists, but one or more sample, quality,
-  reconciliation, identity or name-collision checks needs review.
-- `insufficient_data`: attributed event evidence is absent or the selected
-  sample is explicitly marked insufficient.
+- `limited`: some useful data exists, but one or more appearance, sample,
+  quality, reconciliation, identity or name-collision checks needs review.
+- `insufficient_data`: attributed event evidence is absent.
 
 Each player-role record includes reason codes, checked sample values,
 available per-90 metrics and whether same-role peer percentiles are available.
