@@ -1421,10 +1421,22 @@ def calculate_score_state_durations(
                   if _name(event.get("type")) == "Half Start"]
         ends = [i for i, event in enumerate(period_events)
                 if _name(event.get("type")) == "Half End"]
-        if len(starts) != 1 or len(ends) != 1 or ends[0] <= starts[0]:
+        if not starts or not ends or max(ends) <= min(starts):
             result["reason_codes"] = ["period_start_or_end_boundary_ambiguous"]
             return result
-        start_index, end_index = starts[0], ends[0]
+        # StatsBomb can emit a boundary event for each team. The first Half
+        # Start opens the period and the last Half End closes it; intermediate
+        # boundary records remain in the ordered event stream.
+        start_index, end_index = min(starts), max(ends)
+        start_times = {
+            _match_clock_seconds(period_events[index]) for index in starts
+        }
+        end_times = {
+            _match_clock_seconds(period_events[index]) for index in ends
+        }
+        if None in start_times or None in end_times or len(start_times) != 1 or len(end_times) != 1:
+            result["reason_codes"] = ["period_boundary_clock_disagreement"]
+            return result
         pre_start_events = period_events[:start_index]
         if any(_name(event.get("type")) != "Starting XI" for event in pre_start_events):
             result["reason_codes"] = ["unexpected_events_before_period_start"]
