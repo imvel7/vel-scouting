@@ -521,15 +521,21 @@ def calculate_player_data_consistency(
     match_score_state_rows = [
         row.get("score_state_analysis") or {} for row in match_rows
     ]
+    has_score_state_metadata = (
+        "score_state_analysis" in player
+        or any("score_state_analysis" in row for row in match_rows)
+    )
     score_state_status_counts = Counter(
         row.get("status") or "unavailable" for row in match_score_state_rows
     )
-    status_counts_match = (
-        score_state_status_counts
-        == Counter(aggregate_score_state.get("match_status_counts") or {})
-    )
-    if not status_counts_match:
-        reasons.append("score_state_match_status_count_mismatch")
+    status_counts_match: bool | None = None
+    if has_score_state_metadata:
+        status_counts_match = (
+            score_state_status_counts
+            == Counter(aggregate_score_state.get("match_status_counts") or {})
+        )
+        if not status_counts_match:
+            reasons.append("score_state_match_status_count_mismatch")
 
     match_rows_with_score_state = [
         row for row in match_score_state_rows
@@ -552,7 +558,7 @@ def calculate_player_data_consistency(
                     score_state_metric_totals_match = False
                     reasons.append(f"score_state_metric_total_mismatch:{state}:{field}")
     elif not match_rows_with_score_state:
-        score_state_metric_totals_match = True
+        score_state_metric_totals_match = True if has_score_state_metadata else None
     else:
         score_state_metric_totals_match = False
         reasons.append("score_state_aggregate_missing")
