@@ -70,6 +70,25 @@ A `complete` status means only that these core checks passed for this selected
 sample. It does not mean that the sample is large, that every event type is
 captured, or that the player has been evaluated fairly against peers.
 
+## Player identity matching across matches
+
+Player records are grouped only by the source's stable `player_id`, exposed as
+`statsbomb:<player_id>`. Player names are display labels, not matching keys.
+This prevents two different players with the same name from being automatically
+merged.
+
+The JSON `identity` object and CSV fields report:
+
+- Whether every contributing match row carries the same source player ID.
+- The name variants observed for that ID.
+- An identity status of `consistent` or `review`, with reason codes when a
+  source-ID mismatch or name variation is found.
+
+Name variation does not trigger an automatic split or merge. It flags the
+records for human review while preserving the source ID as the grouping key.
+This check does not independently verify a real-world identity outside the
+source's own identifiers.
+
 ## Match-to-aggregate consistency check
 
 Each selected-sample player total is reconciled against the player's individual
