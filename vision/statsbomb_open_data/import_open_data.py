@@ -2663,16 +2663,18 @@ def build_role_benchmarks(
                 cohort = metric_cohorts[metric]
                 if item["eligible"] and _finite(value) and len(cohort) >= minimum_cohort_size:
                     distribution = metric_summaries[metric]["distribution"]
-                    cohort_median = distribution["median"]
+                    cohort_median = _linear_quantile(cohort, 0.50)
+                    cohort_p25 = _linear_quantile(cohort, 0.25)
+                    cohort_p75 = _linear_quantile(cohort, 0.75)
                     player_metrics[metric] = {
                         "value_per90": round(float(value), 3),
                         "cohort_size": len(cohort),
                         "percentile": _peer_percentile(float(value), cohort),
                         "difference_from_median_per90": round(
-                            float(value) - cohort_median, 3
+                            float(value) - float(cohort_median), 3
                         ),
                         "within_cohort_middle_50_percent": (
-                            distribution["p25"] <= float(value) <= distribution["p75"]
+                            float(cohort_p25) <= float(value) <= float(cohort_p75)
                         ),
                         "status": "ready",
                     }
