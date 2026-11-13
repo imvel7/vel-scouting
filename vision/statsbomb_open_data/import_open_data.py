@@ -1150,6 +1150,147 @@ CB_METRIC_GROUPS = (
 )
 
 
+
+FB_METRIC_GROUPS = (
+    {
+        "code": "attacking_output",
+        "label": "Chance creation and attacking output",
+        "count_metrics": (
+            "crosses", "through_balls", "shot_assists", "assists",
+            "shots", "goals",
+        ),
+        "rate_metrics": ("xg",),
+        "context_metrics": (),
+        "description": "Recorded delivery, chance creation and shot contribution.",
+    },
+    {
+        "code": "distribution_progression",
+        "label": "Distribution and progression",
+        "count_metrics": (
+            "passes_attempted", "passes_completed", "carries", "dribbles",
+        ),
+        "rate_metrics": (),
+        "context_metrics": ("pass_completion_pct", "pass_length_mean"),
+        "description": "Recorded passing volume, completion, carries and dribbles.",
+    },
+    {
+        "code": "defensive_activity",
+        "label": "Defensive activity",
+        "count_metrics": (
+            "pressures", "tackles", "interceptions", "ball_recoveries",
+            "clearances", "blocks",
+        ),
+        "rate_metrics": (),
+        "context_metrics": (),
+        "description": "Recorded pressure, tackle-type duels, recoveries and defensive actions.",
+    },
+)
+
+
+def _is_fullback_position(position: Any) -> bool:
+    """Match full-back and wing-back labels without including centre-backs."""
+    if not isinstance(position, str):
+        return False
+    normalized = " ".join(position.casefold().split())
+    if not normalized or "center back" in normalized or "centre back" in normalized:
+        return False
+    return normalized.endswith("back") or normalized.endswith("fullback")
+
+
+def build_fullback_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Group observed full-back/wing-back events; this is not a player rating."""
+    fullbacks = []
+    for player in player_rows:
+        positions = player.get("positions_seen") or []
+        fullback_positions = sorted({
+            " ".join(position.split())
+            for position in positions
+            if _is_fullback_position(position)
+        }, key=str.casefold)
+        if not fullback_positions:
+            continue
+
+        metrics = player.get("metrics") or {}
+        per90 = player.get("per90_metrics") or {}
+        grouped_metrics = {}
+        for group in FB_METRIC_GROUPS:
+            count_fields = group["count_metrics"]
+            rate_fields = group["rate_metrics"]
+            context_fields = group["context_metrics"]
+            grouped_metrics[group["code"]] = {
+                "raw_counts": {key: metrics.get(key) for key in count_fields},
+                "per90_counts": {
+                    key: per90.get(key) for key in count_fields if key in per90
+                },
+                "raw_rate_totals": {key: metrics.get(key) for key in rate_fields},
+                "per90_rate_metrics": {
+                    key: per90.get(key) for key in rate_fields if key in per90
+                },
+                "context_metrics": {
+                    key: metrics.get(key) for key in context_fields
+                },
+            }
+
+        fullbacks.append({
+            "player_id": player.get("player_id"),
+            "player_name": player.get("player_name"),
+            "team_names": player.get("team_names") or [],
+            "positions_seen": positions,
+            "fullback_position_labels": fullback_positions,
+            "matches_listed_in_squads": player.get("matches_listed_in_squads", 0),
+            "matches_with_appearance_evidence": player.get(
+                "matches_with_appearance_evidence", 0
+            ),
+            "minutes_played": player.get("minutes_played"),
+            "per90_metrics": player.get("per90_metrics"),
+            "grouped_metrics": grouped_metrics,
+            "data_quality": player.get("data_quality"),
+            "data_consistency": player.get("data_consistency"),
+            "identity": player.get("identity"),
+            "metrics": {
+                key: metrics.get(key)
+                for key in (
+                    "crosses", "through_balls", "shot_assists", "assists",
+                    "shots", "goals", "xg", "passes_attempted",
+                    "passes_completed", "pass_completion_pct",
+                    "pass_length_mean", "carries", "dribbles",
+                    "pressures", "tackles", "interceptions",
+                    "ball_recoveries", "clearances", "blocks",
+                )
+            },
+        })
+
+    fullbacks.sort(key=lambda row: str(row.get("player_name") or "").casefold())
+    return {
+        "role_code": "FB",
+        "role_name": "Full-back / Wing-back",
+        "position_labels_included": [
+            "Left Back", "Right Back", "Left Wing Back", "Right Wing Back",
+        ],
+        "metric_mode": "grouped_raw_event_counts_with_verified_per90_rates",
+        "metric_groups": [
+            {
+                "code": group["code"],
+                "label": group["label"],
+                "count_metrics": list(group["count_metrics"]),
+                "rate_metrics": list(group["rate_metrics"]),
+                "context_metrics": list(group["context_metrics"]),
+                "description": group["description"],
+            }
+            for group in FB_METRIC_GROUPS
+        ],
+        "player_count": len(fullbacks),
+        "players": fullbacks,
+        "interpretation_limits": [
+            "No full-back rating or ranking is calculated.",
+            "Raw event counts depend on selected minutes, team possession, role, match state and opponent context.",
+            "Per-90 values are included only when derived from complete, positive verified minutes.",
+            "The profile groups recorded actions; it does not measure overlapping runs, defensive positioning, crossing quality or tactical responsibility.",
+            "Players with more than one observed position retain all source position labels; the profile does not infer a single primary role.",
+        ],
+    }
+
+
 def build_cb_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Select event profiles with an explicit centre-back position label.
 
@@ -1437,6 +1578,7 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
         },
         "role_profiles": {
             "CB": build_cb_profile(aggregate_rows),
+            "FB": build_fullback_profile(aggregate_rows),
         },
     }
 
