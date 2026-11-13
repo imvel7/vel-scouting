@@ -881,7 +881,7 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
         },
         "metric_definitions": METRIC_DEFINITIONS,
         "limitations": [
-            "Minutes are calculated from Starting XI, substitutions, Player Off/On, dismissal events and period-local timestamps. If period clocks or required state transitions are incomplete, minutes remain null; per-90 metrics are still deliberately disabled pending real-match validation.",
+            "Minutes are calculated from Starting XI, substitutions, Player Off/On, dismissal events and period-local timestamps. If period clocks or required state transitions are incomplete, minutes remain null; per-90 values are emitted only for complete, positive minute totals.",
             "Lineup/squad listings can include unused substitutes; unused substitutes receive 0.00 minutes only when the match-level event clock passes validation.",
             "Percentiles and peer rankings are not produced by this single-source ingestion proof.",
             "Event data cannot establish off-ball positioning, scanning, body orientation, communication or visual tactical behaviour.",
@@ -907,6 +907,7 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "matches_listed_in_squads", "matches_with_appearance_evidence",
             "minutes_played", "minutes_calculation_complete", "minutes_matches_valid",
             *COUNTER_FIELDS, "pass_completion_pct", "pass_length_mean", "xg",
+            *[f"per90_{field}" for field in (*COUNTER_FIELDS, "xg")],
         ]
         writer = csv.DictWriter(stream, fieldnames=fields)
         writer.writeheader()
@@ -922,6 +923,10 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 "minutes_calculation_complete": row["minutes_calculation_complete"],
                 "minutes_matches_valid": row["minutes_matches_valid"],
                 **row["metrics"],
+                **{
+                    f"per90_{field}": (row.get("per90_metrics") or {}).get(field)
+                    for field in (*COUNTER_FIELDS, "xg")
+                },
             }
             writer.writerow(output)
 
