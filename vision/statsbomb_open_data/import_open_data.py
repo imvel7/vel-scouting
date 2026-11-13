@@ -2563,6 +2563,40 @@ def _peer_percentile(value: float, cohort: list[float]) -> float:
     return round(((less + 0.5 * equal) / len(cohort)) * 100.0, 1)
 
 
+def _linear_quantile(sorted_values: list[float], quantile: float) -> float | None:
+    """Calculate a linearly interpolated quantile from sorted observations."""
+    if not _finite(quantile) or not 0.0 <= float(quantile) <= 1.0:
+        raise ValueError("quantile 0 ile 1 arasında olmalı.")
+    if not sorted_values:
+        return None
+    position = (len(sorted_values) - 1) * float(quantile)
+    lower_index = math.floor(position)
+    upper_index = math.ceil(position)
+    if lower_index == upper_index:
+        return float(sorted_values[lower_index])
+    fraction = position - lower_index
+    lower = float(sorted_values[lower_index])
+    upper = float(sorted_values[upper_index])
+    return lower + ((upper - lower) * fraction)
+
+
+def _cohort_distribution(sorted_values: list[float]) -> dict[str, Any] | None:
+    """Describe a peer cohort with min, quartiles, median and max."""
+    if not sorted_values:
+        return None
+    p25 = _linear_quantile(sorted_values, 0.25)
+    median = _linear_quantile(sorted_values, 0.50)
+    p75 = _linear_quantile(sorted_values, 0.75)
+    return {
+        "minimum": round(float(sorted_values[0]), 3),
+        "p25": round(float(p25), 3),
+        "median": round(float(median), 3),
+        "p75": round(float(p75), 3),
+        "maximum": round(float(sorted_values[-1]), 3),
+        "quartile_method": "linear interpolation over sorted observations",
+    }
+
+
 def build_role_benchmarks(
     role_profiles: dict[str, dict[str, Any]],
     minimum_verified_minutes: float = 450.0,
@@ -2616,6 +2650,7 @@ def build_role_benchmarks(
                 "status": "ready" if ready else "insufficient_sample",
                 "eligible_values": len(values),
                 "minimum_required": minimum_cohort_size,
+                "distribution": _cohort_distribution(values) if ready else None,
             }
 
         player_results = []
@@ -2627,10 +2662,18 @@ def build_role_benchmarks(
                 value = per90.get(metric) if isinstance(per90, dict) else None
                 cohort = metric_cohorts[metric]
                 if item["eligible"] and _finite(value) and len(cohort) >= minimum_cohort_size:
+                    distribution = metric_summaries[metric]["distribution"]
+                    cohort_median = distribution["median"]
                     player_metrics[metric] = {
                         "value_per90": round(float(value), 3),
                         "cohort_size": len(cohort),
                         "percentile": _peer_percentile(float(value), cohort),
+                        "difference_from_median_per90": round(
+                            float(value) - cohort_median, 3
+                        ),
+                        "within_cohort_middle_50_percent": (
+                            distribution["p25"] <= float(value) <= distribution["p75"]
+                        ),
                         "status": "ready",
                     }
                 else:
@@ -2644,6 +2687,8 @@ def build_role_benchmarks(
                         "value_per90": round(float(value), 3) if _finite(value) else None,
                         "cohort_size": len(cohort),
                         "percentile": None,
+                        "difference_from_median_per90": None,
+                        "within_cohort_middle_50_percent": None,
                         "status": status,
                     }
             player_results.append({
