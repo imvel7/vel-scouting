@@ -2516,10 +2516,12 @@ def build_player_evaluation_readiness(
             )
             reasons = []
 
-            if data_quality == "insufficient" or not has_attributed_events:
+            if not has_attributed_events:
                 reasons.append("insufficient_event_evidence")
             elif data_quality != "complete":
                 reasons.append("data_quality_not_complete")
+            if appearances == 0:
+                reasons.append("no_appearance_evidence")
             if consistency != "consistent":
                 reasons.append("data_consistency_not_consistent")
             if identity_status != "consistent":
