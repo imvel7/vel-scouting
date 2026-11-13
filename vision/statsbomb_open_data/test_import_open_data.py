@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import analyse_match, build_cb_profile, build_goalkeeper_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_striker_profile, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
+from import_open_data import analyse_match, build_cb_profile, build_goalkeeper_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_striker_profile, build_role_benchmarks, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
 
 
 MATCH = {
@@ -1703,6 +1703,152 @@ class StatsBombImportTests(unittest.TestCase):
             {row["player_id"] for row in profile["players"]},
             {1, 2},
         )
+
+    def test_role_benchmarks_use_same_role_verified_cohort_and_tie_aware_percentiles(self):
+        def player(player_id, value, minutes=600.0):
+            return {
+                "player_id": player_id,
+                "player_name": f"Player {player_id}",
+                "minutes_played": minutes,
+                "per90_metrics": {"passes_attempted": value, "pressures": value / 2},
+                "data_quality": {"status": "complete"},
+                "data_consistency": {"status": "consistent"},
+                "identity": {"status": "consistent"},
+            }
+
+        role_profiles = {
+            "CB": {
+                "role_name": "Centre-back",
+                "players": [
+                    player(1, 1.0),
+                    player(2, 2.0),
+                    player(3, 2.0),
+                    player(4, 3.0),
+                    player(5, 99.0, minutes=300.0),
+                ],
+            },
+            "W": {
+                "role_name": "Winger",
+                "players": [player(6, 100.0)],
+            },
+        }
+        result = build_role_benchmarks(
+            role_profiles,
+            minimum_verified_minutes=450,
+            minimum_cohort_size=4,
+        )
+        cb = result["roles"]["CB"]
+        self.assertEqual(cb["eligible_player_count"], 4)
+        self.assertEqual(cb["cohort_status"], "ready")
+        target = next(row for row in cb["players"] if row["player_id"] == 2)
+        self.assertTrue(target["eligible_for_peer_comparison"])
+        self.assertEqual(target["metrics"]["passes_attempted"]["percentile"], 50.0)
+        self.assertEqual(target["metrics"]["passes_attempted"]["cohort_size"], 4)
+        self.assertEqual(target["metrics"]["passes_attempted"]["status"], "ready")
+
+        excluded = next(row for row in cb["players"] if row["player_id"] == 5)
+        self.assertFalse(excluded["eligible_for_peer_comparison"])
+        self.assertIn("below_minimum_verified_minutes", excluded["eligibility_reasons"])
+        self.assertEqual(
+            excluded["metrics"]["passes_attempted"]["status"],
+            "player_not_eligible",
+        )
+        self.assertEqual(
+            result["roles"]["W"]["eligible_player_count"],
+            1,
+        )
+        self.assertEqual(
+            result["roles"]["W"]["metric_summaries"]["shots"]["status"],
+            "insufficient_sample",
+        )
+        self.assertNotIn("ranking", target)
+        self.assertEqual(result["comparison_scope"], "same competition and season report; same role profile")
+
+    def test_role_benchmarks_leave_percentiles_unavailable_for_small_metric_cohorts(self):
+        players = []
+        for player_id, passes in [(1, 30.0), (2, 40.0), (3, None)]:
+            per90 = {"pressures": 5.0}
+            if passes is not None:
+                per90["passes_attempted"] = passes
+            players.append({
+                "player_id": player_id,
+                "player_name": f"Player {player_id}",
+                "minutes_played": 700.0,
+                "per90_metrics": per90,
+                "data_quality": {"status": "complete"},
+                "data_consistency": {"status": "consistent"},
+                "identity": {"status": "consistent"},
+            })
+        result = build_role_benchmarks(
+            {"CM": {"role_name": "Central Midfielder", "players": players}},
+            minimum_verified_minutes=450,
+            minimum_cohort_size=3,
+        )
+        cm = result["roles"]["CM"]
+        self.assertEqual(cm["eligible_player_count"], 3)
+        self.assertEqual(
+            cm["metric_summaries"]["passes_attempted"]["status"],
+            "insufficient_sample",
+        )
+        for player in cm["players"]:
+            metric = player["metrics"]["passes_attempted"]
+            self.assertIsNone(metric["percentile"])
+            self.assertEqual(metric["cohort_size"], 2)
+            if player["player_id"] == 3:
+                self.assertEqual(metric["status"], "metric_unavailable")
+            else:
+                self.assertEqual(metric["status"], "insufficient_sample")
+
+    def test_role_benchmarks_reject_players_with_unreliable_data_statuses(self):
+        players = [
+            {
+                "player_id": 1,
+                "player_name": "Partial",
+                "minutes_played": 700.0,
+                "per90_metrics": {"passes_attempted": 30.0},
+                "data_quality": {"status": "partial"},
+                "data_consistency": {"status": "consistent"},
+                "identity": {"status": "consistent"},
+            },
+            {
+                "player_id": 2,
+                "player_name": "Review",
+                "minutes_played": 700.0,
+                "per90_metrics": {"passes_attempted": 30.0},
+                "data_quality": {"status": "complete"},
+                "data_consistency": {"status": "review"},
+                "identity": {"status": "consistent"},
+            },
+            {
+                "player_id": 3,
+                "player_name": "Identity Review",
+                "minutes_played": 700.0,
+                "per90_metrics": {"passes_attempted": 30.0},
+                "data_quality": {"status": "complete"},
+                "data_consistency": {"status": "consistent"},
+                "identity": {"status": "review"},
+            },
+        ]
+        result = build_role_benchmarks(
+            {"CB": {"role_name": "Centre-back", "players": players}},
+            minimum_verified_minutes=450,
+            minimum_cohort_size=2,
+        )
+        cb = result["roles"]["CB"]
+        self.assertEqual(cb["eligible_player_count"], 0)
+        self.assertEqual(cb["cohort_status"], "insufficient_sample")
+        reasons = {
+            row["player_id"]: row["eligibility_reasons"] for row in cb["players"]
+        }
+        self.assertIn("data_quality_not_complete", reasons[1])
+        self.assertIn("data_consistency_not_consistent", reasons[2])
+        self.assertIn("identity_not_consistent", reasons[3])
+
+    def test_role_benchmark_configuration_is_validated(self):
+        with self.assertRaisesRegex(ValueError, "negatif veya geçersiz"):
+            build_role_benchmarks({}, minimum_verified_minutes=-1)
+        with self.assertRaisesRegex(ValueError, "en az 2"):
+            build_role_benchmarks({}, minimum_cohort_size=1)
 
     def test_cache_json_records_content_hash(self):
         with tempfile.TemporaryDirectory() as directory:
