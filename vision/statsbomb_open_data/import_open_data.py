@@ -114,6 +114,66 @@ def calculate_player_data_quality(player: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _normalise_player_name(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalised = " ".join(value.casefold().split())
+    if not normalised or normalised.startswith("unknown player "):
+        return None
+    return normalised
+
+
+def calculate_player_identity(
+    player: dict[str, Any],
+    match_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Validate a player's source ID across match rows; never merge by name."""
+    player_id = player.get("player_id")
+    expected_id = str(player_id) if player_id is not None else None
+    record_ids = {
+        str(row.get("player_id"))
+        for row in match_rows
+        if row.get("player_id") is not None
+    }
+    player_id_matches = (
+        expected_id is not None
+        and record_ids == {expected_id}
+        and len(record_ids) == 1
+    )
+
+    names: dict[str, str] = {}
+    for row in match_rows:
+        label = row.get("player_name")
+        normalised = _normalise_player_name(label)
+        if normalised:
+            names.setdefault(normalised, str(label).strip())
+
+    aggregate_name = player.get("player_name")
+    aggregate_normalised = _normalise_player_name(aggregate_name)
+    if aggregate_normalised:
+        names.setdefault(aggregate_normalised, str(aggregate_name).strip())
+
+    reasons = []
+    if not player_id_matches:
+        reasons.append("player_id_mismatch_across_records")
+    if len(names) > 1:
+        reasons.append("player_name_varies_for_same_id")
+
+    return {
+        "key": f"statsbomb:{expected_id}" if expected_id is not None else None,
+        "source": "StatsBomb player_id",
+        "status": "consistent" if not reasons else "review",
+        "reasons": reasons,
+        "name_variants": sorted(names.values(), key=str.casefold),
+        "checked_match_records": len(match_rows),
+        "checks": {
+            "player_id_matches": player_id_matches,
+            "single_source_id": len(record_ids) == 1 and expected_id is not None,
+            "name_consistent": len(names) <= 1,
+        },
+    }
+
+
 def calculate_player_data_consistency(
     player: dict[str, Any],
     match_rows: list[dict[str, Any]],
@@ -851,6 +911,7 @@ def build_cb_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
             "per90_metrics": player.get("per90_metrics"),
             "data_quality": player.get("data_quality"),
             "data_consistency": player.get("data_consistency"),
+            "identity": player.get("identity"),
             "metrics": {key: metrics.get(key) for key in CB_PROFILE_METRICS},
         })
 
@@ -1006,6 +1067,9 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
         aggregate_row["data_consistency"] = calculate_player_data_consistency(
             aggregate_row, player["match_rows"]
         )
+        aggregate_row["identity"] = calculate_player_identity(
+            aggregate_row, player["match_rows"]
+        )
         aggregate_rows.append(aggregate_row)
     aggregate_rows.sort(key=lambda row: row["player_name"].casefold())
 
@@ -1048,6 +1112,7 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "Percentiles and peer rankings are not produced by this single-source ingestion proof.",
             "Event data cannot establish off-ball positioning, scanning, body orientation, communication or visual tactical behaviour.",
             "This is a selected research dataset, not complete coverage of all leagues, seasons or youth players.",
+            "Players are grouped only by the StatsBomb player_id; names are never used as a merge key. Name variants for one ID are exposed for review.",
             "The report is not a definitive scout verdict, potential rating or transfer recommendation.",
         ],
         "source_files": provenance,
@@ -1073,6 +1138,8 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "data_quality_has_attributed_events",
             "data_consistency_status", "data_consistency_reasons",
             "data_consistency_match_records",
+            "player_identity_key", "player_identity_status",
+            "player_identity_reasons", "player_identity_name_variants",
             *COUNTER_FIELDS, "pass_completion_pct", "pass_length_mean", "xg",
             *[f"per90_{field}" for field in (*COUNTER_FIELDS, "xg")],
         ]
@@ -1097,6 +1164,10 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 "data_consistency_status": row["data_consistency"]["status"],
                 "data_consistency_reasons": " | ".join(row["data_consistency"]["reasons"]),
                 "data_consistency_match_records": row["data_consistency"]["checked_match_records"],
+                "player_identity_key": row["identity"]["key"],
+                "player_identity_status": row["identity"]["status"],
+                "player_identity_reasons": " | ".join(row["identity"]["reasons"]),
+                "player_identity_name_variants": " | ".join(row["identity"]["name_variants"]),
                 **row["metrics"],
                 **{
                     f"per90_{field}": (row.get("per90_metrics") or {}).get(field)
