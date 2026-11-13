@@ -2,7 +2,7 @@ name: StatsBomb import prototype tests
 
 on:
   push:
-    branches: [main, feature/verified-minutes-calculation, feature/metric-interpretation-guidance, feature/match-context-metadata, feature/event-time-score-timeline], feature/player-metrics-by-score-state
+    branches: [main, feature/verified-minutes-calculation, feature/metric-interpretation-guidance, feature/match-context-metadata, feature/event-time-score-timeline, feature/player-metrics-by-score-state]
     paths:
       - "vision/statsbomb_open_data/**"
       - ".github/workflows/statsbomb-import-tests.yml"
