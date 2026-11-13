@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import analyse_match, build_cb_profile, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, fetch_json, run_import, ImportErrorWithContext
+from import_open_data import analyse_match, build_cb_profile, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, fetch_json, run_import, ImportErrorWithContext
 
 
 MATCH = {
@@ -313,6 +313,45 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertFalse(identity["checks"]["player_id_matches"])
         self.assertIn("player_id_mismatch_across_records", identity["reasons"])
 
+    def test_name_collision_report_flags_same_name_with_different_ids(self):
+        collisions = find_player_name_collisions([
+            {
+                "player_id": 10,
+                "player_name": "Alex Smith",
+                "team_names": ["Team A"],
+                "matches_listed_in_squads": 2,
+            },
+            {
+                "player_id": 22,
+                "player_name": "Alex Smith",
+                "team_names": ["Team B"],
+                "matches_listed_in_squads": 1,
+            },
+        ])
+        self.assertEqual(len(collisions), 1)
+        self.assertEqual(collisions[0]["normalized_name"], "alex smith")
+        self.assertEqual(collisions[0]["player_ids"], [10, 22])
+        self.assertEqual(
+            [row["identity_key"] for row in collisions[0]["players"]],
+            ["statsbomb:10", "statsbomb:22"],
+        )
+
+    def test_name_collision_detection_normalizes_case_and_whitespace(self):
+        collisions = find_player_name_collisions([
+            {"player_id": 10, "player_name": "Alex   Smith"},
+            {"player_id": 22, "player_name": " alex smith "},
+        ])
+        self.assertEqual(len(collisions), 1)
+        self.assertEqual(collisions[0]["normalized_name"], "alex smith")
+
+    def test_name_collision_detection_does_not_flag_one_id_or_unknown_names(self):
+        collisions = find_player_name_collisions([
+            {"player_id": 10, "player_name": "Alex Smith"},
+            {"player_id": 10, "player_name": "Alex Smith"},
+            {"player_id": 22, "player_name": "Unknown player 22"},
+        ])
+        self.assertEqual(collisions, [])
+
     def test_player_data_consistency_accepts_matching_match_totals(self):
         metrics = {
             "events": 8,
@@ -525,6 +564,8 @@ class StatsBombImportTests(unittest.TestCase):
             self.assertEqual(report["competition_season"]["season_name"], "2022")
             self.assertEqual(report["sample"]["event_count"], len(EVENTS) + 3)
             self.assertEqual(report["sample"]["selected_match_count"], 1)
+            self.assertEqual(report["sample"]["possible_same_name_collision_groups"], 0)
+            self.assertEqual(report["player_identity_review"]["same_name_different_ids"], [])
 
             with csv_path.open(encoding="utf-8-sig", newline="") as stream:
                 rows = list(csv.DictReader(stream))
@@ -541,6 +582,8 @@ class StatsBombImportTests(unittest.TestCase):
             self.assertEqual(rows[0]["data_quality_appearance_evidence"], "True")
             self.assertEqual(rows[0]["data_quality_minutes_complete"], "True")
             self.assertEqual(rows[0]["data_quality_has_attributed_events"], "True")
+            self.assertEqual(rows[0]["possible_same_name_collision"], "False")
+            self.assertEqual(rows[0]["other_same_name_player_ids"], "")
             self.assertEqual(rows[0]["data_consistency_status"], "consistent")
             self.assertEqual(rows[0]["data_consistency_reasons"], "")
             self.assertEqual(rows[0]["data_consistency_match_records"], "1")
