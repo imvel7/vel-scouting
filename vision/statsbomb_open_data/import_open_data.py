@@ -2182,6 +2182,9 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
         "GK": build_goalkeeper_profile(aggregate_rows),
     }
     role_benchmarks = build_role_benchmarks(role_profiles)
+    player_evaluation_readiness = build_player_evaluation_readiness(
+        role_profiles, role_benchmarks
+    )
 
     report = {
         "report_type": "statsbomb_import_quality_and_event_profile",
@@ -2238,6 +2241,7 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
         },
         "role_profiles": role_profiles,
         "role_benchmarks": role_benchmarks,
+        "player_evaluation_readiness": player_evaluation_readiness,
     }
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2469,6 +2473,151 @@ def build_role_benchmarks(
         "minimum_cohort_size": minimum_cohort_size,
         "comparison_scope": "same competition and season report; same role profile",
         "roles": benchmarks,
+    }
+
+
+
+
+def build_player_evaluation_readiness(
+    role_profiles: dict[str, dict[str, Any]],
+    role_benchmarks: dict[str, Any],
+    minimum_verified_minutes: float = 450.0,
+    minimum_appearances: int = 5,
+) -> dict[str, Any]:
+    """Describe whether a player record is ready for human scouting review."""
+    if not _finite(minimum_verified_minutes) or float(minimum_verified_minutes) < 0:
+        raise ValueError("minimum_verified_minutes negatif veya geçersiz olamaz.")
+    if minimum_appearances < 1:
+        raise ValueError("minimum_appearances en az 1 olmalı.")
+
+    role_results = {}
+    all_results = []
+    for role_code in ROLE_BENCHMARK_METRICS:
+        profile = role_profiles.get(role_code) or {}
+        benchmark = (role_benchmarks.get("roles") or {}).get(role_code) or {}
+        benchmark_players = {
+            str(row.get("player_id")): row
+            for row in benchmark.get("players", [])
+        }
+        results = []
+        for player in profile.get("players") or []:
+            player_id = str(player.get("player_id"))
+            data_quality = (player.get("data_quality") or {}).get("status")
+            consistency = (player.get("data_consistency") or {}).get("status")
+            identity = player.get("identity") or {}
+            identity_status = identity.get("status")
+            metrics = player.get("metrics") or {}
+            minutes = player.get("minutes_played")
+            appearances = int(player.get("matches_with_appearance_evidence") or 0)
+            event_count = int(metrics.get("events") or 0)
+            reasons = []
+
+            if data_quality == "insufficient" or event_count <= 0:
+                reasons.append("insufficient_event_evidence")
+            elif data_quality != "complete":
+                reasons.append("data_quality_not_complete")
+            if consistency != "consistent":
+                reasons.append("data_consistency_not_consistent")
+            if identity_status != "consistent":
+                reasons.append("identity_not_consistent")
+            if identity.get("possible_same_name_collision") is True:
+                reasons.append("possible_same_name_collision")
+            if not _finite(minutes) or float(minutes) <= 0:
+                reasons.append("verified_minutes_unavailable")
+            elif float(minutes) < minimum_verified_minutes:
+                reasons.append("below_minimum_verified_minutes")
+            if appearances < minimum_appearances:
+                reasons.append("insufficient_appearance_sample")
+
+            benchmark_player = benchmark_players.get(player_id) or {}
+            benchmark_metrics = benchmark_player.get("metrics") or {}
+            ready_metrics = sorted(
+                metric for metric, result in benchmark_metrics.items()
+                if result.get("status") == "ready"
+                and _finite(result.get("percentile"))
+            )
+            available_metrics = sorted(
+                metric for metric, result in benchmark_metrics.items()
+                if _finite(result.get("value_per90"))
+            )
+
+            if reasons:
+                status = (
+                    "insufficient_data"
+                    if "insufficient_event_evidence" in reasons
+                    and event_count <= 0
+                    else "limited"
+                )
+            else:
+                status = "ready_for_scout_review"
+
+            if not benchmark_player.get("eligible_for_peer_comparison", False):
+                peer_context_status = "not_eligible"
+            elif ready_metrics:
+                peer_context_status = "available"
+            else:
+                peer_context_status = "insufficient_sample"
+
+            result = {
+                "player_id": player.get("player_id"),
+                "player_name": player.get("player_name"),
+                "role_code": role_code,
+                "readiness_status": status,
+                "reason_codes": sorted(set(reasons)),
+                "checks": {
+                    "data_quality_status": data_quality,
+                    "data_consistency_status": consistency,
+                    "identity_status": identity_status,
+                    "possible_same_name_collision": bool(
+                        identity.get("possible_same_name_collision")
+                    ),
+                    "verified_minutes": (
+                        round(float(minutes), 2) if _finite(minutes) else None
+                    ),
+                    "minimum_verified_minutes": minimum_verified_minutes,
+                    "appearance_matches": appearances,
+                    "minimum_appearances": minimum_appearances,
+                    "attributed_events": event_count,
+                },
+                "peer_context_status": peer_context_status,
+                "peer_metrics_available": available_metrics,
+                "peer_percentiles_available": ready_metrics,
+            }
+            results.append(result)
+            all_results.append(result)
+
+        role_results[role_code] = {
+            "role_name": profile.get("role_name"),
+            "player_count": len(results),
+            "readiness_counts": {
+                status: sum(row["readiness_status"] == status for row in results)
+                for status in ("ready_for_scout_review", "limited", "insufficient_data")
+            },
+            "players": results,
+        }
+
+    return {
+        "readiness_version": "scout-review-readiness-v1",
+        "purpose": "Data sufficiency and reliability gate before human scouting review; not a player rating.",
+        "minimum_verified_minutes": minimum_verified_minutes,
+        "minimum_appearances": minimum_appearances,
+        "roles": role_results,
+        "summary": {
+            "player_role_records": len(all_results),
+            "ready_for_scout_review": sum(
+                row["readiness_status"] == "ready_for_scout_review" for row in all_results
+            ),
+            "limited": sum(row["readiness_status"] == "limited" for row in all_results),
+            "insufficient_data": sum(
+                row["readiness_status"] == "insufficient_data" for row in all_results
+            ),
+        },
+        "interpretation_limits": [
+            "Ready means the selected data passes technical sample and quality gates; it does not mean that the player is good or recommended.",
+            "This first version uses minimum verified minutes and appearance count as simple sample gates; it does not yet adjust for age, competition strength, position-specific opportunity or match context.",
+            "Peer percentiles are contextual only and remain unavailable when metric cohorts are too small.",
+            "Video review and human scouting judgement are still required for tactical, technical and behavioural evaluation.",
+        ],
     }
 
 
