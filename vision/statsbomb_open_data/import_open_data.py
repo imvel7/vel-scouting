@@ -2312,12 +2312,6 @@ def build_fullback_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
 
         metrics = player.get("metrics") or {}
         per90 = player.get("per90_metrics") or {}
-        score_state_analysis = player.get("score_state_analysis") or {}
-        score_state_per90 = score_state_analysis.get("per90_metrics_by_state")
-        score_state_per90_validated = (
-            score_state_analysis.get("per90_status") == "validated"
-            and isinstance(score_state_per90, dict)
-        )
         grouped_metrics = {}
         for group in FB_METRIC_GROUPS:
             count_fields = group["count_metrics"]
@@ -3023,6 +3017,12 @@ def build_cb_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
             continue
         metrics = player.get("metrics") or {}
         per90 = player.get("per90_metrics") or {}
+        score_state_analysis = player.get("score_state_analysis") or {}
+        score_state_per90 = score_state_analysis.get("per90_metrics_by_state")
+        score_state_per90_validated = (
+            score_state_analysis.get("per90_status") == "validated"
+            and isinstance(score_state_per90, dict)
+        )
         grouped_metrics = {}
         for group in CB_METRIC_GROUPS:
             count_fields = group["count_metrics"]
