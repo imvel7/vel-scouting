@@ -108,6 +108,11 @@ activity and box protection. Each group keeps the leading, drawing and trailing
 values separate. Missing or unvalidated score-state data remains unavailable;
 these rates do not create a rating or peer ranking.
 
+The full-back/wing-back profile also carries these rates into its three
+groups: attacking output, distribution/progression and defensive activity.
+Its attacking group includes score-state xG alongside event counts. Missing or
+unvalidated score-state data remains unavailable.
+
 These rates describe event frequency in context. They are not positional
 ratings, quality scores or transfer recommendations.
 
