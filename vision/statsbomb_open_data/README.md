@@ -128,6 +128,13 @@ link play and pressing contribution. Its finishing group includes score-state
 xG alongside shot and goal counts. Missing or unvalidated data remains
 unavailable.
 
+The goalkeeper profile carries score-state rates into shot stopping, area
+control and distribution/restarts. Its top-level score_state_context records
+validation status and the goalkeeper's verified minutes in each state. A state
+with zero verified player minutes remains null. These are descriptive event
+frequencies, not save-quality or opportunity-adjusted measures; no goalkeeper
+rating or ranking is produced.
+
 These rates describe event frequency in context. They are not positional
 ratings, quality scores or transfer recommendations.
 
