@@ -5,10 +5,12 @@ on:
     branches: [main, feature/verified-minutes-calculation, feature/metric-interpretation-guidance, feature/match-context-metadata, feature/event-time-score-timeline, feature/player-metrics-by-score-state, feature/score-state-duration-context, feature/player-score-state-minutes, feature/score-state-per90-metrics]
     paths:
       - "vision/statsbomb_open_data/**"
+      - "vision/afriskaut_open_data/**"
       - ".github/workflows/statsbomb-import-tests.yml"
   pull_request:
     paths:
       - "vision/statsbomb_open_data/**"
+      - "vision/afriskaut_open_data/**"
       - ".github/workflows/statsbomb-import-tests.yml"
   workflow_dispatch:
 
@@ -53,3 +55,25 @@ jobs:
             --data-root .cache/statsbomb-open-data/own-goal-smoke/raw \
             --report .cache/statsbomb-open-data/own-goal-smoke/import-report.json > /dev/null
           python -c "import json; p=json.load(open('.cache/statsbomb-open-data/own-goal-smoke/import-report.json', encoding='utf-8')); m=p['matches'][0]; t=m['match']['match_context']['score_state_timeline']; assert t['status'] == 'validated', t; assert t['listed_score'] == {'home': 4, 'away': 2}; assert t['reconstructed_score'] == {'home': 4, 'away': 2}; assert t['durations']['status'] == 'validated'; assert sum(t['durations']['home_team_seconds_by_state'].values()) == t['durations']['total_seconds'] == sum(t['durations']['away_team_seconds_by_state'].values()); assert len([g for g in t['goals'] if g['goal_type'] == 'own_goal_for']) == 1; assert len(t['goals']) == 6; print('2018 France-Croatia final own-goal score timeline smoke test passed.')"
+  afriskaut-youth-data-probe:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Test Afriskaut position normalizer and match linkage
+        run: python -m unittest discover -s vision/afriskaut_open_data -p "test_*.py" -v
+      - name: Inspect public Afriskaut youth event dataset
+        run: python vision/afriskaut_open_data/probe_dataset.py
+      - name: Diagnose unmatched actors against substitution metadata
+        run: python vision/afriskaut_open_data/diagnose_substitution_metadata.py
+      - name: Classify residual event actor links
+        run: python vision/afriskaut_open_data/diagnose_residual_actor_links.py
+      - name: Audit event eligibility for player metrics
+        run: python vision/afriskaut_open_data/audit_player_metric_eligibility.py
+      - name: Build center-back raw metric profile
+        run: python vision/afriskaut_open_data/center_back_metrics.py

@@ -894,3 +894,51 @@ Importer `role_profiles.CB` nesnesi üretir. CB profili şu alanları ayrı ayr�
 4. Kaynak hakları ve normalize edilmiş veri eşlemesi netleşmeden Supabase'e ham olay verisi aktarma veya kamuya açık oyuncu raporu yayımlama.
 
 **Durum:** Teknik StatsBomb import ve üç maçlık CB event profile doğrulandı. Ürün için güncel genç oyuncu veri kaynağı ve kullanım hakları hâlâ çözülmedi.
+
+---
+
+## 24. Afriskaut Dynasty Scouting League 2024 — genç oyuncu veri kaynağı değerlendirmesi (15 Kasım 2026)
+
+### Kaynak ve lisans
+
+Afriskaut'un resmî deposu, Dynasty Scouting League 2024 için maç olaylarını JSONL, maç/kadro/değişiklik bilgilerini JSON olarak yayımlıyor. Depo README'si veri setini Apache License 2.0 altında yayımladığını ve kamuya açık çalışmalarda Afriskaut'a atıf istediğini belirtiyor. Yayıncının duyurusu organizasyonu Nijerya'da 16–19 yaş grubuna yönelik bir gençlik ligi olarak tanımlıyor.
+
+- Resmî depo: https://github.com/Afriskaut/dynasty-scouting-league-2024-open-data
+- Lisans: https://github.com/Afriskaut/dynasty-scouting-league-2024-open-data/blob/main/LICENSE
+- README: https://github.com/Afriskaut/dynasty-scouting-league-2024-open-data#readme
+- Yayıncı duyurusu: https://www.linkedin.com/posts/afriskaut_pre-professional-african-football-open-data-activity-7450108442012323840-BNuP
+
+Apache 2.0 beyanı teknik prototipte kullanım için olumlu bir sinyal. Bununla birlikte bu lisans kaydı, özellikle reşit olmayan oyuncuların isimli profillerini yayımlamak için gerekli mahremiyet, rıza, koruma ve yayın uygunluğu kontrollerinin yerine geçmez. Bu yüzden ilk prototip anonim/kurum içi teknik değerlendirme kapsamında tutulacak; oyuncu isimleri veya kamuya açık scouting profilleri yayımlanmayacak.
+
+### Teknik kapsam ve doğrulama
+
+PR #46 araştırması, veriyi geçici GitHub Actions ortamında inceledi; isim ve oyuncu kimliklerini loglara aktarmadı.
+
+- 136 maç ve 84.214 olay kaydı incelendi.
+- Yalnızca ilk 11/kadro listeleriyle yapılan eşleştirme bazı yedek oyuncuları dışarıda bırakıyordu.
+- Aynı maçın açık değişiklik kayıtları da eşleştirmeye katılınca 84.193 olay, oyuncu ölçümü için güvenli biçimde eşleştirildi (%99,98).
+- 21 olay aynı maçın kadro/değişiklik kimliğiyle doğrulanamadığı için oyuncu metriğine alınmadı.
+- 725 farklı oyuncu kimliği en az bir eşleşmiş olaya sahipti.
+- Stoper için 346 oyuncu-maç kaydı açık mevki etiketi ve eşleşmiş olaylarla ham olay profiline alınabildi.
+- Mevki etiketi normalizasyonu ve takım seviyesi olayların bireysel oyuncu ölçümünden çıkarılması için sentetik testler eklendi.
+
+Bu oran olayların oyuncuya bağlanabilirliğini gösterir; olay tanımlarının scout açısından doğru yorumlandığını veya metriklerin oyuncu kalitesini ölçtüğünü kanıtlamaz.
+
+### Karar
+
+**Durum: Sınırlı genç oyuncu pilotu ve parser/metric doğrulaması için uygun aday; Vel Scout'un tek veya ana veri sağlayıcısı olarak yeterli değil.**
+
+Gerekçeler:
+- Veri, 2024 Dynasty Scouting League ile sınırlı tek bir organizasyon örneklemi; küresel lig/sezon kapsamı sağlamıyor.
+- Maç ve oyuncu dakikaları henüz güvenilir biçimde hesaplanıp doğrulanmadı; bu nedenle per-90 kıyasları açılmayacak.
+- Olay sözlüğü ve etiketlerin anlamı, metriklere çevrilmeden önce yayıncının event-map dokümanıyla ayrıca eşleştirilmeli.
+- Reşit olmayan oyuncular hakkındaki isimli verinin depolanması, işlenmesi ve yayımlanması için ayrı gizlilik/koruma incelemesi gerekiyor.
+
+### Sonraki karar kapısı
+
+1. Tek maçlık örnek üzerinde event-map tanımlarını gerçek JSON kayıtlarıyla karşılaştır; anlamı belirsiz olayları dışarıda tut.
+2. Başlama/bitirme, periyot ve değişiklik alanlarını doğrula; dakika hesabı için sentetik testleri ve gerçek maç uzlaşmasını tamamla.
+3. Yalnızca bu kapılar geçilirse anonim pilotta ilk rol metriklerini hesapla; sonuçları StatsBomb prototipinden ayrı tut.
+4. Paralelde daha geniş lig/sezon kapsamı sunabilen ikinci bir kaynak araştır; Afriskaut'u ek bir genç oyuncu test kaynağı olarak konumlandır.
+
+Ham veri Supabase'e aktarılmadı; canlı veritabanı, public site ve admin panelinde değişiklik yapılmadı.
