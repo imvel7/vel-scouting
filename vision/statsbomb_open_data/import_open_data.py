@@ -581,11 +581,15 @@ def calculate_player_data_consistency(
         score_state_metric_totals_match = False
         reasons.append("score_state_aggregate_missing")
 
+    has_score_state_minutes_metadata = (
+        "minutes_status_counts" in aggregate_score_state
+        or any("minutes_status" in row for row in match_score_state_rows)
+    )
     score_state_minutes_status_counts = Counter(
         row.get("minutes_status") or "unavailable" for row in match_score_state_rows
     )
     score_state_minutes_status_counts_match: bool | None = None
-    if has_score_state_metadata:
+    if has_score_state_minutes_metadata:
         score_state_minutes_status_counts_match = (
             score_state_minutes_status_counts
             == Counter(aggregate_score_state.get("minutes_status_counts") or {})
