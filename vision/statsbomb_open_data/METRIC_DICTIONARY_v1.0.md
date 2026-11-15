@@ -278,7 +278,7 @@ assessment or transfer recommendation.
 ## First role profile — Centre-back (CB) v0.1
 
 The importer selects players whose observed lineup/event position labels contain
-`Center Back`. The CB profile currently exposes these separate fields:
+`Center Back`. The CB profile exposes these separate fields:
 
 | CB profile field | Calculation | What it can say | What it cannot say |
 |---|---|---|---|
@@ -294,6 +294,14 @@ The importer selects players whose observed lineup/event position labels contain
 | Clearances | Count of Clearance events | Recorded clearances | Whether the clearance was the best decision |
 | Blocks | Count of Block events | Recorded blocks | Shot/pass danger or whether the block prevented a goal |
 | Tackles | Duel events with `duel.type.name = Tackle` | Recorded tackle-type duels | Complete ground/aerial duel quality |
+
+When score-state metrics and player minutes are both validated, each CB metric
+group also includes `per90_by_score_state` with separate values for
+`leading`, `drawing` and `trailing`. The top-level `score_state_context`
+records score-state minute availability and minutes by state. These rates use
+the player's own verified time in that state; they are descriptive event
+frequencies, not defensive ratings or peer percentiles. If validation fails,
+the group field remains unavailable.
 
 ### W profile metric groups
 
@@ -507,10 +515,13 @@ the existing match-clock/minutes validation succeeds, and each included
 period has one usable start and end boundary. If clock or boundary evidence
 is incomplete or contradictory, duration values remain unavailable.
 
-These are team-level state durations only. They are not yet player-specific
-minutes: substitutions and temporary player-off intervals have not been
-intersected with score-state intervals. Do not use team durations as a
-player's denominator for score-state per-90 calculations.
+The same validated score timeline is also intersected with each player's
+verified on-pitch intervals. Player minutes by score state account for
+substitutions, temporary Player Off/On intervals, permanent Player Off events
+and dismissals, including extra time but excluding the penalty shootout. A
+player's three state-minute totals must reconcile to that player's verified
+overall on-pitch minutes. Team durations must not be used as a player's
+denominator.
 
 ### Player actions by match score state
 
@@ -527,11 +538,19 @@ coverage statuses. An event is not classified when its team cannot be mapped to
 the match's home/away team, its event order cannot be resolved, or the match
 score timeline is not validated.
 
-These values are raw totals, not rates or scores. They are not adjusted for
-minutes spent in each state, possession, opponent, game phase or role. A player
-may spend very different amounts of time leading, drawing and trailing, so raw
-counts across states must not be interpreted as a per-minute performance
-comparison. Score-state minutes and per-90 comparisons are not yet calculated.
+The `score_state_analysis` block includes `minutes_by_state_seconds`,
+`minutes_by_state` and `per90_metrics_by_state` when the player-time and
+score timelines validate. Each per-90 denominator is that player's own
+verified time in the same score state. A state with zero verified player
+minutes has a null rate. Selected-sample totals sum raw event metrics and
+verified state minutes across match records before recalculating rates; if any
+selected record is incomplete or unvalidated, aggregate score-state per-90
+values remain unavailable rather than silently excluding that record.
+
+Score-state per-90 values describe event frequency, not event quality. They are
+not adjusted for possession, defensive or attacking opportunities, opponent,
+game phase or role, and must not be treated as a positional rating or
+performance verdict.
 
 ### Event-time score-state timeline
 

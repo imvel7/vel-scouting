@@ -1803,6 +1803,50 @@ class StatsBombImportTests(unittest.TestCase):
                     "blocks": 1.3,
                     "tackles": 2.0,
                 },
+                "score_state_analysis": {
+                    "per90_status": "validated",
+                    "minutes_status": "validated",
+                    "minutes_by_state": {
+                        "leading": 20.0,
+                        "drawing": 60.0,
+                        "trailing": 10.0,
+                    },
+                    "per90_metrics_by_state": {
+                        "leading": {
+                            "passes_attempted": 24.0,
+                            "passes_completed": 22.0,
+                            "carries": 4.0,
+                            "pressures": 7.0,
+                            "tackles": 1.0,
+                            "interceptions": 1.0,
+                            "ball_recoveries": 2.0,
+                            "clearances": 3.0,
+                            "blocks": 1.0,
+                        },
+                        "drawing": {
+                            "passes_attempted": 18.0,
+                            "passes_completed": 16.0,
+                            "carries": 3.0,
+                            "pressures": 5.0,
+                            "tackles": 2.0,
+                            "interceptions": 2.0,
+                            "ball_recoveries": 2.0,
+                            "clearances": 4.0,
+                            "blocks": 1.0,
+                        },
+                        "trailing": {
+                            "passes_attempted": 20.0,
+                            "passes_completed": 17.0,
+                            "carries": 5.0,
+                            "pressures": 8.0,
+                            "tackles": 1.0,
+                            "interceptions": 1.0,
+                            "ball_recoveries": 3.0,
+                            "clearances": 5.0,
+                            "blocks": 2.0,
+                        },
+                    },
+                },
             },
             {
                 "player_id": 5503,
@@ -1833,6 +1877,25 @@ class StatsBombImportTests(unittest.TestCase):
         defence = selected["grouped_metrics"]["defensive_activity"]
         self.assertEqual(defence["raw_counts"]["interceptions"], 4)
         self.assertEqual(defence["per90_counts"]["ball_recoveries"], 3.3)
+        self.assertEqual(
+            selected["score_state_context"]["per90_status"], "validated"
+        )
+        self.assertEqual(
+            selected["score_state_context"]["minutes_by_state"]["leading"], 20.0
+        )
+        self.assertEqual(
+            distribution["per90_by_score_state"]["leading"]["passes_attempted"],
+            24.0,
+        )
+        self.assertEqual(
+            defence["per90_by_score_state"]["drawing"]["interceptions"], 2.0
+        )
+        self.assertEqual(
+            selected["grouped_metrics"]["box_protection"]["per90_by_score_state"][
+                "trailing"
+            ]["clearances"],
+            5.0,
+        )
         box = selected["grouped_metrics"]["box_protection"]
         self.assertEqual(box["raw_counts"]["clearances"], 7)
         self.assertNotIn("aerial_duels", selected["grouped_metrics"])
@@ -1841,6 +1904,25 @@ class StatsBombImportTests(unittest.TestCase):
         )
         self.assertNotIn("rating", selected)
         self.assertIn("defensive rating or ranking", profile["interpretation_limits"][0])
+
+    def test_cb_profile_keeps_score_state_rates_unavailable_when_not_validated(self):
+        profile = build_cb_profile([{
+            "player_id": 7,
+            "player_name": "CB Without Score State Data",
+            "positions_seen": ["Center Back"],
+            "metrics": {"passes_attempted": 20},
+            "per90_metrics": {"passes_attempted": 10.0},
+        }])
+
+        player = profile["players"][0]
+        self.assertEqual(
+            player["score_state_context"]["per90_status"], "unavailable"
+        )
+        self.assertIsNone(
+            player["grouped_metrics"]["distribution_progression"][
+                "per90_by_score_state"
+            ]
+        )
 
     def test_fullback_profile_groups_wingback_and_fullback_metrics(self):
         players = [
