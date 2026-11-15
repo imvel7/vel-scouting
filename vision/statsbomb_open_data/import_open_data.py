@@ -2945,16 +2945,38 @@ def build_central_midfield_profile(player_rows: list[dict[str, Any]]) -> dict[st
 
         metrics = player.get("metrics") or {}
         per90 = player.get("per90_metrics") or {}
+        score_state_analysis = player.get("score_state_analysis") or {}
+        score_state_per90 = score_state_analysis.get("per90_metrics_by_state")
+        score_state_per90_validated = (
+            score_state_analysis.get("per90_status") == "validated"
+            and isinstance(score_state_per90, dict)
+        )
         grouped_metrics = {}
         for group in CM_METRIC_GROUPS:
             count_fields = group["count_metrics"]
             rate_fields = group["rate_metrics"]
             context_fields = group["context_metrics"]
+            score_state_fields = tuple(dict.fromkeys((*count_fields, *rate_fields)))
             grouped_metrics[group["code"]] = {
                 "raw_counts": {key: metrics.get(key) for key in count_fields},
                 "per90_counts": {
                     key: per90.get(key) for key in count_fields if key in per90
                 },
+                "per90_by_score_state": (
+                    {
+                        state: (
+                            {
+                                key: score_state_per90[state].get(key)
+                                for key in score_state_fields
+                                if key in score_state_per90[state]
+                            }
+                            if isinstance(score_state_per90.get(state), dict)
+                            else None
+                        )
+                        for state in SCORE_STATES
+                    }
+                    if score_state_per90_validated else None
+                ),
                 "raw_rate_totals": {key: metrics.get(key) for key in rate_fields},
                 "per90_rate_metrics": {
                     key: per90.get(key) for key in rate_fields if key in per90
@@ -2977,6 +2999,18 @@ def build_central_midfield_profile(player_rows: list[dict[str, Any]]) -> dict[st
             "minutes_played": player.get("minutes_played"),
             "per90_metrics": player.get("per90_metrics"),
             "grouped_metrics": grouped_metrics,
+            "score_state_context": {
+                "per90_status": (
+                    "validated" if score_state_per90_validated else "unavailable"
+                ),
+                "minutes_status": score_state_analysis.get("minutes_status") or "unavailable",
+                "minutes_by_state": score_state_analysis.get("minutes_by_state"),
+                "unit": "events and xG per 90 verified player minutes within the same score state",
+                "interpretation_limit": (
+                    "Descriptive event frequency only; not adjusted for possession, "
+                    "attacking or defensive opportunities, opponent quality or action quality."
+                ),
+            },
             "data_quality": player.get("data_quality"),
             "data_consistency": player.get("data_consistency"),
             "identity": player.get("identity"),
@@ -3018,7 +3052,8 @@ def build_central_midfield_profile(player_rows: list[dict[str, Any]]) -> dict[st
         "interpretation_limits": [
             "No central-midfielder rating or ranking is calculated.",
             "Raw event counts depend on selected minutes, team possession, role, match state and opponent context.",
-            "Per-90 values are included only when derived from complete, positive verified minutes.",
+            "Overall per-90 values require complete, positive verified minutes; score-state per-90 values additionally require validated score and player-time timelines.",
+            "Score-state rates describe event frequency in each state and are not adjusted for possession, attacking or defensive opportunities, opponent quality or action quality.",
             "The groups organize recorded actions; they do not measure scanning, pressure resistance, positional discipline or tactical decision quality.",
             "Players with more than one observed position retain all source position labels; the profile does not infer one primary midfield role.",
         ],
