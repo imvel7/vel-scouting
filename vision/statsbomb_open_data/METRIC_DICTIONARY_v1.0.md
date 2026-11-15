@@ -358,10 +358,15 @@ counts, not automatic success counts.
 
 Raw counts are retained. Count metrics receive per-90 values only when the
 player record contains rates calculated from complete, positive verified
-minutes. Save percentage, post-shot xG/goals prevented, cross-claim rate and
-long-ball accuracy remain unavailable until their denominators and underlying
-event classifications are validated. The profile does not produce a
-goalkeeper rating or ranking.
+minutes. When score-state metrics and player minutes are validated, each
+goalkeeper group also exposes per90_by_score_state for leading, drawing and
+trailing periods. The player's score_state_context records validation status
+and verified minutes by state; a state with zero verified minutes remains
+null. These are descriptive event frequencies, not save-quality or
+opportunity-adjusted measures. Save percentage, post-shot xG/goals prevented,
+cross-claim rate and long-ball accuracy remain unavailable until their
+denominators and underlying event classifications are validated. The profile
+does not produce a goalkeeper rating or ranking.
 
 ### ST profile metric groups
 
