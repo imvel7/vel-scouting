@@ -426,9 +426,14 @@ The profile groups the existing event metrics into three sections:
 
 Raw counts are retained. Count metrics and xG receive per-90 values only when
 the selected-sample player record contains rates calculated from complete,
-positive verified minutes. This is a descriptive profile, not a rating or
-ranking. It does not measure overlapping runs, defensive positioning, crossing
-quality or tactical responsibility.
+positive verified minutes. When the score-state and player-minute timelines are
+validated, each group also exposes `per90_by_score_state` with separate
+`leading`, `drawing` and `trailing` values. The attacking-output group
+includes score-state xG as well as count metrics. The player's top-level
+`score_state_context` records status and minutes by state. A state with no
+verified player minutes remains null. This is a descriptive profile, not a
+rating or ranking. It does not measure overlapping runs, defensive positioning,
+crossing quality or tactical responsibility.
 
 ### CB profile safeguards
 

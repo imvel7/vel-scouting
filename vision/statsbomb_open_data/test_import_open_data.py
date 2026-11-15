@@ -1966,6 +1966,62 @@ class StatsBombImportTests(unittest.TestCase):
                     "clearances": 8,
                     "blocks": 2,
                 },
+                "score_state_analysis": {
+                    "per90_status": "validated",
+                    "minutes_status": "validated",
+                    "minutes_by_state": {
+                        "leading": 45.0,
+                        "drawing": 200.0,
+                        "trailing": 55.0,
+                    },
+                    "per90_metrics_by_state": {
+                        "leading": {
+                            "crosses": 4.0,
+                            "assists": 0.2,
+                            "xg": 0.15,
+                            "passes_attempted": 50.0,
+                            "passes_completed": 42.0,
+                            "carries": 6.0,
+                            "dribbles": 2.0,
+                            "pressures": 7.0,
+                            "tackles": 2.0,
+                            "interceptions": 1.0,
+                            "ball_recoveries": 3.0,
+                            "clearances": 4.0,
+                            "blocks": 1.0,
+                        },
+                        "drawing": {
+                            "crosses": 2.0,
+                            "assists": 0.1,
+                            "xg": 0.05,
+                            "passes_attempted": 45.0,
+                            "passes_completed": 40.0,
+                            "carries": 5.0,
+                            "dribbles": 1.0,
+                            "pressures": 6.0,
+                            "tackles": 1.0,
+                            "interceptions": 2.0,
+                            "ball_recoveries": 2.0,
+                            "clearances": 3.0,
+                            "blocks": 1.0,
+                        },
+                        "trailing": {
+                            "crosses": 5.0,
+                            "assists": 0.3,
+                            "xg": 0.2,
+                            "passes_attempted": 40.0,
+                            "passes_completed": 32.0,
+                            "carries": 7.0,
+                            "dribbles": 3.0,
+                            "pressures": 10.0,
+                            "tackles": 3.0,
+                            "interceptions": 1.0,
+                            "ball_recoveries": 4.0,
+                            "clearances": 5.0,
+                            "blocks": 2.0,
+                        },
+                    },
+                },
             },
             {
                 "player_id": 2,
@@ -2006,13 +2062,33 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertEqual(attacking["per90_counts"]["crosses"], 3.0)
         self.assertEqual(attacking["raw_rate_totals"]["xg"], 0.2)
         self.assertEqual(attacking["per90_rate_metrics"]["xg"], 0.1)
+        self.assertEqual(
+            selected["score_state_context"]["per90_status"], "validated"
+        )
+        self.assertEqual(
+            selected["score_state_context"]["minutes_by_state"]["drawing"],
+            200.0,
+        )
+        self.assertEqual(
+            attacking["per90_by_score_state"]["leading"]["crosses"], 4.0
+        )
+        self.assertEqual(
+            attacking["per90_by_score_state"]["leading"]["xg"], 0.15
+        )
 
         progression = selected["grouped_metrics"]["distribution_progression"]
         self.assertEqual(progression["raw_counts"]["passes_attempted"], 150)
         self.assertEqual(progression["context_metrics"]["pass_completion_pct"], 80.0)
+        self.assertEqual(
+            progression["per90_by_score_state"]["drawing"]["passes_attempted"],
+            45.0,
+        )
         defence = selected["grouped_metrics"]["defensive_activity"]
         self.assertEqual(defence["raw_counts"]["tackles"], 7)
         self.assertEqual(defence["per90_counts"]["pressures"], 8.0)
+        self.assertEqual(
+            defence["per90_by_score_state"]["trailing"]["pressures"], 10.0
+        )
 
         wingback = profile["players"][1]
         self.assertEqual(wingback["fullback_position_labels"], ["Left Wing Back"])
@@ -2039,6 +2115,12 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertEqual(
             player["grouped_metrics"]["defensive_activity"]["per90_counts"],
             {},
+        )
+        self.assertEqual(
+            player["score_state_context"]["per90_status"], "unavailable"
+        )
+        self.assertIsNone(
+            player["grouped_metrics"]["attacking_output"]["per90_by_score_state"]
         )
 
     def test_fullback_position_filter_excludes_centre_back_and_attacking_winger(self):
