@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import calculate_player_score_state_minutes, calculate_score_state_durations, calculate_match_score_timeline, extract_match_context, analyse_match, build_cb_profile, build_goalkeeper_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_striker_profile, build_role_benchmarks, BENCHMARK_METRIC_GUIDANCE, ROLE_BENCHMARK_METRICS, build_player_evaluation_readiness, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
+from import_open_data import calculate_score_state_per90_metrics, calculate_player_score_state_minutes, calculate_score_state_durations, calculate_match_score_timeline, extract_match_context, analyse_match, build_cb_profile, build_goalkeeper_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_striker_profile, build_role_benchmarks, BENCHMARK_METRIC_GUIDANCE, ROLE_BENCHMARK_METRICS, build_player_evaluation_readiness, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
 
 
 MATCH = {
@@ -1501,6 +1501,49 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertEqual(player["minutes_played"], 45.0)
         self.assertEqual(player["per90_metrics"]["events"], 2.0)
         self.assertEqual(player["per90_metrics"]["passes_attempted"], 2.0)
+
+    def test_score_state_per90_uses_each_states_own_verified_minutes(self):
+        metrics_by_state = {
+            "leading": {"events": 3, "passes_attempted": 2, "xg": 0.5},
+            "drawing": {"events": 1, "carries": 1, "xg": 0.25},
+            "trailing": {"events": 0, "passes_attempted": 0, "xg": 0.0},
+        }
+        seconds_by_state = {
+            "leading": 30 * 60,
+            "drawing": 90 * 60,
+            "trailing": 0,
+        }
+
+        result = calculate_score_state_per90_metrics(metrics_by_state, seconds_by_state)
+
+        self.assertEqual(result["leading"]["events"], 9.0)
+        self.assertEqual(result["leading"]["passes_attempted"], 6.0)
+        self.assertEqual(result["leading"]["xg"], 1.5)
+        self.assertEqual(result["drawing"]["events"], 1.0)
+        self.assertEqual(result["drawing"]["carries"], 1.0)
+        self.assertEqual(result["drawing"]["xg"], 0.25)
+        self.assertIsNone(result["trailing"])
+
+    def test_score_state_per90_is_unavailable_for_invalid_or_missing_minutes(self):
+        metrics_by_state = {
+            state: {"events": 1, "xg": 0.1}
+            for state in ("leading", "drawing", "trailing")
+        }
+        self.assertIsNone(
+            calculate_score_state_per90_metrics(
+                metrics_by_state,
+                {"leading": 60, "drawing": 60},
+            )
+        )
+        self.assertIsNone(
+            calculate_score_state_per90_metrics(
+                metrics_by_state,
+                {"leading": 60, "drawing": -1, "trailing": 60},
+            )
+        )
+        self.assertIsNone(
+            calculate_score_state_per90_metrics(None, {"leading": 60})
+        )
 
     def test_does_not_fabricate_per90_without_minutes(self):
         report = analyse_match(MATCH, LINEUPS, EVENTS)
