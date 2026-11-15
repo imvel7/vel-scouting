@@ -113,6 +113,11 @@ groups: attacking output, distribution/progression and defensive activity.
 Its attacking group includes score-state xG alongside event counts. Missing or
 unvalidated score-state data remains unavailable.
 
+The central-midfielder profile carries score-state rates into passing and
+progression, chance creation and defensive-work groups. The chance-creation
+group includes score-state xG as well as event counts. Missing or unvalidated
+data remains unavailable.
+
 These rates describe event frequency in context. They are not positional
 ratings, quality scores or transfer recommendations.
 
