@@ -123,6 +123,11 @@ wide delivery, one-v-one progression and defensive contribution. Its
 chance-creation group includes score-state xG alongside event counts. Missing
 or unvalidated data remains unavailable.
 
+The striker profile carries score-state rates into finishing, chance creation,
+link play and pressing contribution. Its finishing group includes score-state
+xG alongside shot and goal counts. Missing or unvalidated data remains
+unavailable.
+
 These rates describe event frequency in context. They are not positional
 ratings, quality scores or transfer recommendations.
 
