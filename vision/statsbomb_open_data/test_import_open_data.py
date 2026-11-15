@@ -2900,6 +2900,59 @@ class StatsBombImportTests(unittest.TestCase):
                     "passes_completed": 17.0,
                     "goal_kicks": 4.0,
                 },
+                "score_state_analysis": {
+                    "per90_status": "validated",
+                    "minutes_status": "validated",
+                    "minutes_by_state": {
+                        "leading": 90.0,
+                        "drawing": 180.0,
+                        "trailing": 90.0,
+                    },
+                    "per90_metrics_by_state": {
+                        "leading": {
+                            "goalkeeper_saves": 1.5,
+                            "goalkeeper_shots_faced": 2.0,
+                            "goalkeeper_goals_conceded": 0.5,
+                            "goalkeeper_penalty_saves": 0.0,
+                            "goalkeeper_penalties_conceded": 0.0,
+                            "goalkeeper_collections": 0.5,
+                            "goalkeeper_punches": 0.0,
+                            "goalkeeper_sweeps": 0.25,
+                            "goalkeeper_smotherings": 0.0,
+                            "passes_attempted": 18.0,
+                            "passes_completed": 13.0,
+                            "goal_kicks": 3.0,
+                        },
+                        "drawing": {
+                            "goalkeeper_saves": 2.0,
+                            "goalkeeper_shots_faced": 2.5,
+                            "goalkeeper_goals_conceded": 0.5,
+                            "goalkeeper_penalty_saves": 0.0,
+                            "goalkeeper_penalties_conceded": 0.0,
+                            "goalkeeper_collections": 1.0,
+                            "goalkeeper_punches": 0.25,
+                            "goalkeeper_sweeps": 0.5,
+                            "goalkeeper_smotherings": 0.25,
+                            "passes_attempted": 24.0,
+                            "passes_completed": 17.0,
+                            "goal_kicks": 4.0,
+                        },
+                        "trailing": {
+                            "goalkeeper_saves": 3.0,
+                            "goalkeeper_shots_faced": 4.0,
+                            "goalkeeper_goals_conceded": 1.0,
+                            "goalkeeper_penalty_saves": 0.25,
+                            "goalkeeper_penalties_conceded": 0.0,
+                            "goalkeeper_collections": 1.5,
+                            "goalkeeper_punches": 0.5,
+                            "goalkeeper_sweeps": 0.75,
+                            "goalkeeper_smotherings": 0.25,
+                            "passes_attempted": 30.0,
+                            "passes_completed": 21.0,
+                            "goal_kicks": 5.0,
+                        },
+                    },
+                },
                 "metrics": {
                     "goalkeeper_actions": 30,
                     "goalkeeper_saves": 14,
@@ -2951,6 +3004,20 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertEqual(distribution["per90_counts"]["goal_kicks"], 4.0)
         self.assertEqual(distribution["context_metrics"]["pass_completion_pct"], 70.83)
 
+        self.assertEqual(selected["score_state_context"]["per90_status"], "validated")
+        self.assertEqual(
+            selected["score_state_context"]["minutes_by_state"]["drawing"], 180.0
+        )
+        self.assertEqual(
+            stopping["per90_by_score_state"]["leading"]["goalkeeper_saves"], 1.5
+        )
+        self.assertEqual(
+            area["per90_by_score_state"]["drawing"]["goalkeeper_collections"], 1.0
+        )
+        self.assertEqual(
+            distribution["per90_by_score_state"]["trailing"]["goal_kicks"], 5.0
+        )
+
         self.assertEqual(
             {item["metric"] for item in profile["not_yet_available"]},
             {
@@ -2983,6 +3050,40 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertEqual(
             selected["grouped_metrics"]["distribution"]["per90_counts"],
             {},
+        )
+        self.assertEqual(selected["score_state_context"]["per90_status"], "unavailable")
+        for group in selected["grouped_metrics"].values():
+            self.assertIsNone(group["per90_by_score_state"])
+
+    def test_goalkeeper_profile_keeps_zero_minute_score_state_null(self):
+        profile = build_goalkeeper_profile([{
+            "player_id": 93,
+            "player_name": "Goalkeeper With No Trailing Minutes",
+            "positions_seen": ["Goalkeeper"],
+            "score_state_analysis": {
+                "per90_status": "validated",
+                "minutes_status": "validated",
+                "minutes_by_state": {
+                    "leading": 45.0,
+                    "drawing": 45.0,
+                    "trailing": 0.0,
+                },
+                "per90_metrics_by_state": {
+                    "leading": {"goalkeeper_saves": 1.0},
+                    "drawing": {"goalkeeper_saves": 2.0},
+                    "trailing": None,
+                },
+            },
+        }])
+        selected = profile["players"][0]
+        self.assertIsNone(
+            selected["grouped_metrics"]["shot_stopping"]["per90_by_score_state"]["trailing"]
+        )
+        self.assertEqual(
+            selected["grouped_metrics"]["shot_stopping"]["per90_by_score_state"]["leading"][
+                "goalkeeper_saves"
+            ],
+            1.0,
         )
 
     def test_goalkeeper_profile_selects_only_explicit_goalkeeper_positions(self):
