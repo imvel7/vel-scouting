@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from import_open_data import calculate_player_score_state_minutes, calculate_score_state_durations, calculate_match_score_timeline, extract_match_context, analyse_match, build_cb_profile, build_goalkeeper_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_striker_profile, build_role_benchmarks, BENCHMARK_METRIC_GUIDANCE, ROLE_BENCHMARK_METRICS, build_player_evaluation_readiness, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
+from import_open_data import calculate_score_state_per90_metrics, calculate_player_score_state_minutes, calculate_score_state_durations, calculate_match_score_timeline, extract_match_context, analyse_match, build_cb_profile, build_goalkeeper_profile, build_central_midfield_profile, build_fullback_profile, build_winger_profile, build_striker_profile, build_role_benchmarks, BENCHMARK_METRIC_GUIDANCE, ROLE_BENCHMARK_METRICS, build_player_evaluation_readiness, build_player_season_comparison, calculate_minutes_played, calculate_per90_metrics, calculate_player_data_quality, calculate_player_data_consistency, calculate_player_identity, find_player_name_collisions, build_parser, fetch_json, run_import, main, ImportErrorWithContext
 
 
 MATCH = {
@@ -1445,6 +1445,65 @@ class StatsBombImportTests(unittest.TestCase):
             mismatched["reasons"],
         )
 
+    def test_player_data_consistency_recalculates_aggregate_score_state_per90(self):
+        states = {
+            "leading": {"events": 2, "passes_attempted": 1, "xg": 0.2},
+            "drawing": {"events": 1, "passes_attempted": 0, "xg": 0.0},
+            "trailing": {"events": 0, "passes_attempted": 0, "xg": 0.0},
+        }
+        state_seconds = {
+            "leading": 30 * 60,
+            "drawing": 30 * 60,
+            "trailing": 30 * 60,
+        }
+        state_per90 = calculate_score_state_per90_metrics(states, state_seconds)
+        metrics = {"events": 3, "passes_attempted": 1, "xg": 0.2}
+        row_score_state = {
+            "status": "validated",
+            "metrics_by_state": states,
+            "minutes_status": "validated",
+            "minutes_by_state_seconds": state_seconds,
+            "per90_metrics_by_state": state_per90,
+        }
+        player = {
+            "matches_listed_in_squads": 1,
+            "matches_with_appearance_evidence": 1,
+            "minutes_calculation_complete": True,
+            "minutes_matches_valid": 1,
+            "minutes_played": 90.0,
+            "per90_metrics": calculate_per90_metrics(metrics, 90 * 60),
+            "metrics": metrics,
+            "score_state_analysis": {
+                "match_status_counts": {
+                    "validated": 1, "partial": 0, "unavailable": 0,
+                },
+                "metrics_by_state": states,
+                "minutes_status": "validated",
+                "minutes_status_counts": {"validated": 1},
+                "minutes_by_state_seconds": state_seconds,
+                "per90_metrics_by_state": state_per90,
+            },
+        }
+        match_rows = [{
+            "appearance_evidence": True,
+            "minutes_played_seconds": 90 * 60,
+            "metrics": metrics,
+            "score_state_analysis": row_score_state,
+        }]
+
+        result = calculate_player_data_consistency(player, match_rows)
+
+        self.assertEqual(result["status"], "consistent")
+        self.assertTrue(result["checks"]["score_state_minutes_status_counts_match"])
+        self.assertTrue(result["checks"]["score_state_minutes_totals_match"])
+        self.assertTrue(result["checks"]["score_state_per90_recalculated"])
+
+        player["score_state_analysis"]["per90_metrics_by_state"]["leading"]["events"] += 1
+        mismatched = calculate_player_data_consistency(player, match_rows)
+        self.assertEqual(mismatched["status"], "review")
+        self.assertFalse(mismatched["checks"]["score_state_per90_recalculated"])
+        self.assertIn("score_state_per90_recalculation_mismatch", mismatched["reasons"])
+
     def test_player_data_consistency_flags_mismatched_event_totals(self):
         player = {
             "matches_listed_in_squads": 1,
@@ -1501,6 +1560,49 @@ class StatsBombImportTests(unittest.TestCase):
         self.assertEqual(player["minutes_played"], 45.0)
         self.assertEqual(player["per90_metrics"]["events"], 2.0)
         self.assertEqual(player["per90_metrics"]["passes_attempted"], 2.0)
+
+    def test_score_state_per90_uses_each_states_own_verified_minutes(self):
+        metrics_by_state = {
+            "leading": {"events": 3, "passes_attempted": 2, "xg": 0.5},
+            "drawing": {"events": 1, "carries": 1, "xg": 0.25},
+            "trailing": {"events": 0, "passes_attempted": 0, "xg": 0.0},
+        }
+        seconds_by_state = {
+            "leading": 30 * 60,
+            "drawing": 90 * 60,
+            "trailing": 0,
+        }
+
+        result = calculate_score_state_per90_metrics(metrics_by_state, seconds_by_state)
+
+        self.assertEqual(result["leading"]["events"], 9.0)
+        self.assertEqual(result["leading"]["passes_attempted"], 6.0)
+        self.assertEqual(result["leading"]["xg"], 1.5)
+        self.assertEqual(result["drawing"]["events"], 1.0)
+        self.assertEqual(result["drawing"]["carries"], 1.0)
+        self.assertEqual(result["drawing"]["xg"], 0.25)
+        self.assertIsNone(result["trailing"])
+
+    def test_score_state_per90_is_unavailable_for_invalid_or_missing_minutes(self):
+        metrics_by_state = {
+            state: {"events": 1, "xg": 0.1}
+            for state in ("leading", "drawing", "trailing")
+        }
+        self.assertIsNone(
+            calculate_score_state_per90_metrics(
+                metrics_by_state,
+                {"leading": 60, "drawing": 60},
+            )
+        )
+        self.assertIsNone(
+            calculate_score_state_per90_metrics(
+                metrics_by_state,
+                {"leading": 60, "drawing": -1, "trailing": 60},
+            )
+        )
+        self.assertIsNone(
+            calculate_score_state_per90_metrics(None, {"leading": 60})
+        )
 
     def test_does_not_fabricate_per90_without_minutes(self):
         report = analyse_match(MATCH, LINEUPS, EVENTS)

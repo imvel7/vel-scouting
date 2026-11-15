@@ -84,9 +84,26 @@ defensive rating, weighted score, percentile, ranking or per-90 value.
 Completed passes are represented by the absence of `pass.outcome` in the
 StatsBomb event schema.
 
+## Score-state per-90 metrics
+
+For each player, event counts and summed source xG can be normalized separately
+for periods when their team is leading, drawing or trailing. Each rate uses
+that player's verified on-pitch seconds in the same score state, not the
+team's total duration or the player's full-match minutes.
+
+Rates are emitted only when the match score timeline, player-minute timeline
+and player event-state classification all validate. A score state with zero
+verified player minutes has a null per-90 value. For multi-match summaries,
+raw state metrics and state minutes are summed first; rates are then
+recalculated from those combined totals. If any selected match record is
+incomplete or unvalidated, aggregate score-state per-90 values remain
+unavailable rather than silently omitting that match.
+
+These rates describe event frequency in context. They are not positional
+ratings, quality scores or transfer recommendations.
+
 ## Intentionally not produced yet
 
-- minutes played and per-90 metrics;
 - percentiles or peer rankings;
 - a definitive positional rating, potential score or transfer recommendation;
 - off-ball positioning, scanning, body orientation, communication or other

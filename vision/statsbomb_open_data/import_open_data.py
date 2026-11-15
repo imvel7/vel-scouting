@@ -59,7 +59,7 @@ METRIC_DEFINITIONS = {
     "per90_metrics": "Count metrics and total xG per 90 verified on-pitch minutes; null when minutes are unavailable or zero. Percentages and means are excluded.",
     "data_quality": "Selected-sample availability checks for appearance evidence, attributed events and verified positive minutes; not a player rating.",
     "data_consistency": "Reconciliation of selected-match records against aggregate counts, xG, minutes, per-90 calculations and score-state totals.",
-    "score_state_analysis": "Raw player event counts and summed source xG split by leading/drawing/trailing state, only where the match score timeline is validated; no score-state minutes or per-90 rates.",
+    "score_state_analysis": "Player event counts and summed source xG split by leading/drawing/trailing state, with per-90 rates only when both score-state metrics and verified player minutes validate.",
 }
 
 COUNTER_FIELDS = (
@@ -89,6 +89,24 @@ def calculate_per90_metrics(metrics: dict[str, Any], minutes_played_seconds: Any
     if _finite(metrics.get("xg")):
         per90["xg"] = round(float(metrics["xg"]) * scale, 3)
     return per90
+
+
+def calculate_score_state_per90_metrics(
+    metrics_by_state: Any,
+    seconds_by_state: Any,
+) -> dict[str, dict[str, float] | None] | None:
+    """Normalize each score-state event profile by verified on-pitch seconds in that state."""
+    if not isinstance(metrics_by_state, dict) or not isinstance(seconds_by_state, dict):
+        return None
+
+    result: dict[str, dict[str, float] | None] = {}
+    for state in SCORE_STATES:
+        metrics = metrics_by_state.get(state)
+        seconds = seconds_by_state.get(state)
+        if not isinstance(metrics, dict) or not _finite(seconds) or float(seconds) < 0:
+            return None
+        result[state] = calculate_per90_metrics(metrics, seconds)
+    return result
 
 
 def calculate_player_data_quality(player: dict[str, Any]) -> dict[str, Any]:
@@ -563,6 +581,86 @@ def calculate_player_data_consistency(
         score_state_metric_totals_match = False
         reasons.append("score_state_aggregate_missing")
 
+    has_score_state_minutes_metadata = (
+        "minutes_status_counts" in aggregate_score_state
+        or any("minutes_status" in row for row in match_score_state_rows)
+    )
+    score_state_minutes_status_counts = Counter(
+        row.get("minutes_status") or "unavailable" for row in match_score_state_rows
+    )
+    score_state_minutes_status_counts_match: bool | None = None
+    if has_score_state_minutes_metadata:
+        score_state_minutes_status_counts_match = (
+            score_state_minutes_status_counts
+            == Counter(aggregate_score_state.get("minutes_status_counts") or {})
+        )
+        if not score_state_minutes_status_counts_match:
+            reasons.append("score_state_minutes_status_count_mismatch")
+
+    aggregate_state_minutes = aggregate_score_state.get("minutes_by_state_seconds")
+    score_state_minutes_totals_match: bool | None = None
+    score_state_per90_recalculated: bool | None = None
+    actual_state_per90 = aggregate_score_state.get("per90_metrics_by_state")
+    if aggregate_score_state.get("minutes_status") == "validated":
+        expected_state_minutes = {
+            state: sum(
+                float((row.get("minutes_by_state_seconds") or {}).get(state) or 0)
+                for row in match_score_state_rows
+            )
+            for state in SCORE_STATES
+        }
+        score_state_minutes_totals_match = (
+            isinstance(aggregate_state_minutes, dict)
+            and all(
+                _finite(aggregate_state_minutes.get(state))
+                and math.isclose(
+                    float(aggregate_state_minutes[state]),
+                    expected_state_minutes[state],
+                    rel_tol=0.0,
+                    abs_tol=0.001,
+                )
+                for state in SCORE_STATES
+            )
+        )
+        if not score_state_minutes_totals_match:
+            reasons.append("score_state_minutes_total_mismatch")
+
+        expected_state_per90 = calculate_score_state_per90_metrics(
+            aggregate_by_state, aggregate_state_minutes
+        )
+        if expected_state_per90 is None:
+            score_state_per90_recalculated = actual_state_per90 is None
+        elif not isinstance(actual_state_per90, dict):
+            score_state_per90_recalculated = False
+        else:
+            score_state_per90_recalculated = all(
+                (
+                    actual_state_per90.get(state) is None
+                    if expected_state_per90[state] is None
+                    else isinstance(actual_state_per90.get(state), dict)
+                    and set(actual_state_per90[state]) == set(expected_state_per90[state])
+                    and all(
+                        math.isclose(
+                            float(actual_state_per90[state][key]),
+                            float(value),
+                            rel_tol=0.0,
+                            abs_tol=0.001,
+                        )
+                        for key, value in expected_state_per90[state].items()
+                    )
+                )
+                for state in SCORE_STATES
+            )
+        if not score_state_per90_recalculated:
+            reasons.append("score_state_per90_recalculation_mismatch")
+    elif has_score_state_metadata:
+        score_state_minutes_totals_match = aggregate_state_minutes is None
+        score_state_per90_recalculated = actual_state_per90 is None
+        if not score_state_minutes_totals_match:
+            reasons.append("unvalidated_score_state_minutes_were_aggregated")
+        if not score_state_per90_recalculated:
+            reasons.append("unvalidated_score_state_per90_was_emitted")
+
     checks = {
         "match_record_count_matches": record_count_matches,
         "appearance_match_count_matches": appearance_count_matches,
@@ -573,6 +671,9 @@ def calculate_player_data_consistency(
         "per90_recalculated": per90_recalculated,
         "score_state_match_status_counts_match": status_counts_match,
         "score_state_metric_totals_match": score_state_metric_totals_match,
+        "score_state_minutes_status_counts_match": score_state_minutes_status_counts_match,
+        "score_state_minutes_totals_match": score_state_minutes_totals_match,
+        "score_state_per90_recalculated": score_state_per90_recalculated,
     }
     return {
         "status": "consistent" if not reasons else "review",
@@ -2018,6 +2119,14 @@ def analyse_match(match: dict[str, Any], lineups: Any,
             }
             if player_state_seconds is not None else None
         )
+        player_state_per90_metrics = (
+            calculate_score_state_per90_metrics(
+                score_state_metrics_by_state, player_state_seconds
+            )
+            if score_state_status == "validated"
+            and player_score_state_minutes["status"] == "validated"
+            else None
+        )
         player_rows.append({
             **player,
             "metrics": metrics,
@@ -2031,10 +2140,15 @@ def analyse_match(match: dict[str, Any], lineups: Any,
                 "minutes_reason_codes": player_score_state_minutes["reason_codes"],
                 "minutes_by_state_seconds": player_state_seconds,
                 "minutes_by_state": player_state_minutes,
+                "per90_metrics_by_state": player_state_per90_metrics,
+                "per90_status": (
+                    "validated" if player_state_per90_metrics is not None else "unavailable"
+                ),
+                "per90_unit": "event counts and xG per 90 verified on-pitch minutes in the same score state",
                 "unit": "raw event counts; xG is summed source xG; score-state minutes are verified on-pitch minutes",
                 "interpretation_limit": (
-                    "Score-state minutes are available only when both score and player-time timelines validate. "
-                    "Per-90 score-state rates are not calculated in this step."
+                    "Per-90 values are emitted only when score-state metrics and player minutes both validate. "
+                    "A state with zero verified minutes has no per-90 value."
                 ),
             },
             "pass_length_sum": round(sum(lengths), 3),
@@ -3033,6 +3147,9 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 "score_state_metrics": {
                     state: Counter() for state in SCORE_STATES
                 },
+                "score_state_minutes_seconds": Counter({state: 0.0 for state in SCORE_STATES}),
+                "score_state_per90_complete": True,
+                "score_state_minutes_statuses": Counter(),
                 "score_state_match_statuses": Counter(),
                 "score_state_classified_events": 0,
                 "score_state_unclassified_events": 0,
@@ -3054,6 +3171,36 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                     for field in SCORE_STATE_METRIC_FIELDS:
                         value = (metrics_by_state.get(state) or {}).get(field, 0)
                         aggregate["score_state_metrics"][state][field] += value
+
+            minutes_status = score_state_analysis.get("minutes_status") or "unavailable"
+            aggregate["score_state_minutes_statuses"][minutes_status] += 1
+            minutes_by_state_seconds = score_state_analysis.get("minutes_by_state_seconds")
+            score_state_rate_record_valid = (
+                score_state_status == "validated"
+                and minutes_status == "validated"
+                and isinstance(metrics_by_state, dict)
+                and isinstance(minutes_by_state_seconds, dict)
+                and all(
+                    _finite(minutes_by_state_seconds.get(state))
+                    and float(minutes_by_state_seconds[state]) >= 0
+                    for state in SCORE_STATES
+                )
+                and _finite(player.get("minutes_played_seconds"))
+                and math.isclose(
+                    sum(float(minutes_by_state_seconds[state]) for state in SCORE_STATES),
+                    float(player["minutes_played_seconds"]),
+                    rel_tol=0.0,
+                    abs_tol=0.001,
+                )
+            )
+            if score_state_rate_record_valid:
+                for state in SCORE_STATES:
+                    aggregate["score_state_minutes_seconds"][state] += float(
+                        minutes_by_state_seconds[state]
+                    )
+            else:
+                aggregate["score_state_per90_complete"] = False
+
             aggregate["squad_listings"] += 1
             if player.get("appearance_evidence"):
                 aggregate["matches_with_appearance_evidence"] += 1
@@ -3103,20 +3250,57 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
         has_score_state_metrics = (
             match_status_counts["validated"] + match_status_counts["partial"] > 0
         )
+        aggregate_metrics_by_state = (
+            _serialise_score_state_metrics(player["score_state_metrics"])
+            if has_score_state_metrics else None
+        )
+        score_state_minutes_complete = player["score_state_per90_complete"]
+        aggregate_minutes_by_state_seconds = (
+            {
+                state: round(float(player["score_state_minutes_seconds"][state]), 3)
+                for state in SCORE_STATES
+            }
+            if score_state_minutes_complete else None
+        )
+        aggregate_minutes_by_state = (
+            {
+                state: round(
+                    float(aggregate_minutes_by_state_seconds[state]) / 60.0, 2
+                )
+                for state in SCORE_STATES
+            }
+            if aggregate_minutes_by_state_seconds is not None else None
+        )
+        aggregate_per90_by_state = (
+            calculate_score_state_per90_metrics(
+                aggregate_metrics_by_state, aggregate_minutes_by_state_seconds
+            )
+            if aggregate_metrics_by_state is not None
+            and aggregate_minutes_by_state_seconds is not None
+            else None
+        )
         aggregate_score_state_analysis = {
             "status": score_state_status,
             "match_records": len(player["match_rows"]),
             "match_status_counts": match_status_counts,
             "classified_player_events": int(player["score_state_classified_events"]),
             "unclassified_player_events": int(player["score_state_unclassified_events"]),
-            "metrics_by_state": (
-                _serialise_score_state_metrics(player["score_state_metrics"])
-                if has_score_state_metrics else None
+            "metrics_by_state": aggregate_metrics_by_state,
+            "minutes_status": (
+                "validated" if score_state_minutes_complete else "unavailable"
             ),
-            "unit": "raw event counts across selected match records; xG is summed source xG",
+            "minutes_status_counts": dict(player["score_state_minutes_statuses"]),
+            "minutes_by_state_seconds": aggregate_minutes_by_state_seconds,
+            "minutes_by_state": aggregate_minutes_by_state,
+            "per90_metrics_by_state": aggregate_per90_by_state,
+            "per90_status": (
+                "validated" if aggregate_per90_by_state is not None else "unavailable"
+            ),
+            "per90_unit": "event counts and xG per 90 verified on-pitch minutes in the same score state",
+            "unit": "raw event counts and verified on-pitch minutes across selected match records",
             "interpretation_limit": (
-                "No score-state minutes or per-90 rates are calculated. "
-                "Only match records with a validated score timeline contribute to state totals."
+                "Aggregate per-90 values require every selected match record to have validated score-state metrics "
+                "and player minutes. States with zero verified minutes have no per-90 value."
             ),
         }
         aggregate_row = {
@@ -3219,7 +3403,7 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "Players are grouped only by the StatsBomb player_id; names are never used as a merge key. Name variants for one ID are exposed for review.",
             "The report is not a definitive scout verdict, potential rating or transfer recommendation.",
             "Score-state player counts are raw event totals, not rates. They are available only when the match score timeline reconciles to the listed final score and the event team maps to the match home/away team.",
-            "No minutes by score state or score-state per-90 metrics are calculated; raw counts across different state durations must not be compared as performance rates.",
+            "Score-state per-90 metrics are calculated only when every selected match record has validated player minutes and a validated score timeline; zero-minute states remain null.",
         ],
         "source_files": provenance,
         "matches": analysed_matches,
@@ -3256,6 +3440,9 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
             "score_state_matches_unavailable",
             "score_state_classified_player_events",
             "score_state_unclassified_player_events",
+            "score_state_minutes_status",
+            "score_state_minutes_by_state_json",
+            "score_state_per90_metrics_json",
             "score_state_leading_metrics_json",
             "score_state_drawing_metrics_json",
             "score_state_trailing_metrics_json",
@@ -3295,6 +3482,15 @@ def run_import(args: argparse.Namespace) -> dict[str, Any]:
                 "score_state_matches_unavailable": row["score_state_analysis"]["match_status_counts"]["unavailable"],
                 "score_state_classified_player_events": row["score_state_analysis"]["classified_player_events"],
                 "score_state_unclassified_player_events": row["score_state_analysis"]["unclassified_player_events"],
+                "score_state_minutes_status": row["score_state_analysis"]["minutes_status"],
+                "score_state_minutes_by_state_json": (
+                    json.dumps(row["score_state_analysis"]["minutes_by_state"], ensure_ascii=False, sort_keys=True)
+                    if row["score_state_analysis"]["minutes_by_state"] is not None else ""
+                ),
+                "score_state_per90_metrics_json": (
+                    json.dumps(row["score_state_analysis"]["per90_metrics_by_state"], ensure_ascii=False, sort_keys=True)
+                    if row["score_state_analysis"]["per90_metrics_by_state"] is not None else ""
+                ),
                 "score_state_leading_metrics_json": (
                     json.dumps(row["score_state_analysis"]["metrics_by_state"]["leading"], ensure_ascii=False, sort_keys=True)
                     if row["score_state_analysis"]["metrics_by_state"] is not None else ""
