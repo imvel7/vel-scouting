@@ -79,7 +79,10 @@ exposes separate sample totals for:
 - clearances, blocks and tackles.
 
 This CB profile is a descriptive event summary only. It does not calculate a
-defensive rating, weighted score, percentile, ranking or per-90 value.
+defensive rating, weighted score, percentile or ranking. Overall per-90 event
+rates are included when verified minutes are complete; the profile also exposes
+leading/drawing/trailing per-90 rates for its metric groups when score-state
+metrics and player minutes are both validated.
 
 Completed passes are represented by the absence of `pass.outcome` in the
 StatsBomb event schema.
@@ -98,6 +101,12 @@ raw state metrics and state minutes are summed first; rates are then
 recalculated from those combined totals. If any selected match record is
 incomplete or unvalidated, aggregate score-state per-90 values remain
 unavailable rather than silently omitting that match.
+
+The centre-back role profile now carries the validated score-state per-90
+rates into its three metric groups: distribution/progression, defensive
+activity and box protection. Each group keeps the leading, drawing and trailing
+values separate. Missing or unvalidated score-state data remains unavailable;
+these rates do not create a rating or peer ranking.
 
 These rates describe event frequency in context. They are not positional
 ratings, quality scores or transfer recommendations.
