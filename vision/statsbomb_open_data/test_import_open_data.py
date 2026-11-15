@@ -1445,6 +1445,65 @@ class StatsBombImportTests(unittest.TestCase):
             mismatched["reasons"],
         )
 
+    def test_player_data_consistency_recalculates_aggregate_score_state_per90(self):
+        states = {
+            "leading": {"events": 2, "passes_attempted": 1, "xg": 0.2},
+            "drawing": {"events": 1, "passes_attempted": 0, "xg": 0.0},
+            "trailing": {"events": 0, "passes_attempted": 0, "xg": 0.0},
+        }
+        state_seconds = {
+            "leading": 30 * 60,
+            "drawing": 30 * 60,
+            "trailing": 30 * 60,
+        }
+        state_per90 = calculate_score_state_per90_metrics(states, state_seconds)
+        metrics = {"events": 3, "passes_attempted": 1, "xg": 0.2}
+        row_score_state = {
+            "status": "validated",
+            "metrics_by_state": states,
+            "minutes_status": "validated",
+            "minutes_by_state_seconds": state_seconds,
+            "per90_metrics_by_state": state_per90,
+        }
+        player = {
+            "matches_listed_in_squads": 1,
+            "matches_with_appearance_evidence": 1,
+            "minutes_calculation_complete": True,
+            "minutes_matches_valid": 1,
+            "minutes_played": 90.0,
+            "per90_metrics": calculate_per90_metrics(metrics, 90 * 60),
+            "metrics": metrics,
+            "score_state_analysis": {
+                "match_status_counts": {
+                    "validated": 1, "partial": 0, "unavailable": 0,
+                },
+                "metrics_by_state": states,
+                "minutes_status": "validated",
+                "minutes_status_counts": {"validated": 1},
+                "minutes_by_state_seconds": state_seconds,
+                "per90_metrics_by_state": state_per90,
+            },
+        }
+        match_rows = [{
+            "appearance_evidence": True,
+            "minutes_played_seconds": 90 * 60,
+            "metrics": metrics,
+            "score_state_analysis": row_score_state,
+        }]
+
+        result = calculate_player_data_consistency(player, match_rows)
+
+        self.assertEqual(result["status"], "consistent")
+        self.assertTrue(result["checks"]["score_state_minutes_status_counts_match"])
+        self.assertTrue(result["checks"]["score_state_minutes_totals_match"])
+        self.assertTrue(result["checks"]["score_state_per90_recalculated"])
+
+        player["score_state_analysis"]["per90_metrics_by_state"]["leading"]["events"] += 1
+        mismatched = calculate_player_data_consistency(player, match_rows)
+        self.assertEqual(mismatched["status"], "review")
+        self.assertFalse(mismatched["checks"]["score_state_per90_recalculated"])
+        self.assertIn("score_state_per90_recalculation_mismatch", mismatched["reasons"])
+
     def test_player_data_consistency_flags_mismatched_event_totals(self):
         player = {
             "matches_listed_in_squads": 1,
