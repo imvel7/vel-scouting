@@ -441,7 +441,6 @@ class StatsBombImportTests(unittest.TestCase):
                 player={"id": 10, "name": "Player 10"},
                 team={"id": 1, "name": "Home"},
                 shot={"outcome": {"name": "Goal"}},
-                timestamp="00:10:00.000",
             ),
             self._clock_event(
                 5, 1, "00:30:00.000", "Substitution",
@@ -473,7 +472,6 @@ class StatsBombImportTests(unittest.TestCase):
                 player={"id": 20, "name": "Player 20"},
                 team={"id": 2, "name": "Away"},
                 shot={"outcome": {"name": "Goal"}},
-                timestamp="00:20:00.000",
             ),
             self._clock_event(12, 2, "00:45:00.000", "Half End"),
         ]
