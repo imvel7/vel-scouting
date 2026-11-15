@@ -2344,18 +2344,6 @@ def build_fullback_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
             "minutes_played": player.get("minutes_played"),
             "per90_metrics": player.get("per90_metrics"),
             "grouped_metrics": grouped_metrics,
-            "score_state_context": {
-                "per90_status": (
-                    "validated" if score_state_per90_validated else "unavailable"
-                ),
-                "minutes_status": score_state_analysis.get("minutes_status") or "unavailable",
-                "minutes_by_state": score_state_analysis.get("minutes_by_state"),
-                "unit": "events per 90 verified player minutes within the same score state",
-                "interpretation_limit": (
-                    "Descriptive event frequency only; not adjusted for possession, "
-                    "defensive opportunities, opponent quality or action quality."
-                ),
-            },
             "data_quality": player.get("data_quality"),
             "data_consistency": player.get("data_consistency"),
             "identity": player.get("identity"),
@@ -3063,6 +3051,18 @@ def build_cb_profile(player_rows: list[dict[str, Any]]) -> dict[str, Any]:
             "minutes_played": player.get("minutes_played"),
             "per90_metrics": player.get("per90_metrics"),
             "grouped_metrics": grouped_metrics,
+            "score_state_context": {
+                "per90_status": (
+                    "validated" if score_state_per90_validated else "unavailable"
+                ),
+                "minutes_status": score_state_analysis.get("minutes_status") or "unavailable",
+                "minutes_by_state": score_state_analysis.get("minutes_by_state"),
+                "unit": "events per 90 verified player minutes within the same score state",
+                "interpretation_limit": (
+                    "Descriptive event frequency only; not adjusted for possession, "
+                    "defensive opportunities, opponent quality or action quality."
+                ),
+            },
             "data_quality": player.get("data_quality"),
             "data_consistency": player.get("data_consistency"),
             "identity": player.get("identity"),
