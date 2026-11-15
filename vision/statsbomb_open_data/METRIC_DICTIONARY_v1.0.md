@@ -384,8 +384,13 @@ The profile groups existing event metrics into four sections:
 
 Raw counts are retained. Count metrics and xG receive per-90 values only when
 the player record contains rates calculated from complete, positive verified
-minutes. Touches in the penalty area, aerial-duel success and calibrated
-finishing efficiency are explicitly unavailable in this version; they are
+minutes. When the score-state and player-minute timelines are validated, each
+group also exposes `per90_by_score_state` with separate `leading`,
+`drawing` and `trailing` values. The finishing group includes score-state xG
+alongside shot and goal counts. The player's top-level `score_state_context`
+records validation status and minutes by state. A state with zero verified
+player minutes remains null. Touches in the penalty area, aerial-duel success
+and calibrated finishing efficiency remain explicitly unavailable; they are
 not inferred from shots, goals or generic duel counts. The profile does not
 produce a striker rating or ranking.
 
