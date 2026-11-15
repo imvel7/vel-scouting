@@ -118,6 +118,11 @@ progression, chance creation and defensive-work groups. The chance-creation
 group includes score-state xG as well as event counts. Missing or unvalidated
 data remains unavailable.
 
+The winger profile carries score-state rates into chance creation/finishing,
+wide delivery, one-v-one progression and defensive contribution. Its
+chance-creation group includes score-state xG alongside event counts. Missing
+or unvalidated data remains unavailable.
+
 These rates describe event frequency in context. They are not positional
 ratings, quality scores or transfer recommendations.
 

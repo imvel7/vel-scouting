@@ -324,8 +324,14 @@ The profile groups existing event metrics into four sections:
 
 Raw counts are retained. Count metrics and xG receive per-90 values only when
 the player record contains rates calculated from complete, positive verified
-minutes. The groups do not measure successful take-on rate, crossing quality,
-off-ball runs or tactical decision quality; no rating or ranking is produced.
+minutes. When the score-state and player-minute timelines are validated, each
+group also exposes `per90_by_score_state` with separate `leading`,
+`drawing` and `trailing` values. The chance-creation/finishing group includes
+score-state xG alongside event counts. The player's top-level
+`score_state_context` records validation status and minutes by state. A state
+with zero verified player minutes remains null. The groups do not measure
+successful take-on rate, crossing quality, off-ball runs or tactical decision
+quality; no rating or ranking is produced.
 
 ### GK profile metric groups
 
