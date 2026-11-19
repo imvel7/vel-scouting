@@ -942,3 +942,30 @@ Gerekçeler:
 4. Paralelde daha geniş lig/sezon kapsamı sunabilen ikinci bir kaynak araştır; Afriskaut'u ek bir genç oyuncu test kaynağı olarak konumlandır.
 
 Ham veri Supabase'e aktarılmadı; canlı veritabanı, public site ve admin panelinde değişiklik yapılmadı.
+
+---
+
+## 25. Source-linked player performance report renderer (19 November 2026)
+
+### Implemented in the feature branch
+
+A new internal Markdown report renderer follows the existing StatsBomb import and metric pipeline. It accepts the importer's JSON report and an explicit source player_id plus one role code (CB, FB, CM, W, ST or GK).
+
+The report brings together competition/season and selected-match context; source identity, team/position labels, appearances and verified minutes; data-quality, match-to-aggregate consistency, identity and review-readiness checks; role-specific raw metrics, verified per-90 values and leading/drawing/trailing context; same-role peer percentiles only where the existing minute, integrity and cohort gates pass; and source repository, source-file SHA-256 values, attribution and limitations.
+
+### Safeguards
+
+- Player selection uses the stable source ID, never display-name matching.
+- Missing values and unavailable percentiles remain unavailable, not zero.
+- Duplicate source IDs in a role or peer profile fail closed.
+- Existing output files are not overwritten without an explicit flag.
+- No overall rating, ranking, potential score or transfer recommendation is produced.
+- The output is internal research material. It does not change public player profiles, write to Supabase or relax source-rights/youth-privacy restrictions.
+
+### Validation
+
+Seven focused renderer unit tests pass locally. Pull-request CI runs the complete StatsBomb/Afriskaut test discovery, the existing three-match StatsBomb real-data checks, and an end-to-end render check for every non-empty role profile in that real sample. Merge remains gated on successful CI.
+
+### Next product gate
+
+Connect the rendered artefact to a reviewed, reproducible player-report workflow only after source rights and target-competition coverage requirements are satisfied. Do not publish research-only StatsBomb profiles as production scouting reports.

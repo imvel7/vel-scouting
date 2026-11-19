@@ -148,3 +148,13 @@ ratings, quality scores or transfer recommendations.
 Missing fields remain null; they are not silently converted to zero. The
 first run is an ingestion and data-quality proof, not a finished scouting
 report.
+
+## Internal player performance report
+
+The importer now has a companion renderer that creates a source-linked Markdown dossier for one player and one explicit role. It is a descriptive research artefact, not a public profile, an overall rating, a potential score or a transfer recommendation.
+
+First create a JSON import report, then run the renderer from the repository root with the report path and these arguments: --player-id 5503 --role CM --output .cache/statsbomb-open-data/reports/player-5503-CM.md
+
+Supported role codes are CB, FB, CM, W, ST and GK. Selection uses the source player_id; display names are never identity keys. Existing output files are protected unless --overwrite is supplied.
+
+The report includes sample context, appearances and verified minutes, data-quality/identity/consistency checks, role-grouped totals and per-90 values, validated leading/drawing/trailing rates, same-role peer comparisons where thresholds are met, source-file hashes, attribution and interpretation limits. Missing values remain unavailable rather than becoming zero. This artefact is for internal research only; existing source-rights and youth-data safeguards still apply.
