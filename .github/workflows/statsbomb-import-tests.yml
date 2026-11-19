@@ -55,6 +55,40 @@ jobs:
             --data-root .cache/statsbomb-open-data/own-goal-smoke/raw \
             --report .cache/statsbomb-open-data/own-goal-smoke/import-report.json > /dev/null
           python -c "import json; p=json.load(open('.cache/statsbomb-open-data/own-goal-smoke/import-report.json', encoding='utf-8')); m=p['matches'][0]; t=m['match']['match_context']['score_state_timeline']; assert t['status'] == 'validated', t; assert t['listed_score'] == {'home': 4, 'away': 2}; assert t['reconstructed_score'] == {'home': 4, 'away': 2}; assert t['durations']['status'] == 'validated'; assert sum(t['durations']['home_team_seconds_by_state'].values()) == t['durations']['total_seconds'] == sum(t['durations']['away_team_seconds_by_state'].values()); assert len([g for g in t['goals'] if g['goal_type'] == 'own_goal_for']) == 1; assert len(t['goals']) == 6; print('2018 France-Croatia final own-goal score timeline smoke test passed.')"
+      - name: Render player reports from the real-data sample
+        run: |
+          python - <<'PY'
+          import json
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          report_path = Path(".cache/statsbomb-open-data/smoke/import-report.json")
+          report = json.loads(report_path.read_text(encoding="utf-8"))
+          rendered = 0
+          for role in ("CB", "FB", "CM", "W", "ST", "GK"):
+              profile = report["role_profiles"][role]
+              players = profile.get("players") or []
+              if not players:
+                  continue
+              player = players[0]
+              output = Path(".cache/statsbomb-open-data/smoke") / f"player-{role}-{player['player_id']}.md"
+              subprocess.run([
+                  sys.executable,
+                  "vision/statsbomb_open_data/render_player_report.py",
+                  str(report_path),
+                  "--player-id", str(player["player_id"]),
+                  "--role", role,
+                  "--output", str(output),
+              ], check=True)
+              content = output.read_text(encoding="utf-8")
+              assert "Source provenance" in content
+              assert "What this report does not claim" in content
+              assert "not a player rating" in content.lower()
+              rendered += 1
+          assert rendered > 0, "No role profile contained a player to render."
+          print(f"Rendered and validated {rendered} role-specific report(s) from the real three-match sample.")
+          PY
   afriskaut-youth-data-probe:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
