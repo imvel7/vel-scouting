@@ -964,7 +964,7 @@ The report brings together competition/season and selected-match context; source
 
 ### Validation
 
-Seven focused renderer unit tests pass locally. Pull-request CI additionally runs the complete StatsBomb/Afriskaut test discovery and the existing three-match StatsBomb real-data smoke checks. Merge remains gated on successful CI.
+Seven focused renderer unit tests pass locally. Pull-request CI runs the complete StatsBomb/Afriskaut test discovery, the existing three-match StatsBomb real-data checks, and an end-to-end render check for every non-empty role profile in that real sample. Merge remains gated on successful CI.
 
 ### Next product gate
 
