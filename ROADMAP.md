@@ -988,3 +988,26 @@ Migration `20261121080323_restrict_anon_column_access` replaces the table-level 
 - Security Advisor shows no new finding after the change.
 - Not yet verified: a real browser/HTTP Data API session with the deployed public site and a published test profile.
 
+
+## 27. Database-level immutability for completed/locked scouting sessions (21 November 2026)
+
+### Finding
+
+The completed/locked session lock existed only in `admin.html`. A read-only audit of the live project found no trigger enforcing it (only `updated_at` and video-rights seeding triggers), so staff could still change a completed or locked session, its criterion scores, observations and video links directly through the Data API.
+
+### Change
+
+Migration `20261121080628_enforce_scouting_session_immutability` adds four triggers backed by two `SECURITY INVOKER` functions in the `private` schema (empty `search_path`, no EXECUTE for API roles):
+
+- A locked session cannot be updated or deleted.
+- A completed session cannot be deleted; it can only move to `in_review` (status and `completed_at` only, as the admin UI reopens it) or to `locked` (status only).
+- `criterion_scores`, `observations` and `scouting_session_videos` of a completed or locked session cannot be inserted, updated or deleted. Legacy observations with a NULL `session_id` are not affected.
+
+Locked sessions have no unlock path by design; unlocking would need a deliberate, reviewed migration.
+
+### Evidence
+
+- The migration and test were first run together in one rolled-back transaction against the live project, then the migration was applied and recorded in the ledger (12 migrations).
+- `supabase/tests/scouting_session_immutability_test.sql` is a self-rolling-back test that uses the existing draft session. On the applied live schema it passed all 15 checks (draft writes allowed; score, observation and video writes and session edit/delete/downgrade blocked when completed; reopen-and-edit allowed; complete-then-lock allowed; locked reopen and score update blocked) with no `FAIL` entry. Afterwards the session was still `draft` with 0 scores and 0 observations and no test value was left behind.
+- Security Advisor shows no new finding.
+- Not yet verified: the same behaviour through a real staff browser session / HTTP Data API, and a full migration replay in a clean environment. The completed-session report RPCs were not exercised end to end because no completed session with scores exists yet.
