@@ -969,3 +969,22 @@ Seven focused renderer unit tests pass locally. Pull-request CI runs the complet
 ### Next product gate
 
 Connect the rendered artefact to a reviewed, reproducible player-report workflow only after source rights and target-competition coverage requirements are satisfied. Do not publish research-only StatsBomb profiles as production scouting reports.
+
+## 26. Anonymous column-level privacy hardening (21 November 2026)
+
+### Finding
+
+A read-only audit of the live Supabase project found that the `anon` role had table-wide SELECT on `players` and `scout_reports`. Row-level security limited rows to published records, but any column of a published row, including `players.date_of_birth` and `scout_reports.created_by`, was readable through a direct Data API call even though `index.html` requests a fixed column list. No player was published at the time, so nothing had been exposed.
+
+### Change
+
+Migration `20261121080323_restrict_anon_column_access` replaces the table-level SELECT with column-level SELECT for `anon`, excluding `players.date_of_birth` and `scout_reports.created_by`. Columns used by RLS policies stay readable. Staff (`authenticated`) access is unchanged.
+
+### Evidence
+
+- Applied to the live project and recorded in the migration ledger (11 migrations).
+- `information_schema.column_privileges` shows no `date_of_birth` or `created_by` for `anon`.
+- Under the `anon` role, selecting either column fails with a permission error, and the exact column sets requested by `index.html` still run.
+- Security Advisor shows no new finding after the change.
+- Not yet verified: a real browser/HTTP Data API session with the deployed public site and a published test profile.
+
