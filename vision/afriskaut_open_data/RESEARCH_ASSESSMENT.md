@@ -47,3 +47,8 @@ Use Afriskaut as a **limited, supplementary youth-event dataset** for a controll
 2. Validate match periods, timestamps, substitutions and player minutes.
 3. Build only a conservative, anonymous first-role metric sample if those checks pass.
 4. Continue searching for a second source with broader league/season coverage and appropriate usage rights.
+
+## Update — 22 November 2026
+
+Match clocks and a conservative player-minutes calculation were validated on the real sample (aggregate counts only). Clocks are complete and ordered in 136/136 matches, but substitution records are fully consistent in only 25 of 136 matches, so minutes are produced for 1,063 of 3,169 players with events and withheld elsewhere. Details and evidence are in `ROADMAP.md` section 28. Check 2 above (periods, timestamps, substitutions and minutes) is now implemented and validated; checks 1 (event-map comparison) and 3 (anonymous first-role metric sample) remain open, and the privacy, consent and safeguarding gate is unchanged.
+
