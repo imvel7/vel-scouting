@@ -1011,3 +1011,33 @@ Locked sessions have no unlock path by design; unlocking would need a deliberate
 - `supabase/tests/scouting_session_immutability_test.sql` is a self-rolling-back test that uses the existing draft session. On the applied live schema it passed all 15 checks (draft writes allowed; score, observation and video writes and session edit/delete/downgrade blocked when completed; reopen-and-edit allowed; complete-then-lock allowed; locked reopen and score update blocked) with no `FAIL` entry. Afterwards the session was still `draft` with 0 scores and 0 observations and no test value was left behind.
 - Security Advisor shows no new finding.
 - Not yet verified: the same behaviour through a real staff browser session / HTTP Data API, and a full migration replay in a clean environment. The completed-session report RPCs were not exercised end to end because no completed session with scores exists yet.
+
+## 28. Afriskaut match clocks and conservative player minutes (22 November 2026)
+
+### What was checked (real data, CI runner, aggregate counts only)
+
+All checks ran on the public Afriskaut Dynasty Scouting League 2024 sample (136 matches, 84,214 events) inside GitHub Actions. They print counts only: no player names, IDs, team names or per-player values, nothing is written to disk and Supabase is not touched.
+
+- **Structure (PR #66):** each match has a starting eleven, a bench and a list of substitutions (`in`/`out`) that carries no minute. `match.json` has `match_start_time`, `first_half_end_time`, `second_half_start_time` and `match_end_time` as HH:MM:SS; extra-time and penalty fields are empty in all 136 matches. Events have `event_half` (0-2) and `event_start_time`/`event_stop_time` (HH:MM:SS) but no separate period field.
+- **Clocks (PR #67):** all four match clock fields are present and ordered in 136/136 matches. 99.7% of `event_half = 1` events fall in the first-half window and 99.9% of `event_half = 2` events in the second-half window; the 91 events with `event_half = 0` are scattered and are not used. Regular-time played length is 46.3-91.9 minutes (median 81.4, halves of about 40 minutes), so 90 minutes is never assumed.
+- **Substitutions (PR #67):** 796 `SUBSTITUTION` events against 572 listed substitutions. Event and list counts agree in only 57 matches (53 with more events, 26 with fewer). 492 events belong to the player going off, 8 to the player coming on, 291 to players not listed in the substitution list. The event feed has no card events.
+
+### Minutes calculation (PR #68)
+
+`vision/afriskaut_open_data/player_minutes.py` returns minutes only when the match clock, squad lists, listed substitutions and `SUBSTITUTION` events reconcile; the half-time break is excluded. Everything else is `None` with a reason.
+
+- `verified`: starter substituted off or substitute coming on, with a single consistent substitution time.
+- `derived_no_exit_recorded`: starter with no recorded exit. Never `verified`, because a red card or an injury without replacement cannot be detected. It is kept only in matches whose substitution records are fully consistent.
+- `not_used_listed_bench`: listed bench player with no events (0 minutes).
+- `unavailable`: `None` plus an explicit reason.
+
+Result on the real sample: substitution records are fully consistent in only 25 of 136 matches, so in the other 111 matches an unrecorded exit cannot be excluded. Player-match records: 883 `verified`, 248 `derived_no_exit_recorded`, 923 `not_used_listed_bench`, 2,184 `unavailable` (1,398 of them are starters withheld for incomplete match records). 1,063 of the 3,169 players with events (33.5%) have minutes.
+
+Self-consistency check: a player whose own events fall outside the computed interval is withheld. At 10 s tolerance this affected 69 players (73 at 0 s, 64 at 60 s), so the result does not depend on clock noise; it points to inconsistent source records.
+
+### Evidence and limits
+
+- 57 unit tests pass locally and in CI (synthetic fixtures: half-time break, substitution times, missing or conflicting events, unlisted events, ambiguous players, unusable clocks); the real-data validator ran in CI on every push to the PR.
+- Per-90 values are intentionally not produced yet. If used later, per-90 must use `verified` and `derived_no_exit_recorded` minutes only and must show the status.
+- Not yet done: comparing the publisher's event-map definitions with the actual event labels, an anonymous role-metric sample with verified minutes only, and the privacy, consent and safeguarding review. No Afriskaut data was imported into Supabase and no named youth profile exists or is public.
+
