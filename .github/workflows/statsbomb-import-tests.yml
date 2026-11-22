@@ -105,6 +105,8 @@ jobs:
         run: python vision/afriskaut_open_data/probe_dataset.py
       - name: Describe match timing, period and substitution structure (aggregate only)
         run: python vision/afriskaut_open_data/diagnose_match_timing.py
+      - name: Check match clocks and substitution events for verified minutes (aggregate only)
+        run: python vision/afriskaut_open_data/diagnose_minutes_feasibility.py
       - name: Diagnose unmatched actors against substitution metadata
         run: python vision/afriskaut_open_data/diagnose_substitution_metadata.py
       - name: Classify residual event actor links
