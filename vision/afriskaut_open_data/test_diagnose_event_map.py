@@ -1,7 +1,7 @@
 import unittest
 from collections import Counter
 
-from diagnose_event_map import cross_summary, is_doc_path, summarize_categories
+from diagnose_event_map import canonical_event_paths, cross_summary, is_doc_path, summarize_categories
 
 
 class EventMapHelperTests(unittest.TestCase):
@@ -27,6 +27,19 @@ class EventMapHelperTests(unittest.TestCase):
         self.assertFalse(is_doc_path("Datasets/123/match.json"))
         self.assertFalse(is_doc_path("nested/Datasets/9/events.jsonl"))
         self.assertFalse(is_doc_path("Datasets.zip"))
+
+    def test_mirror_copy_is_not_double_counted(self):
+        names = [
+            "Datasets/m1/events.jsonl", "Datasets/m1/match.json",
+            "DSL/m1/events.jsonl",
+            "Datasets/m2/events.jsonl",
+            "Other/m3/events.jsonl", "Datasets/Datasets/m3/events.jsonl",
+        ]
+        chosen = canonical_event_paths(names)
+        self.assertEqual(len(chosen), 3)
+        self.assertIn("Datasets/m1/events.jsonl", chosen)
+        self.assertNotIn("DSL/m1/events.jsonl", chosen)
+        self.assertIn("Datasets/Datasets/m3/events.jsonl", chosen)
 
 
 if __name__ == "__main__":

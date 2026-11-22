@@ -109,6 +109,10 @@ jobs:
         run: python vision/afriskaut_open_data/diagnose_minutes_feasibility.py
       - name: Validate conservative player minutes on real data (aggregate only)
         run: python vision/afriskaut_open_data/validate_player_minutes.py
+      - name: Print the publisher's public event-map PDF text (documentation only)
+        run: |
+          python -m pip install --quiet pypdf
+          python vision/afriskaut_open_data/print_event_map_pdf.py
       - name: Collect publisher event documentation and categorical event labels (no personal data)
         run: python vision/afriskaut_open_data/diagnose_event_map.py
       - name: Diagnose unmatched actors against substitution metadata

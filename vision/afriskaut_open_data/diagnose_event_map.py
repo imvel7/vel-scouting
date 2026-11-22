@@ -48,6 +48,20 @@ def is_doc_path(path: str) -> bool:
     return lowered.endswith(DOC_SUFFIXES) and not lowered.startswith("datasets/") and "/datasets/" not in lowered
 
 
+def canonical_event_paths(names: list[str]) -> list[str]:
+    """One events.jsonl per match id; the canonical Datasets/ copy wins over a mirror copy in the archive."""
+    chosen: dict[str, str] = {}
+    for name in sorted(names):
+        path = PurePosixPath(name)
+        if path.name != "events.jsonl":
+            continue
+        match_id = path.parent.name
+        current = chosen.get(match_id)
+        if current is None or ("/Datasets/" in name and "/Datasets/" not in current):
+            chosen[match_id] = name
+    return [chosen[key] for key in sorted(chosen)]
+
+
 def fetch(url: str, limit: int | None = None) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": "VelScout-Research-Probe/0.1"})
     with urllib.request.urlopen(request, timeout=180) as response:
@@ -80,9 +94,7 @@ def main() -> int:
         names = archive.namelist()
         zip_extra = sorted({PurePosixPath(n).name for n in names
                             if PurePosixPath(n).name not in ("match.json", "events.jsonl") and not n.endswith("/")})[:40]
-        for name in names:
-            if PurePosixPath(name).name != "events.jsonl":
-                continue
+        for name in canonical_event_paths(names):
             with archive.open(name) as stream:
                 for raw_line in stream:
                     if not raw_line.strip():
