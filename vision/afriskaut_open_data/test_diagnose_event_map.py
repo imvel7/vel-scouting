@@ -29,17 +29,17 @@ class EventMapHelperTests(unittest.TestCase):
         self.assertFalse(is_doc_path("Datasets.zip"))
 
     def test_mirror_copy_is_not_double_counted(self):
+        # Same rule as the other Afriskaut probes: the nested .../Datasets/<id>/ copy is canonical.
         names = [
-            "Datasets/m1/events.jsonl", "Datasets/m1/match.json",
+            "Datasets/Datasets/m1/events.jsonl", "Datasets/Datasets/m1/match.json",
             "DSL/m1/events.jsonl",
-            "Datasets/m2/events.jsonl",
-            "Other/m3/events.jsonl", "Datasets/Datasets/m3/events.jsonl",
+            "Datasets/Datasets/m2/events.jsonl",
+            "DSL/m3/events.jsonl",
         ]
         chosen = canonical_event_paths(names)
-        self.assertEqual(len(chosen), 3)
-        self.assertIn("Datasets/m1/events.jsonl", chosen)
-        self.assertNotIn("DSL/m1/events.jsonl", chosen)
-        self.assertIn("Datasets/Datasets/m3/events.jsonl", chosen)
+        self.assertEqual(chosen, ["Datasets/Datasets/m1/events.jsonl",
+                                  "Datasets/Datasets/m2/events.jsonl",
+                                  "DSL/m3/events.jsonl"])
 
 
 if __name__ == "__main__":
