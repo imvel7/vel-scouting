@@ -41,6 +41,7 @@ def main() -> int:
     minutes_by_basis: dict[str, list[float]] = {}
     outside_by_tolerance = {tol: Counter() for tol in TOLERANCES}
     matches_with_clock = matches_without_clock = 0
+    consistent_matches = inconsistent_matches = 0
     players_with_events = players_with_events_minutes = 0
     total_played_minutes: list[float] = []
 
@@ -73,6 +74,10 @@ def main() -> int:
             else:
                 matches_with_clock += 1
                 total_played_minutes.append(primary["total_played_seconds"] / 60)
+                if primary["substitution_records_consistent"]:
+                    consistent_matches += 1
+                else:
+                    inconsistent_matches += 1
             for pid, record in primary["players"].items():
                 status_counts[record["status"]] += 1
                 for reason in record["reasons"]:
@@ -100,6 +105,8 @@ def main() -> int:
         "matches_with_usable_clock": matches_with_clock,
         "matches_without_usable_clock": matches_without_clock,
         "regular_time_played_minutes": spread(total_played_minutes),
+        "matches_with_consistent_substitution_records": consistent_matches,
+        "matches_with_inconsistent_substitution_records": inconsistent_matches,
         "player_status_counts": dict(status_counts),
         "unavailable_reason_counts": dict(reason_counts.most_common()),
         "minutes_basis_counts": dict(basis_counts),

@@ -120,7 +120,9 @@ class MinutesTests(unittest.TestCase):
         players = compute_match_minutes(make_match(), [sub_event("S3", "01:10:00")])["players"]
         self.assertIsNone(players["S3"]["minutes_seconds"])
         self.assertIn("substitution_event_not_in_listed_substitutions", players["S3"]["reasons"])
-        self.assertEqual(players["S1"]["status"], STATUS_DERIVED)
+        # An unexplained substitution event means other starters' exits cannot be excluded either.
+        self.assertEqual(players["S1"]["status"], STATUS_UNAVAILABLE)
+        self.assertEqual(players["S1"]["reasons"], ["starter_exit_cannot_be_excluded_match_records_incomplete"])
 
     def test_events_after_computed_exit_block_minutes(self):
         match = make_match(home_substitutions=[swap("B1", "S2")])
@@ -160,6 +162,24 @@ class MinutesTests(unittest.TestCase):
     def test_unknown_actor_not_in_squad_lists(self):
         players = compute_match_minutes(make_match(), [action("X9", "00:20:00")])["players"]
         self.assertEqual(players["X9"]["reasons"], ["not_in_squad_lists"])
+
+    def test_clean_match_is_flagged_consistent(self):
+        result = compute_match_minutes(make_match(), [action("S1", "00:20:00")])
+        self.assertTrue(result["substitution_records_consistent"])
+
+    def test_bench_player_with_events_but_no_listing_blocks_derived_starters(self):
+        result = compute_match_minutes(make_match(), [action("B2", "01:00:00"), action("S1", "00:20:00")])
+        self.assertFalse(result["substitution_records_consistent"])
+        self.assertEqual(result["players"]["S1"]["status"], STATUS_UNAVAILABLE)
+        self.assertEqual(result["players"]["B2"]["reasons"], ["events_without_listed_appearance"])
+
+    def test_verified_players_survive_other_defects_in_the_match(self):
+        match = make_match(home_substitutions=[swap("B1", "S2")])
+        events = [sub_event("S2", "01:20:00"), action("B3", "01:00:00")]
+        players = compute_match_minutes(match, events)["players"]
+        self.assertEqual(players["S2"]["status"], STATUS_VERIFIED)
+        self.assertEqual(players["B1"]["status"], STATUS_VERIFIED)
+        self.assertEqual(players["S1"]["status"], STATUS_UNAVAILABLE)
 
     def test_unusable_match_clock_gives_no_minutes_at_all(self):
         result = compute_match_minutes(make_match(second_half_start_time=""), [action("S1", "00:20:00")])

@@ -11,7 +11,9 @@ a match with unusable clocks yields no minutes at all.
 
 Known limit: the event feed has no card events, so a player who left the pitch without a listed
 substitution (red card, injury without replacement) cannot be detected. Starters with no recorded exit
-are therefore labelled ``derived_no_exit_recorded`` and are never labelled ``verified``.
+are therefore labelled ``derived_no_exit_recorded`` and are never labelled ``verified``. They keep that
+label only in matches whose substitution records are fully consistent; in any other match an unrecorded
+exit cannot be excluded, so their minutes stay ``None``.
 """
 
 from __future__ import annotations
@@ -102,7 +104,7 @@ def compute_match_minutes(match: dict, events: list[dict], tolerance: int = TOLE
         everyone.update((in_id, out_id))
 
     if not clock["ordered"]:
-        return {"total_played_seconds": None,
+        return {"total_played_seconds": None, "substitution_records_consistent": False,
                 "players": {pid: _unavailable("match_clock_unusable") for pid in sorted(everyone)}}
 
     total = (clock["first_half_end_time"] - clock["match_start_time"]) + (
@@ -160,7 +162,17 @@ def compute_match_minutes(match: dict, events: list[dict], tolerance: int = TOLE
                 record = _unavailable("events_outside_computed_interval")
                 record["events_outside_interval"] = outside
         players[pid] = record
-    return {"total_played_seconds": total, "players": players}
+
+    # A starter with no recorded exit is only plausible when the whole match's substitution records are
+    # clean. Any unresolved record in the match (unlisted substitute with events, listed substitution
+    # without an event, unlisted substitution event, ...) means an unrecorded exit cannot be excluded.
+    consistent = all(record["status"] != STATUS_UNAVAILABLE for record in players.values())
+    if not consistent:
+        for pid, record in players.items():
+            if record["status"] == STATUS_DERIVED:
+                players[pid] = _unavailable("starter_exit_cannot_be_excluded_match_records_incomplete")
+    return {"total_played_seconds": total, "substitution_records_consistent": consistent,
+            "players": players}
 
 
 def _classify_player(pid, starters, bench, ambiguous, unreconciled, other_events,
