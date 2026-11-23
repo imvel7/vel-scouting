@@ -19,7 +19,7 @@ create index if not exists scout_report_sessions_session_player_idx on public.sc
 create index if not exists scout_reports_created_by_idx on public.scout_reports (created_by);
 create index if not exists scouting_session_videos_session_match_idx on public.scouting_session_videos (session_id, match_id);
 create index if not exists scouting_session_videos_video_match_idx on public.scouting_session_videos (video_id, match_id);
-create index if not exists scouting_sessions_player_match_idx on public.scouting_sessions (player_match_id, player_id, match_id);
+-- scouting_sessions (player_match_id, player_id, match_id) was skipped here: an index named scouting_sessions_player_match_idx already existed. See 20261123155356.
 create index if not exists scouting_sessions_rubric_version_id_idx on public.scouting_sessions (rubric_version_id);
 create index if not exists video_access_checks_checked_by_idx on public.video_access_checks (checked_by);
 create index if not exists videos_match_id_idx on public.videos (match_id);
