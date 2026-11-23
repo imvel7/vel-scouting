@@ -1052,3 +1052,7 @@ Self-consistency check: a player whose own events fall outside the computed inte
 ## 30. Foreign-key indexes (23 November 2026)
 
 Migration `20261123155330_index_unindexed_foreign_keys` (applied live, additive) adds 22 covering indexes (plus `20261123155356`, one more for `scouting_sessions`, because an existing index name made `if not exists` skip it; the advisor re-run caught it) for foreign keys that had no usable leading index, matching the performance advisor warning. Rollback: `DROP INDEX IF EXISTS` for each index named in the migration file. Not changed: the 6 "unused index" notices (tables are nearly empty, so usage statistics are not meaningful yet), the 4 multiple-permissive-policy notices, and leaked-password protection (a Supabase plan feature).
+
+### Multiple permissive policies: deliberately not changed (23 November 2026)
+
+The four warnings (`clubs`, `players`, `scout_reports`, `user_roles`) come from a public-read SELECT policy next to a staff `FOR ALL` policy (and, for `user_roles`, an admin `FOR ALL` next to a read-own policy). Removing the warning means splitting each `FOR ALL` policy into separate INSERT/UPDATE/DELETE policies and rewriting SELECT, which edits live access rules for a performance notice on tables that hold a handful of rows. The behaviour is correct today and the cost is negligible at this size, so it is left as is. Revisit when a table passes roughly ten thousand rows, with a rolled-back RLS test per role before applying.
