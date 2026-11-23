@@ -9,11 +9,17 @@ time excludes the half-time break, so a clock time is mapped to elapsed play sec
 ``played_seconds``. Extra time and penalties are not handled (those fields are empty in the dataset);
 a match with unusable clocks yields no minutes at all.
 
-Known limit: the event feed has no card events, so a player who left the pitch without a listed
-substitution (red card, injury without replacement) cannot be detected. Starters with no recorded exit
-are therefore labelled ``derived_no_exit_recorded`` and are never labelled ``verified``. They keep that
-label only in matches whose substitution records are fully consistent; in any other match an unrecorded
-exit cannot be excluded, so their minutes stay ``None``.
+Cards: the publisher's event map defines a "Card" event name (event_type FOUL or DISSENT, outcome YELLOW
+or RED; a RED outcome is a sending off). A single RED card event ends the player's minutes at that time.
+Two YELLOW cards without a RED card event are contradictory (a second yellow normally means a sending
+off), so such a player gets no minutes. Cards given to players without an on-pitch interval (unused
+substitutes) are ignored, and card events are never used as evidence of an appearance.
+
+Known limit: a player who left the pitch without a listed substitution and without a red card (an injury
+with no replacement) cannot be detected. Starters with no recorded exit are therefore labelled
+``derived_no_exit_recorded`` and are never labelled ``verified``. They keep that label only in matches
+whose substitution records are fully consistent; in any other match an unrecorded exit cannot be
+excluded, so their minutes stay ``None``.
 """
 
 from __future__ import annotations
@@ -27,6 +33,7 @@ STATUS_VERIFIED = "verified"
 STATUS_DERIVED = "derived_no_exit_recorded"
 STATUS_NOT_USED = "not_used_listed_bench"
 STATUS_UNAVAILABLE = "unavailable"
+CARD_EVENT_NAME = "CARD"
 
 
 def played_seconds(seconds: int | None, clock: dict) -> int | None:
@@ -70,10 +77,20 @@ def compute_match_minutes(match: dict, events: list[dict], tolerance: int = TOLE
     """Return ``{"total_played_seconds": int|None, "players": {player_id: record}}`` for one match."""
     clock = match_clock(match)
     sub_events: list[dict] = []
+    red_times: dict[str, set] = defaultdict(set)
+    yellow_counts: Counter = Counter()
     other_events: dict[str, list[dict]] = defaultdict(list)
     for event in events:
         if str(event.get("event_type") or "").strip().upper() == "SUBSTITUTION":
             sub_events.append(event)
+            continue
+        if str(event.get("event_name") or "").strip().upper() == CARD_EVENT_NAME:
+            card_pid = _player_id(event)
+            outcome = str(event.get("event_outcome") or "").strip().upper()
+            if card_pid and outcome == "RED":
+                red_times[card_pid].add(parse_hms(event.get("event_start_time")))
+            elif card_pid and outcome == "YELLOW":
+                yellow_counts[card_pid] += 1
             continue
         pid = _player_id(event)
         if pid:
@@ -149,7 +166,8 @@ def compute_match_minutes(match: dict, events: list[dict], tolerance: int = TOLE
     players: dict[str, dict] = {}
     for pid in sorted(everyone):
         record = _classify_player(pid, starters, bench, ambiguous, unreconciled, other_events,
-                                  in_count, out_count, pair_by_in, pair_by_out, resolved, failed, total)
+                                  in_count, out_count, pair_by_in, pair_by_out, resolved, failed, total,
+                                  red_times, yellow_counts, clock)
         interval = record.pop("_interval", None)
         if interval is not None:
             start, end = interval
@@ -175,8 +193,22 @@ def compute_match_minutes(match: dict, events: list[dict], tolerance: int = TOLE
             "players": players}
 
 
+def _red_card_end(pid, red_times, clock) -> tuple[int | None, str | None]:
+    """Return (play-second of the sending off, None), (None, reason) or (None, None) without a red card."""
+    times = red_times.get(pid)
+    if not times:
+        return None, None
+    if None in times or len(times) > 1:
+        return None, "conflicting_or_unparseable_red_card_time"
+    seconds = played_seconds(next(iter(times)), clock)
+    if seconds is None:
+        return None, "red_card_time_outside_match_clock"
+    return seconds, None
+
+
 def _classify_player(pid, starters, bench, ambiguous, unreconciled, other_events,
-                     in_count, out_count, pair_by_in, pair_by_out, resolved, failed, total) -> dict:
+                     in_count, out_count, pair_by_in, pair_by_out, resolved, failed, total,
+                     red_times, yellow_counts, clock) -> dict:
     is_starter, is_bench = pid in starters, pid in bench
     if pid in ambiguous:
         return _unavailable("ambiguous_squad_or_substitution_records")
@@ -185,6 +217,16 @@ def _classify_player(pid, starters, bench, ambiguous, unreconciled, other_events
     if is_starter:
         if in_count[pid]:
             return _unavailable("starter_listed_as_substitute_in")
+        red_end, red_reason = _red_card_end(pid, red_times, clock)
+        if red_reason:
+            return _unavailable(red_reason)
+        if red_end is not None:
+            if out_count[pid]:
+                return _unavailable("red_card_and_listed_substitution_for_same_player")
+            return {"minutes_seconds": red_end, "status": STATUS_VERIFIED, "basis": "starter_sent_off",
+                    "reasons": [], "events_outside_interval": 0, "_interval": (0, red_end)}
+        if yellow_counts[pid] >= 2:
+            return _unavailable("two_yellow_cards_without_red_card_event")
         if out_count[pid]:
             pair = pair_by_out[pid]
             if pair in failed:
@@ -193,13 +235,24 @@ def _classify_player(pid, starters, bench, ambiguous, unreconciled, other_events
             return {"minutes_seconds": end, "status": STATUS_VERIFIED, "basis": "starter_substituted_out",
                     "reasons": [], "events_outside_interval": 0, "_interval": (0, end)}
         return {"minutes_seconds": total, "status": STATUS_DERIVED, "basis": "starter_no_exit_recorded",
-                "reasons": ["red_card_or_injury_without_substitution_not_detectable"],
+                "reasons": ["injury_without_substitution_not_detectable"],
                 "events_outside_interval": 0, "_interval": (0, total)}
     if in_count[pid]:
         pair = pair_by_in[pid]
         if pair in failed:
             return _unavailable(failed[pair])
         start = resolved[pair]
+        red_end, red_reason = _red_card_end(pid, red_times, clock)
+        if red_reason:
+            return _unavailable(red_reason)
+        if red_end is not None:
+            if red_end < start:
+                return _unavailable("red_card_before_entry")
+            return {"minutes_seconds": red_end - start, "status": STATUS_VERIFIED,
+                    "basis": "substitute_sent_off", "reasons": [], "events_outside_interval": 0,
+                    "_interval": (start, red_end)}
+        if yellow_counts[pid] >= 2:
+            return _unavailable("two_yellow_cards_without_red_card_event")
         return {"minutes_seconds": total - start, "status": STATUS_VERIFIED, "basis": "substitute_entered",
                 "reasons": [], "events_outside_interval": 0, "_interval": (start, total)}
     if out_count[pid]:

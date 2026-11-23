@@ -44,6 +44,7 @@ def main() -> int:
     consistent_matches = inconsistent_matches = 0
     players_with_events = players_with_events_minutes = 0
     total_played_minutes: list[float] = []
+    card_events: Counter = Counter()
 
     with zipfile.ZipFile(BytesIO(archive_bytes)) as archive:
         names = set(archive.namelist())
@@ -67,6 +68,9 @@ def main() -> int:
                     if raw_line.strip():
                         events.append(json.loads(raw_line))
             actors_with_events = {str(e.get("player_id")).strip() for e in events if e.get("player_id")}
+            for e in events:
+                if str(e.get("event_name") or "").strip().upper() == "CARD":
+                    card_events[f"{str(e.get('event_type') or '').strip().upper()}:{str(e.get('event_outcome') or '').strip().upper()}"] += 1
 
             primary = compute_match_minutes(match, events, tolerance=PRIMARY_TOLERANCE)
             if primary["total_played_seconds"] is None:
@@ -105,6 +109,7 @@ def main() -> int:
         "matches_with_usable_clock": matches_with_clock,
         "matches_without_usable_clock": matches_without_clock,
         "regular_time_played_minutes": spread(total_played_minutes),
+        "card_events_by_type_and_outcome": dict(card_events),
         "matches_with_consistent_substitution_records": consistent_matches,
         "matches_with_inconsistent_substitution_records": inconsistent_matches,
         "player_status_counts": dict(status_counts),

@@ -43,6 +43,11 @@ def action(pid, time):
     return {"player_id": pid, "event_type": "PASS", "event_start_time": time}
 
 
+def card(pid, time, outcome, event_type="FOUL"):
+    return {"player_id": pid, "event_name": "CARD", "event_type": event_type,
+            "event_outcome": outcome, "event_start_time": time}
+
+
 def swap(in_id, out_id):
     return {"in": person(in_id), "out": person(out_id)}
 
@@ -72,7 +77,7 @@ class MinutesTests(unittest.TestCase):
         self.assertEqual(result["total_played_seconds"], TOTAL)
         self.assertEqual(record["minutes_seconds"], TOTAL)
         self.assertEqual(record["status"], STATUS_DERIVED)
-        self.assertIn("red_card_or_injury_without_substitution_not_detectable", record["reasons"])
+        self.assertIn("injury_without_substitution_not_detectable", record["reasons"])
 
     def test_substitution_gives_both_players_verified_minutes(self):
         match = make_match(home_substitutions=[swap("B1", "S2")])
@@ -200,6 +205,75 @@ class MinutesTests(unittest.TestCase):
         match = make_match(home_substitutions=[swap("S1", "S2")])
         players = compute_match_minutes(match, [sub_event("S2", "01:20:00")])["players"]
         self.assertIn("starter_listed_as_substitute_in", players["S1"]["reasons"])
+
+
+class CardTests(unittest.TestCase):
+    def test_starter_sent_off_ends_minutes_at_card_time(self):
+        events = [action("S1", "00:20:00"), card("S1", "01:20:00", "RED")]
+        record = compute_match_minutes(make_match(), events)["players"]["S1"]
+        self.assertEqual(record["minutes_seconds"], 3600)
+        self.assertEqual((record["status"], record["basis"]), (STATUS_VERIFIED, "starter_sent_off"))
+
+    def test_dissent_red_card_also_ends_minutes(self):
+        record = compute_match_minutes(make_match(), [card("S1", "00:30:00", "RED", "DISSENT")])["players"]["S1"]
+        self.assertEqual(record["minutes_seconds"], 1500)
+
+    def test_substitute_sent_off_after_entering(self):
+        match = make_match(home_substitutions=[swap("B1", "S2")])
+        events = [sub_event("S2", "01:00:00"), card("B1", "01:30:00", "RED")]
+        record = compute_match_minutes(match, events)["players"]["B1"]
+        # Enters in the break (2700 played seconds); 01:30:00 is 1500 s into the second half.
+        self.assertEqual(record["minutes_seconds"], 1500)
+        self.assertEqual((record["status"], record["basis"]), (STATUS_VERIFIED, "substitute_sent_off"))
+
+    def test_red_card_before_entry_is_rejected(self):
+        match = make_match(home_substitutions=[swap("B1", "S2")])
+        events = [sub_event("S2", "01:20:00"), card("B1", "00:30:00", "RED")]
+        self.assertEqual(compute_match_minutes(match, events)["players"]["B1"]["reasons"], ["red_card_before_entry"])
+
+    def test_two_yellows_without_red_give_no_minutes(self):
+        events = [card("S1", "00:20:00", "YELLOW"), card("S1", "01:00:00", "YELLOW")]
+        record = compute_match_minutes(make_match(), events)["players"]["S1"]
+        self.assertIsNone(record["minutes_seconds"])
+        self.assertEqual(record["reasons"], ["two_yellow_cards_without_red_card_event"])
+
+    def test_two_yellows_with_red_use_the_red_card_time(self):
+        events = [card("S1", "00:20:00", "YELLOW"), card("S1", "01:00:00", "YELLOW"), card("S1", "01:00:00", "RED")]
+        record = compute_match_minutes(make_match(), events)["players"]["S1"]
+        self.assertEqual(record["basis"], "starter_sent_off")
+
+    def test_single_yellow_changes_nothing(self):
+        record = compute_match_minutes(make_match(), [card("S1", "00:20:00", "YELLOW")])["players"]["S1"]
+        self.assertEqual(record["status"], STATUS_DERIVED)
+
+    def test_conflicting_red_card_times_give_no_minutes(self):
+        events = [card("S1", "00:30:00", "RED"), card("S1", "00:40:00", "RED")]
+        record = compute_match_minutes(make_match(), events)["players"]["S1"]
+        self.assertEqual(record["reasons"], ["conflicting_or_unparseable_red_card_time"])
+
+    def test_red_card_outside_match_clock_is_rejected(self):
+        record = compute_match_minutes(make_match(), [card("S1", "02:30:00", "RED")])["players"]["S1"]
+        self.assertEqual(record["reasons"], ["red_card_time_outside_match_clock"])
+
+    def test_red_card_and_listed_substitution_for_same_player_is_rejected(self):
+        match = make_match(home_substitutions=[swap("B1", "S2")])
+        events = [sub_event("S2", "01:20:00"), card("S2", "01:10:00", "RED")]
+        record = compute_match_minutes(match, events)["players"]["S2"]
+        self.assertEqual(record["reasons"], ["red_card_and_listed_substitution_for_same_player"])
+
+    def test_card_to_unused_bench_player_is_ignored_and_not_an_appearance(self):
+        result = compute_match_minutes(make_match(), [card("B3", "00:30:00", "RED", "DISSENT"), action("S1", "00:20:00")])
+        self.assertEqual(result["players"]["B3"]["status"], STATUS_NOT_USED)
+        self.assertTrue(result["substitution_records_consistent"])
+
+    def test_card_from_unknown_actor_creates_no_record(self):
+        result = compute_match_minutes(make_match(), [card("X9", "00:30:00", "RED")])
+        self.assertNotIn("X9", result["players"])
+
+    def test_card_event_is_not_checked_against_the_interval(self):
+        match = make_match(home_substitutions=[swap("B1", "S2")])
+        events = [sub_event("S2", "01:20:00"), card("S2", "01:50:00", "YELLOW")]
+        self.assertEqual(compute_match_minutes(match, events)["players"]["S2"]["status"], STATUS_VERIFIED)
 
 
 if __name__ == "__main__":
