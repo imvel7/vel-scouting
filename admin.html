@@ -541,7 +541,7 @@ async function transitionScoutingSession(sessionId,action){
   if(!window.confirm('Bu oturumu yeniden incelemeye açmak istiyor musun? Mevcut rapor anlık görüntüleri değişmez.'))return;
   update={status:'in_review',completed_at:null};
  }else if(action==='lock'&&session.status==='completed'){
-  if(!window.confirm('Oturum panelde salt okunur olarak işaretlenecek. Veritabanı seviyesinde değişmezlik kuralı ayrı güvenlik çalışmasıdır. Devam etmek istiyor musun?'))return;
+  if(!window.confirm('Oturum kilitlenecek. Veritabanı kilitli oturumun, puanlarının, gözlemlerinin ve video bağlantılarının değiştirilmesini veya silinmesini engeller; bu işlem panelden geri alınamaz. Devam etmek istiyor musun?'))return;
   update={status:'locked'};
  }else{
   throw new Error('Bu oturum için istenen durum geçişi geçerli değil.');
