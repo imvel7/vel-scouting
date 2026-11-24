@@ -1056,3 +1056,9 @@ Migration `20261123155330_index_unindexed_foreign_keys` (applied live, additive)
 ### Multiple permissive policies: deliberately not changed (23 November 2026)
 
 The four warnings (`clubs`, `players`, `scout_reports`, `user_roles`) come from a public-read SELECT policy next to a staff `FOR ALL` policy (and, for `user_roles`, an admin `FOR ALL` next to a read-own policy). Removing the warning means splitting each `FOR ALL` policy into separate INSERT/UPDATE/DELETE policies and rewriting SELECT, which edits live access rules for a performance notice on tables that hold a handful of rows. The behaviour is correct today and the cost is negligible at this size, so it is left as is. Revisit when a table passes roughly ten thousand rows, with a rolled-back RLS test per role before applying.
+
+## 31. Scoring-anchor drafts for the six remaining roles (24 November 2026)
+
+Draft criterion-level 1–10 anchors now exist in `methodology/` for fullback/wingback (29 criteria), defensive/central midfield (30), attacking midfield/number 10 (30), winger (31), striker (32) and goalkeeper (30), written in the structure of the centre-back anchors. A script check against each methodology's weight table found every criterion present with exactly six bands and weights summing to 100 in all six roles.
+
+Status: **draft, not loaded into Supabase.** The anchors were written from the methodology documents without football-expert calibration, and the live database still has only the centre-back rubric (`CB-METH-0.8-ANCHORS-1.0`). Before a role goes live: expert review of the wording, a rubric seed migration (categories, criteria, anchors) tested on a rolled-back transaction, then a pilot status like the centre-back one. Nothing in the staff screen changes until then.
