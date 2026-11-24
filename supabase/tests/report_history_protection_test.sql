@@ -1,4 +1,4 @@
--- Self-rolling-back test for supabase/migrations/*_protect_report_history.sql.
+-- Self-rolling-back test for supabase/migrations/*_protect_report_history.sql (applied live as 20261124071112).
 -- Run against a database where the migration is applied (or run the migration first in the same transaction).
 -- It creates throw-away rows, checks every guard, and always ends with RAISE EXCEPTION so nothing persists:
 -- the message starts with REPORT_HISTORY_TESTS_PASSED or lists the failed checks.

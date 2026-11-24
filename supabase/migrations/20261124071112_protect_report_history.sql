@@ -114,17 +114,14 @@ revoke all on function private.guard_scout_report_history() from public, anon, a
 revoke all on function private.guard_report_versions_history() from public, anon, authenticated;
 revoke all on function private.guard_report_sessions_history() from public, anon, authenticated;
 
-drop trigger if exists scout_reports_guard_history on public.scout_reports;
 create trigger scout_reports_guard_history
   before update or delete on public.scout_reports
   for each row execute function private.guard_scout_report_history();
 
-drop trigger if exists report_versions_guard_history on public.report_versions;
 create trigger report_versions_guard_history
   before update or delete on public.report_versions
   for each row execute function private.guard_report_versions_history();
 
-drop trigger if exists scout_report_sessions_guard_history on public.scout_report_sessions;
 create trigger scout_report_sessions_guard_history
   before insert or update or delete on public.scout_report_sessions
   for each row execute function private.guard_report_sessions_history();
