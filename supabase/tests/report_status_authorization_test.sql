@@ -49,8 +49,8 @@ begin
     failed := failed || 'direct_published_insert_allowed ; ';
   exception when sqlstate '55000' then results := results || 'direct_published_insert_blocked:ok '; end;
   begin insert into public.scout_reports(player_id, report_date, methodology_version, report_status, created_by) values (v_player, current_date, v_meth, 'draft', v_editor);
-    results := results || 'direct_draft_insert_allowed:ok ';
-  exception when others then failed := failed || 'direct_draft_insert: '||sqlerrm||' ; '; end;
+    failed := failed || 'direct_draft_insert_allowed ; ';
+  exception when sqlstate '55000' then results := results || 'direct_draft_insert_blocked:ok '; end;
 
   -- admin: publish ok; null-grade report cannot be published; archive ok; editor cannot archive
   perform set_config('request.jwt.claims', json_build_object('sub', v_admin, 'role','authenticated')::text, true);
