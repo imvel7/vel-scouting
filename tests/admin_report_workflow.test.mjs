@@ -130,3 +130,73 @@ test('correction draft tolerates a missing snapshot', () => {
   assert.equal(d.strengths, 'x');
   assert.equal(d.finalVerdict, 'z');
 });
+
+// ---- report history helpers ----
+function loadHistory() {
+  const start = html.indexOf('// REPORT-HISTORY-START');
+  const end = html.indexOf('// REPORT-HISTORY-END');
+  assert.ok(start > 0 && end > start, 'history markers present');
+  const ctx = {};
+  vm.createContext(ctx);
+  vm.runInContext(html.slice(start, end) + '\nthis.api={buildReportHistory,renderReportHistory,formatHistoryRating,formatHistoryDate};', ctx);
+  return ctx.api;
+}
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const snap = (over = {}) => ({
+  captured_at: '2026-11-25T10:00:00Z', source: 'vel_scout_admin', methodology_version: 'CB-METH-0.8',
+  rubric: { version_code: 'CB-METH-0.8-ANCHORS-1.0', scoring_anchors_version: '1.0' },
+  evidence_grade: 'B', general_rating: 6, session_ids: ['a', 'b', 'c'], full_match_count: 3, ...over,
+});
+const label = (id) => 'etiket-' + id;
+
+test('history lists versions in order with methodology, rubric, grade, rating and session counts', () => {
+  const { buildReportHistory } = loadHistory();
+  const rep = { id: 'r1', report_status: 'published', methodology_version: 'CB-METH-0.8' };
+  const m = plain(buildReportHistory(rep, [
+    { version_number: 2, created_at: '2026-11-26T10:00:00Z', report_snapshot: snap({ general_rating: 7 }) },
+    { version_number: 1, created_at: '2026-11-25T10:00:00Z', report_snapshot: snap() },
+  ], [], label));
+  assert.deepEqual(m.versions.map(v => v.number), [1, 2]);
+  assert.equal(m.versions[0].rubricCode, 'CB-METH-0.8-ANCHORS-1.0');
+  assert.equal(m.versions[0].anchorsVersion, '1.0');
+  assert.equal(m.versions[0].sessionCount, 3);
+  assert.equal(m.versions[1].rating, 7);
+  assert.deepEqual(m.notes, []);
+});
+test('history flags a version whose methodology differs from the report record and an empty history', () => {
+  const { buildReportHistory } = loadHistory();
+  const rep = { id: 'r1', report_status: 'draft', methodology_version: 'CB-METH-0.8' };
+  const bad = plain(buildReportHistory(rep, [{ version_number: 1, created_at: 'x', report_snapshot: snap({ methodology_version: 'OTHER' }) }], [], label));
+  assert.equal(bad.notes.length, 1);
+  assert.match(bad.notes[0], /uyuşmuyor/);
+  const empty = plain(buildReportHistory(rep, [], [], label));
+  assert.equal(empty.notes.length, 1);
+  assert.deepEqual(empty.versions, []);
+});
+test('history shows the correction chain in both directions', () => {
+  const { buildReportHistory } = loadHistory();
+  const rep = { id: 'r2', report_status: 'draft', methodology_version: 'M' };
+  const m = plain(buildReportHistory(rep,
+    [{ version_number: 1, created_at: 'x', report_snapshot: snap({ methodology_version: 'M', supersedes_report_id: 'r1' }) }],
+    [{ report_id: 'r3', version_number: 1 }, { report_id: 'r3', version_number: 2 }, { report_id: 'r2', version_number: 1 }], label));
+  assert.deepEqual(m.supersedes, { id: 'r1', label: 'etiket-r1' });
+  assert.deepEqual(m.supersededBy, [{ id: 'r3', label: 'etiket-r3' }]);
+});
+test('rating text never invents a number when there is no rating', () => {
+  const { formatHistoryRating } = loadHistory();
+  assert.match(formatHistoryRating(null), /yok/);
+  assert.match(formatHistoryRating(undefined), /yok/);
+  assert.equal(formatHistoryRating('6.00'), '6.00/10');
+  assert.equal(formatHistoryRating(6), '6.00/10');
+});
+test('rendered history escapes all dynamic text', () => {
+  const { buildReportHistory, renderReportHistory } = loadHistory();
+  const rep = { id: 'r1', report_status: '<b>x</b>', methodology_version: '<img src=x onerror=1>' };
+  const m = buildReportHistory(rep, [{ version_number: 1, created_at: 'x', report_snapshot: snap({ methodology_version: '<script>1</script>', supersedes_report_id: 'r0' }) }], [], () => '<script>alert(1)</script>');
+  const out = renderReportHistory(m, esc);
+  assert.ok(!out.includes('<script>'), 'no raw script tag');
+  assert.ok(!out.includes('<img'), 'no raw img tag');
+  assert.ok(out.includes('&lt;script&gt;'));
+  assert.match(out, /Sürümler yalnızca eklenir/);
+  assert.match(out, /data-report-action="close-history"/);
+});

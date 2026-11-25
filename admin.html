@@ -295,6 +295,7 @@
 </form>
 <div id="reports-message" class="notice">Rapor kayıtları yükleniyor.</div>
 <div class="tablewrap"><table><thead><tr><th>Oyuncu</th><th>Tarih</th><th>Kanıt</th><th>Puan</th><th>Ana rol</th><th>Durum</th><th>İşlem</th></tr></thead><tbody id="reports-body"></tbody></table></div>
+<div id="report-history" class="hidden" aria-live="polite"></div>
 </div>
 <div class="panel"><div class="tag">Saved records</div><h2>Oyuncu kayıtları</h2><div id="players-message" class="notice">Kayıtlar yükleniyor.</div><div class="tablewrap"><table><thead><tr><th>Oyuncu</th><th>Kulüp</th><th>Uyruk</th><th>Ana mevki</th><th>Durum</th><th>İşlem</th></tr></thead><tbody id="players-body"></tbody></table></div></div>
 </section>
@@ -426,6 +427,55 @@ function selectedReportSessions(){
  const ids=new Set(selectedReportSessionIds());
  return scoutingSessions.filter(s=>ids.has(String(s.id)));
 }
+// REPORT-HISTORY-START
+function formatHistoryDate(value){
+ if(!value)return '—';
+ const d=new Date(value);
+ return Number.isNaN(d.getTime())?String(value):d.toLocaleString('tr-TR');
+}
+function formatHistoryRating(value){
+ if(value===null||value===undefined||value==='')return 'Genel puan yok (kanıt veya kapsam yetersiz)';
+ const n=Number(value);
+ return Number.isFinite(n)?n.toFixed(2)+'/10':'—';
+}
+function buildReportHistory(report,versionRows,dependentRows,labelFor){
+ const versions=(versionRows||[]).slice().sort((a,b)=>Number(a.version_number)-Number(b.version_number)).map(row=>{
+  const snap=row.report_snapshot||{};
+  const rubric=snap.rubric||{};
+  return {
+   number:row.version_number,createdAt:row.created_at,capturedAt:snap.captured_at||null,source:snap.source||null,
+   methodology:snap.methodology_version||null,rubricCode:rubric.version_code||null,anchorsVersion:rubric.scoring_anchors_version||null,
+   grade:snap.evidence_grade||null,rating:snap.general_rating??null,
+   sessionCount:Array.isArray(snap.session_ids)?snap.session_ids.length:null,
+   fullMatchCount:snap.full_match_count??null,supersedesId:snap.supersedes_report_id||null
+  };
+ });
+ const notes=[];
+ if(!versions.length)notes.push('Bu rapor için kayıtlı sürüm bulunamadı.');
+ for(const v of versions){
+  if(v.methodology&&report.methodology_version&&v.methodology!==report.methodology_version)notes.push('Sürüm '+v.number+' metodoloji sürümü ('+v.methodology+') rapor kaydıyla ('+report.methodology_version+') uyuşmuyor; kontrol edilmeli.');
+ }
+ const firstSupersedes=(versions.find(v=>v.supersedesId)||{}).supersedesId||null;
+ return {
+  reportId:report.id,status:report.report_status,methodologyVersion:report.methodology_version||null,
+  versions,notes,
+  supersedes:firstSupersedes?{id:firstSupersedes,label:labelFor(firstSupersedes)}:null,
+  supersededBy:Array.from(new Set((dependentRows||[]).map(r=>String(r.report_id)))).filter(id=>id!==String(report.id)).map(id=>({id,label:labelFor(id)}))
+ };
+}
+function renderReportHistory(model,esc){
+ const rows=model.versions.map(v=>'<tr><td>'+esc(v.number)+'</td><td>'+esc(formatHistoryDate(v.createdAt))+'</td><td>'+esc(v.methodology||'—')+'</td><td>'+esc([v.rubricCode,v.anchorsVersion?('çıpa '+v.anchorsVersion):null].filter(Boolean).join(' · ')||'—')+'</td><td>'+esc(v.grade||'Belirlenmedi')+'</td><td>'+esc(formatHistoryRating(v.rating))+'</td><td>'+esc(v.sessionCount===null?'—':v.sessionCount)+(v.fullMatchCount===null?'':' · '+esc(v.fullMatchCount)+' tam maç')+'</td></tr>').join('')||'<tr><td colspan="7" class="muted">Sürüm yok.</td></tr>';
+ const related=[];
+ if(model.supersedes)related.push('<p>Bu rapor şu raporun düzeltmesidir: '+esc(model.supersedes.label)+'</p>');
+ if(model.supersededBy.length)related.push('<p>Bu raporun düzeltmeleri: '+model.supersededBy.map(x=>esc(x.label)).join('; ')+'</p>');
+ const notes=model.notes.map(n=>'<p class="notice error">'+esc(n)+'</p>').join('');
+ return '<div class="panel"><div class="tag">Rapor geçmişi</div><h3>Metodoloji ve sürüm geçmişi</h3>'
+  +'<p class="muted">Durum: '+esc(model.status)+' · Rapor metodoloji sürümü: '+esc(model.methodologyVersion||'—')+'. Sürümler yalnızca eklenir; mevcut bir sürüm değiştirilemez.</p>'
+  +related.join('')+notes
+  +'<div class="tablewrap"><table><thead><tr><th>Sürüm</th><th>Kayıt zamanı</th><th>Metodoloji</th><th>Rubrik</th><th>Kanıt</th><th>Genel puan</th><th>Oturum</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+  +'<div class="actions"><button class="btn secondary" type="button" data-report-action="close-history">Geçmişi kapat</button></div></div>';
+}
+// REPORT-HISTORY-END
 // REPORT-WORKFLOW-START
 const REPORT_STATUS_LABELS={draft:'Taslak',review:'İncelemede',published:'Yayınlandı',archived:'Arşivlendi'};
 const REPORT_TRANSITIONS=[
@@ -470,11 +520,30 @@ async function loadReports(quiet=false){
  $('reports-body').innerHTML=reports.map(r=>{
   const player=records.find(p=>String(p.id)===String(r.player_id));
   const buttons=reportActionsFor(r.report_status,currentRole).map(t=>'<button class="btn secondary" type="button" data-report-action="'+esc(t.action)+'" data-report-id="'+esc(r.id)+'">'+esc(t.label)+'</button>');
+  buttons.push('<button class="btn secondary" type="button" data-report-action="history" data-report-id="'+esc(r.id)+'">Geçmiş</button>');
   if(canPrepareCorrection(r.report_status))buttons.push('<button class="btn secondary" type="button" data-report-action="correction" data-report-id="'+esc(r.id)+'">Düzeltme taslağı</button>');
   return '<tr><td>'+esc(player?.full_name||'Oyuncu kaydı')+'</td><td>'+esc(r.report_date||'—')+'</td><td>'+esc(r.evidence_grade||'—')+'</td><td>'+esc(r.general_rating??'—')+'</td><td>'+esc(r.main_role||'—')+'</td><td class="status">'+esc(REPORT_STATUS_LABELS[r.report_status]||r.report_status||'—')+'</td><td>'+(buttons.join(' ')||'—')+'</td></tr>';
  }).join('')||'<tr><td colspan="7" class="muted">Henüz scout raporu yok.</td></tr>';
  if(!quiet)message($('reports-message'),reports.length+' scout raporu bulundu.','ok');
  return true;
+}
+function reportLabelFor(id){
+ const r=reports.find(x=>String(x.id)===String(id));
+ if(!r)return 'Bilinmeyen rapor ('+String(id).slice(0,8)+')';
+ const player=records.find(p=>String(p.id)===String(r.player_id));
+ return (player?.full_name||'Oyuncu')+' · '+(r.report_date||'—')+' · '+(REPORT_STATUS_LABELS[r.report_status]||r.report_status);
+}
+async function showReportHistory(report){
+ const container=$('report-history');
+ const [versionResult,dependentResult]=await Promise.all([
+  supabase.from('report_versions').select('version_number,created_at,report_snapshot').eq('report_id',report.id).order('version_number',{ascending:true}),
+  supabase.from('report_versions').select('report_id,version_number').contains('report_snapshot',{supersedes_report_id:report.id})
+ ]);
+ if(versionResult.error)throw versionResult.error;
+ if(dependentResult.error)throw dependentResult.error;
+ container.innerHTML=renderReportHistory(buildReportHistory(report,versionResult.data,dependentResult.data,reportLabelFor),esc);
+ container.classList.remove('hidden');
+ container.scrollIntoView({behavior:'smooth',block:'start'});
 }
 async function latestReportSnapshot(reportId){
  const {data,error}=await supabase.from('report_versions').select('version_number,report_snapshot').eq('report_id',reportId).order('version_number',{ascending:false}).limit(1);
@@ -499,12 +568,20 @@ async function prepareCorrectionDraft(report){
  $('report-form').scrollIntoView({behavior:'smooth',block:'start'});
  message($('reports-message'),'Düzeltme taslağı hazırlandı: formu gözden geçir, tam maç onayını yeniden ver ve kaydet. Eski rapor değişmez; kanıt notu ve puan yeniden hesaplanır.','ok');
 }
+$('report-history').addEventListener('click',e=>{
+ if(e.target.closest('button[data-report-action="close-history"]')){$('report-history').classList.add('hidden');$('report-history').innerHTML=''}
+});
 $('reports-body').addEventListener('click',async e=>{
  const button=e.target.closest('button[data-report-action]');
  if(!button)return;
  const report=reports.find(r=>String(r.id)===button.dataset.reportId);
  if(!report){message($('reports-message'),'Rapor bulunamadı; liste yenileniyor.','error');await loadReports();return}
  const action=button.dataset.reportAction;
+ if(action==='history'){
+  try{await showReportHistory(report)}
+  catch(err){message($('reports-message'),'Rapor geçmişi alınamadı: '+(err.message||'bilinmeyen hata'),'error')}
+  return;
+ }
  const buttons=Array.from(document.querySelectorAll('#reports-body button'));
  buttons.forEach(b=>{b.disabled=true});
  let outcome=null;
