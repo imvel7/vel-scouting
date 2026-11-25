@@ -1,0 +1,27 @@
+name: Admin UI logic tests
+
+on:
+  pull_request:
+    paths:
+      - 'admin.html'
+      - 'tests/**'
+      - '.github/workflows/admin-ui-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'admin.html'
+      - 'tests/**'
+
+permissions:
+  contents: read
+
+jobs:
+  admin-report-workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run admin report workflow tests
+        run: node --test tests/*.test.mjs

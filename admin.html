@@ -294,7 +294,7 @@
 <div class="actions"><button class="btn" type="submit" id="save-report">Kanıta dayalı taslak raporu oluştur</button></div>
 </form>
 <div id="reports-message" class="notice">Rapor kayıtları yükleniyor.</div>
-<div class="tablewrap"><table><thead><tr><th>Oyuncu</th><th>Tarih</th><th>Kanıt</th><th>Puan</th><th>Ana rol</th><th>Durum</th></tr></thead><tbody id="reports-body"></tbody></table></div>
+<div class="tablewrap"><table><thead><tr><th>Oyuncu</th><th>Tarih</th><th>Kanıt</th><th>Puan</th><th>Ana rol</th><th>Durum</th><th>İşlem</th></tr></thead><tbody id="reports-body"></tbody></table></div>
 </div>
 <div class="panel"><div class="tag">Saved records</div><h2>Oyuncu kayıtları</h2><div id="players-message" class="notice">Kayıtlar yükleniyor.</div><div class="tablewrap"><table><thead><tr><th>Oyuncu</th><th>Kulüp</th><th>Uyruk</th><th>Ana mevki</th><th>Durum</th><th>İşlem</th></tr></thead><tbody id="players-body"></tbody></table></div></div>
 </section>
@@ -307,7 +307,7 @@ const SUPABASE_PUBLIC_KEY='sb_publishable_Gi8Al3ubX_ptadWYYV35kQ_9gm7vxOq';
 const supabase=createClient(SUPABASE_URL,SUPABASE_PUBLIC_KEY);
 const $=id=>document.getElementById(id);
 const loginPanel=$('login-panel'),dashboard=$('dashboard');
-let currentUser=null,records=[],clubs=[],competitions=[],seasons=[],reports=[],matches=[],playerMatches=[],rubrics=[],scoutingSessions=[],videoSources=[],videos=[],sessionVideos=[],videoAccessChecks=[],videoRightsAssessments=[],rubricCategories=[],rubricCriteria=[],observations=[],criterionScores=[];
+let currentUser=null,currentRole=null,pendingSupersedes=null,records=[],clubs=[],competitions=[],seasons=[],reports=[],matches=[],playerMatches=[],rubrics=[],scoutingSessions=[],videoSources=[],videos=[],sessionVideos=[],videoAccessChecks=[],videoRightsAssessments=[],rubricCategories=[],rubricCriteria=[],observations=[],criterionScores=[];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function message(el,text,type=''){el.textContent=text;el.className='notice '+type}
 function showLogin(text,type=''){loginPanel.classList.remove('hidden');dashboard.classList.add('hidden');$('logout').classList.add('hidden');if(text)message($('login-message'),text,type)}
@@ -351,7 +351,7 @@ async function verifyAndLoad(user){
  const {data:roleData,error:roleError}=await supabase.from('user_roles').select('role').eq('user_id',user.id).maybeSingle();
  if(roleError)throw new Error('Yetki kontrolü yapılamadı: '+roleError.message);
  if(!roleData||!['admin','editor'].includes(roleData.role))throw new Error('Bu hesapta Vel Scouting yönetim yetkisi bulunmuyor.');
- currentUser=user;showDashboard();await loadClubs();await loadCompetitions();await loadSeasons();await loadPlayers();await loadReports();await loadMatches();await loadRubrics();await loadRubricCriteria();await loadPlayerMatches();await loadSessions();await loadVideoSources();await loadVideos();await loadSessionVideos();await loadVideoAccessChecks();await loadVideoRightsAssessments();await loadObservations();await loadCriterionScores();
+ currentRole=roleData.role;currentUser=user;showDashboard();await loadClubs();await loadCompetitions();await loadSeasons();await loadPlayers();await loadReports();await loadMatches();await loadRubrics();await loadRubricCriteria();await loadPlayerMatches();await loadSessions();await loadVideoSources();await loadVideos();await loadSessionVideos();await loadVideoAccessChecks();await loadVideoRightsAssessments();await loadObservations();await loadCriterionScores();
 }
 async function loadClubs(){
  const select=$('current-club');
@@ -426,17 +426,120 @@ function selectedReportSessions(){
  const ids=new Set(selectedReportSessionIds());
  return scoutingSessions.filter(s=>ids.has(String(s.id)));
 }
-async function loadReports(){
- message($('reports-message'),'Scout raporları yükleniyor...');
- const {data,error}=await supabase.from('scout_reports').select('id,player_id,report_date,evidence_grade,general_rating,main_role,report_status').order('report_date',{ascending:false});
- if(error){message($('reports-message'),'Raporlar alınamadı: '+error.message,'error');return}
+// REPORT-WORKFLOW-START
+const REPORT_STATUS_LABELS={draft:'Taslak',review:'İncelemede',published:'Yayınlandı',archived:'Arşivlendi'};
+const REPORT_TRANSITIONS=[
+ {action:'review',from:'draft',to:'review',label:'İncelemeye al',adminOnly:false,confirm:null,done:'Rapor incelemeye alındı.'},
+ {action:'back_to_draft',from:'review',to:'draft',label:'Taslağa döndür',adminOnly:false,confirm:null,done:'Rapor taslağa döndürüldü.'},
+ {action:'publish',from:'review',to:'published',label:'Yayınla',adminOnly:true,confirm:'Bu raporu yayınlamak üzeresin. Yayınlandıktan sonra metni değiştirilemez; düzeltme için yeni bir taslak gerekir. Devam edilsin mi?',done:'Rapor yayınlandı.'},
+ {action:'archive',from:'published',to:'archived',label:'Arşivle',adminOnly:true,confirm:'Rapor arşivlenecek ve herkese açık listeden kalkacak. Bu işlem geri alınamaz. Devam edilsin mi?',done:'Rapor arşivlendi ve herkese açık listeden kaldırıldı.'}
+];
+function reportActionsFor(status,role){
+ return REPORT_TRANSITIONS.filter(t=>t.from===status&&(!t.adminOnly||role==='admin'));
+}
+function canPrepareCorrection(status){return ['review','published','archived'].includes(status)}
+async function changeReportStatus(client,report,action,role){
+ const t=REPORT_TRANSITIONS.find(x=>x.action===action&&x.from===report.report_status);
+ if(!t)return {ok:false,message:'Bu rapor için istenen durum geçişi geçerli değil.'};
+ if(t.adminOnly&&role!=='admin')return {ok:false,message:'Bu işlemi yalnızca yönetici (admin) yapabilir.'};
+ const {data,error}=await client.from('scout_reports').update({report_status:t.to}).eq('id',report.id).eq('report_status',t.from).select('id,report_status');
+ if(error)return {ok:false,message:'İşlem başarısız: '+(error.message||'bilinmeyen hata')};
+ if(!Array.isArray(data)||data.length!==1||data[0].report_status!==t.to)return {ok:false,message:'İşlem uygulanmadı: rapor değişmiş veya bu işlem için yetkin yok. Liste yenileniyor.'};
+ return {ok:true,message:t.done,to:t.to};
+}
+function correctionDraftFrom(report,snapshot){
+ const f=(snapshot&&snapshot.report_fields)||{};
+ const sessionIds=Array.isArray(snapshot&&snapshot.session_ids)?snapshot.session_ids.map(String):[];
+ return {
+  playerId:String(report.player_id),
+  sessionIds,
+  mainRole:f.main_role||'',
+  alternativeRoles:Array.isArray(f.alternative_roles)?f.alternative_roles.join(', '):'',
+  roleEvidence:f.main_role_evidence||'',
+  strengths:f.strengths??report.strengths??'',
+  developmentAreas:f.development_areas??report.development_areas??'',
+  finalVerdict:f.final_verdict??report.final_verdict??''
+ };
+}
+// REPORT-WORKFLOW-END
+async function loadReports(quiet=false){
+ if(!quiet)message($('reports-message'),'Scout raporları yükleniyor...');
+ const {data,error}=await supabase.from('scout_reports').select('id,player_id,report_date,evidence_grade,general_rating,main_role,report_status,methodology_version,strengths,development_areas,final_verdict').order('report_date',{ascending:false});
+ if(error){message($('reports-message'),'Raporlar alınamadı: '+error.message,'error');return false}
  reports=data||[];
  $('reports-body').innerHTML=reports.map(r=>{
   const player=records.find(p=>String(p.id)===String(r.player_id));
-  return '<tr><td>'+esc(player?.full_name||'Oyuncu kaydı')+'</td><td>'+esc(r.report_date||'—')+'</td><td>'+esc(r.evidence_grade||'—')+'</td><td>'+esc(r.general_rating??'—')+'</td><td>'+esc(r.main_role||'—')+'</td><td class="status">'+esc(r.report_status||'—')+'</td></tr>';
- }).join('')||'<tr><td colspan="6" class="muted">Henüz scout raporu yok.</td></tr>';
- message($('reports-message'),reports.length+' scout raporu bulundu.','ok');
+  const buttons=reportActionsFor(r.report_status,currentRole).map(t=>'<button class="btn secondary" type="button" data-report-action="'+esc(t.action)+'" data-report-id="'+esc(r.id)+'">'+esc(t.label)+'</button>');
+  if(canPrepareCorrection(r.report_status))buttons.push('<button class="btn secondary" type="button" data-report-action="correction" data-report-id="'+esc(r.id)+'">Düzeltme taslağı</button>');
+  return '<tr><td>'+esc(player?.full_name||'Oyuncu kaydı')+'</td><td>'+esc(r.report_date||'—')+'</td><td>'+esc(r.evidence_grade||'—')+'</td><td>'+esc(r.general_rating??'—')+'</td><td>'+esc(r.main_role||'—')+'</td><td class="status">'+esc(REPORT_STATUS_LABELS[r.report_status]||r.report_status||'—')+'</td><td>'+(buttons.join(' ')||'—')+'</td></tr>';
+ }).join('')||'<tr><td colspan="7" class="muted">Henüz scout raporu yok.</td></tr>';
+ if(!quiet)message($('reports-message'),reports.length+' scout raporu bulundu.','ok');
+ return true;
 }
+async function latestReportSnapshot(reportId){
+ const {data,error}=await supabase.from('report_versions').select('version_number,report_snapshot').eq('report_id',reportId).order('version_number',{ascending:false}).limit(1);
+ if(error)throw error;
+ return (data&&data[0]&&data[0].report_snapshot)||null;
+}
+async function prepareCorrectionDraft(report){
+ const snapshot=await latestReportSnapshot(report.id);
+ const draft=correctionDraftFrom(report,snapshot);
+ $('report-player').value=draft.playerId;
+ populateReportSessions();
+ const wanted=new Set(draft.sessionIds);
+ document.querySelectorAll('#report-sessions input[data-report-session]').forEach(input=>{input.checked=wanted.has(input.dataset.reportSession)});
+ $('main-role').value=draft.mainRole;
+ $('alternative-roles').value=draft.alternativeRoles;
+ $('main-role-evidence').value=draft.roleEvidence;
+ $('strengths').value=draft.strengths;
+ $('development-areas').value=draft.developmentAreas;
+ $('final-verdict').value=draft.finalVerdict;
+ $('full-match-review-confirmed').checked=false;
+ pendingSupersedes=report.id;
+ $('report-form').scrollIntoView({behavior:'smooth',block:'start'});
+ message($('reports-message'),'Düzeltme taslağı hazırlandı: formu gözden geçir, tam maç onayını yeniden ver ve kaydet. Eski rapor değişmez; kanıt notu ve puan yeniden hesaplanır.','ok');
+}
+$('reports-body').addEventListener('click',async e=>{
+ const button=e.target.closest('button[data-report-action]');
+ if(!button)return;
+ const report=reports.find(r=>String(r.id)===button.dataset.reportId);
+ if(!report){message($('reports-message'),'Rapor bulunamadı; liste yenileniyor.','error');await loadReports();return}
+ const action=button.dataset.reportAction;
+ const buttons=Array.from(document.querySelectorAll('#reports-body button'));
+ buttons.forEach(b=>{b.disabled=true});
+ let outcome=null;
+ try{
+  if(action==='correction'){await prepareCorrectionDraft(report);buttons.forEach(b=>{b.disabled=false});return}
+  const t=REPORT_TRANSITIONS.find(x=>x.action===action);
+  if(t&&t.confirm&&!window.confirm(t.confirm)){buttons.forEach(b=>{b.disabled=false});return}
+  const result=await changeReportStatus(supabase,report,action,currentRole);
+  if(!result.ok){outcome={text:result.message,type:'error'}}
+  else{
+   let note=result.message;
+   if(result.to==='published'){
+    const player=records.find(p=>String(p.id)===String(report.player_id));
+    if(player&&player.profile_status!=='published')note+=' Oyuncu profili yayında olmadığı için rapor herkese açık listede görünmez.';
+    try{
+     const snapshot=await latestReportSnapshot(report.id);
+     const oldId=snapshot&&snapshot.supersedes_report_id;
+     const old=oldId&&reports.find(r=>String(r.id)===String(oldId));
+     if(old&&old.report_status==='published'&&window.confirm('Bu rapor daha önce yayınlanmış bir raporun düzeltmesi. Eski rapor arşivlensin mi?')){
+      const archived=await changeReportStatus(supabase,old,'archive',currentRole);
+      note+=archived.ok?' Eski rapor arşivlendi.':' Eski rapor arşivlenemedi: '+archived.message;
+     }
+    }catch(err){note+=' Önceki rapor bilgisi okunamadı: '+(err.message||'bilinmeyen hata')}
+   }
+   outcome={text:note,type:'ok'};
+  }
+ }catch(err){
+  outcome={text:'İşlem başarısız: '+(err.message||'bilinmeyen hata'),type:'error'};
+ }finally{
+  if(outcome){
+   await loadReports(true);
+   message($('reports-message'),outcome.text,outcome.type);
+  }
+ }
+});
 function formatMatchLabel(m){
  const home=clubs.find(c=>String(c.id)===String(m.home_club_id))?.name||'Ev sahibi';
  const away=clubs.find(c=>String(c.id)===String(m.away_club_id))?.name||'Deplasman';
@@ -1018,7 +1121,7 @@ $('report-form').addEventListener('submit',async e=>{
   });
   const player=records.find(p=>String(p.id)===String(playerId));
   const snapshot={
-   snapshot_schema_version:1,captured_at:new Date().toISOString(),source:'vel_scout_admin',
+   snapshot_schema_version:1,captured_at:new Date().toISOString(),source:'vel_scout_admin',supersedes_report_id:(pendingSupersedes&&reports.find(r=>String(r.id)===String(pendingSupersedes)&&String(r.player_id)===String(playerId)))?pendingSupersedes:null,
    player:player?{id:player.id,full_name:player.full_name,nationality:player.nationality||null,main_position:player.main_position||null,secondary_position:player.secondary_position||null}:{id:playerId},
    rubric:{id:rubric.id,version_code:rubric.version_code,position_group:rubric.position_group,methodology_version:rubric.methodology_version,scoring_anchors_version:rubric.scoring_anchors_version},
    report_fields:{
@@ -1046,7 +1149,7 @@ $('report-form').addEventListener('submit',async e=>{
   if(error)throw error;
   const result=Array.isArray(data)?data[0]:(data||{});
   if(!result.report_id)throw new Error('Rapor fonksiyonu beklenen rapor kimliğini döndürmedi. Sonuç kontrol edilmeden form temizlenmedi.');
-  $('report-form').reset();
+  $('report-form').reset();pendingSupersedes=null;
   $('report-date').value=new Date().toLocaleDateString('en-CA');
   populateReportSessions();
   const grade=result.evidence_grade||'Belirlenmedi';
