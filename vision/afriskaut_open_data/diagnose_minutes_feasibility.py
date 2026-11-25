@@ -103,9 +103,14 @@ def compare_counts(event_count: int, listed_count: int) -> str:
     return "events_more" if event_count > listed_count else "events_fewer"
 
 
+MIN_CELL_SIZE = 5  # public CI logs: no min/median/max for fewer than 5 records
+
+
 def spread(values: list[float]) -> dict | None:
     if not values:
         return None
+    if len(values) < MIN_CELL_SIZE:  # small cell: could describe one individual record
+        return {"n": len(values), "suppressed": True}
     return {"min": min(values), "median": statistics.median(values), "max": max(values), "n": len(values)}
 
 

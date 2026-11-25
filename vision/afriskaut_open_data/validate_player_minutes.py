@@ -23,9 +23,14 @@ TOLERANCES = (0, 10, 60)
 PRIMARY_TOLERANCE = 10
 
 
+MIN_CELL_SIZE = 5  # public CI logs: no min/median/max for fewer than 5 records
+
+
 def spread(values: list[float]) -> dict | None:
     if not values:
         return None
+    if len(values) < MIN_CELL_SIZE:  # small cell: could describe one individual record
+        return {"n": len(values), "suppressed": True}
     return {"min": round(min(values), 2), "median": round(statistics.median(values), 2),
             "max": round(max(values), 2), "n": len(values)}
 
