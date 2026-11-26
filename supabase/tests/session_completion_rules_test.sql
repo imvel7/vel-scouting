@@ -40,16 +40,15 @@ begin
   -- path: draft -> completed directly is blocked
   begin update public.scouting_sessions set status='completed', completed_at=now() where id=v_s;
     failed := failed || 'draft_to_completed_allowed ; '; exception when sqlstate '55000' then results := results || 'draft_to_completed_blocked:ok '; end;
-  update public.scouting_sessions set status='in_review' where id=v_s;
+  -- entering review with nothing saved is blocked (rule from 20261125203057)
+  begin update public.scouting_sessions set status='in_review' where id=v_s;
+    failed := failed || 'review_with_nothing_saved ; '; exception when sqlstate '55000' then results := results || 'review_needs_saved_criteria_blocked:ok '; end;
 
-  -- completion with nothing saved
-  begin update public.scouting_sessions set status='completed', completed_at=now() where id=v_s;
-    failed := failed || 'empty_completed ; '; exception when sqlstate '55000' then results := results || 'no_scores_blocked:ok '; end;
-
-  -- save all criteria as not observed with rationale (no scored criterion)
+  -- save all criteria as not observed with rationale (no scored criterion), then enter review
   for i in 1..v_n loop
     insert into public.criterion_scores(session_id, rubric_version_id, criterion_id, score, applicability, rationale) values (v_s, v_rv, v_crit[i], null, 'not_observed', 'no opportunity');
   end loop;
+  update public.scouting_sessions set status='in_review' where id=v_s;
   begin update public.scouting_sessions set status='completed', completed_at=now() where id=v_s;
     failed := failed || 'zero_scored_completed ; '; exception when sqlstate '55000' then results := results || 'zero_scored_blocked:ok '; end;
 
