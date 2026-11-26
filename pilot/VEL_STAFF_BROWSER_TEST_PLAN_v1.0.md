@@ -26,8 +26,8 @@ Canlı veritabanında doğruladım: yayınlanmış bir rapor (ve ona bağlı otu
 ## B. Kayıtlar (editor)
 | # | Adım | Beklenen |
 |---|------|----------|
-| B1 | Yeni oyuncu profili: `ZZ-TEST Oyuncu`, durum `draft` | Başarı mesajı, listede görünür |
-| B2 | Yeni maç kaydı, oyuncuyu maça bağla | Bağlantı listede |
+| B1 | Yeni oyuncu profili: `ZZ-TEST Oyuncu`, **ana mevki zorunlu** (Stoper), durum taslak | Başarı mesajı, listede görünür |
+| B2 | Önce iki test kulübü (ev sahibi ve deplasman zorunlu), sonra maç, sonra oyuncuyu maça bağla (temsil ettiği kulüp zorunlu) | Bağlantı listede |
 | B3 | Yeni scouting oturumu (rubrik seç) | Oturum "Taslak" |
 | B4 | Aynı oyuncu-maç için ikinci oturum denemesi | Mantıklı hata veya ayrı oturum; sessiz başarısızlık olmamalı |
 
