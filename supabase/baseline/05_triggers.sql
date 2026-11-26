@@ -1,0 +1,17 @@
+CREATE TRIGGER clubs_updated_at BEFORE UPDATE ON public.clubs FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE TRIGGER criterion_scores_guard_session_lock BEFORE INSERT OR DELETE OR UPDATE ON public.criterion_scores FOR EACH ROW EXECUTE FUNCTION private.guard_scouting_session_children();
+CREATE TRIGGER criterion_scores_set_updated_at BEFORE UPDATE ON public.criterion_scores FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE TRIGGER matches_updated_at BEFORE UPDATE ON public.matches FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE TRIGGER observations_guard_session_lock BEFORE INSERT OR DELETE OR UPDATE ON public.observations FOR EACH ROW EXECUTE FUNCTION private.guard_scouting_session_children();
+CREATE TRIGGER players_updated_at BEFORE UPDATE ON public.players FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE TRIGGER report_versions_guard_history BEFORE DELETE OR UPDATE ON public.report_versions FOR EACH ROW EXECUTE FUNCTION private.guard_report_versions_history();
+CREATE TRIGGER rubric_versions_set_updated_at BEFORE UPDATE ON public.rubric_versions FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE TRIGGER scout_report_sessions_guard_history BEFORE INSERT OR DELETE OR UPDATE ON public.scout_report_sessions FOR EACH ROW EXECUTE FUNCTION private.guard_report_sessions_history();
+CREATE TRIGGER scout_reports_guard_history BEFORE DELETE OR UPDATE ON public.scout_reports FOR EACH ROW EXECUTE FUNCTION private.guard_scout_report_history();
+CREATE TRIGGER scout_reports_guard_insert BEFORE INSERT ON public.scout_reports FOR EACH ROW EXECUTE FUNCTION private.guard_scout_report_insert();
+CREATE TRIGGER scout_reports_updated_at BEFORE UPDATE ON public.scout_reports FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE TRIGGER scouting_session_videos_guard_session_lock BEFORE INSERT OR DELETE OR UPDATE ON public.scouting_session_videos FOR EACH ROW EXECUTE FUNCTION private.guard_scouting_session_children();
+CREATE TRIGGER scouting_sessions_guard_immutable BEFORE DELETE OR UPDATE ON public.scouting_sessions FOR EACH ROW EXECUTE FUNCTION private.guard_scouting_session_changes();
+CREATE TRIGGER scouting_sessions_set_updated_at BEFORE UPDATE ON public.scouting_sessions FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE TRIGGER scouting_sessions_validate_completion BEFORE UPDATE ON public.scouting_sessions FOR EACH ROW EXECUTE FUNCTION private.validate_scouting_session_completion();
+CREATE TRIGGER trg_seed_default_video_rights_assessments AFTER INSERT ON public.videos FOR EACH ROW EXECUTE FUNCTION private.seed_default_video_rights_assessments();
