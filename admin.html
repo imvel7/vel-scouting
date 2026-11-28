@@ -26,7 +26,7 @@
 </form>
 </section>
 <section id="dashboard" class="hidden">
-<div class="panel"><div class="tag">Control room</div><h1>Yönetim paneli</h1><p id="welcome" class="muted">Yetkili oturumu doğrulandı.</p><div id="dashboard-message" class="notice ok">Yönetici erişimi doğrulandı.</div></div>
+<div class="panel"><div class="tag">Control room</div><h1>Yönetim paneli</h1><p id="welcome" class="muted">Yetkili oturumu doğrulandı.</p><div id="dashboard-message" class="notice ok">Yetkili erişimi doğrulanıyor...</div></div>
 <div class="panel">
 <div class="tag">Security diagnostics</div><h2>Supabase erişim testi</h2>
 <p class="muted">Bu test gerçek tarayıcı oturumundan salt-okunur Data API istekleri gönderir. Özel tabloların anonim erişime kapalı olduğunu ve mevcut personel hesabının rubrik verisini okuyabildiğini kontrol eder. Hiçbir kayıt oluşturmaz, güncellemez veya silmez.</p>
@@ -311,8 +311,21 @@ const loginPanel=$('login-panel'),dashboard=$('dashboard');
 let currentUser=null,currentRole=null,pendingSupersedes=null,records=[],clubs=[],competitions=[],seasons=[],reports=[],matches=[],playerMatches=[],rubrics=[],scoutingSessions=[],videoSources=[],videos=[],sessionVideos=[],videoAccessChecks=[],videoRightsAssessments=[],rubricCategories=[],rubricCriteria=[],observations=[],criterionScores=[];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function message(el,text,type=''){el.textContent=text;el.className='notice '+type}
+// LOGIN-UI-START
+const ROLE_LABELS={admin:'Yönetici',editor:'Editör'};
+function roleLabel(role){return ROLE_LABELS[role]||'Bilinmeyen rol'}
+function loginErrorText(err){
+ const raw=String((err&&err.message)||'');
+ if(/invalid login credentials/i.test(raw))return 'E-posta veya şifre hatalı. Bilgileri kontrol edip tekrar dene.';
+ if(/email not confirmed/i.test(raw))return 'Bu hesabın e-posta adresi henüz onaylanmamış.';
+ if(/rate limit|too many/i.test(raw))return 'Çok fazla deneme yapıldı. Biraz bekleyip tekrar dene.';
+ if(/failed to fetch|network|load failed/i.test(raw))return 'Bağlantı kurulamadı. İnternet bağlantını kontrol et.';
+ return raw||'Giriş başarısız. Bilgileri kontrol et.';
+}
+function dashboardAccessText(role){return 'Giriş doğrulandı. Rolün: '+roleLabel(role)+'.'}
+// LOGIN-UI-END
 function showLogin(text,type=''){loginPanel.classList.remove('hidden');dashboard.classList.add('hidden');$('logout').classList.add('hidden');if(text)message($('login-message'),text,type)}
-function showDashboard(){loginPanel.classList.add('hidden');dashboard.classList.remove('hidden');$('logout').classList.remove('hidden');$('welcome').textContent='Oturum: '+(currentUser.email||'Yetkili kullanıcı')}
+function showDashboard(){loginPanel.classList.add('hidden');dashboard.classList.remove('hidden');$('logout').classList.remove('hidden');$('welcome').textContent='Oturum: '+(currentUser.email||'Yetkili kullanıcı')+' · Rol: '+roleLabel(currentRole);message($('dashboard-message'),dashboardAccessText(currentRole),'ok')}
 async function runSecurityDiagnostics(){
  const btn=$('run-security-tests'),body=$('security-tests-body'),summary=$('security-tests-message');
  btn.disabled=true;btn.textContent='Test ediliyor...';
@@ -1078,7 +1091,7 @@ function editPlayer(id){
 $('login-form').addEventListener('submit',async e=>{
  e.preventDefault();const btn=e.submitter;btn.disabled=true;btn.textContent='Kontrol ediliyor...';
  try{const {data,error}=await supabase.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});if(error)throw error;await verifyAndLoad(data.user)}
- catch(err){await supabase.auth.signOut();showLogin(err.message||'Giriş başarısız. Bilgileri kontrol et.','error')}
+ catch(err){await supabase.auth.signOut();showLogin(loginErrorText(err),'error')}
  finally{btn.disabled=false;btn.textContent='Giriş yap'}
 });
 $('player-form').addEventListener('submit',async e=>{
